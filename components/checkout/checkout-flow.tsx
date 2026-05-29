@@ -58,15 +58,18 @@ export function CheckoutFlow() {
   const [shipping, setShipping] = useState("pac");
   const [payment, setPayment] = useState("pix");
   const [orderPlaced, setOrderPlaced] = useState(false);
-  const [orderNumber] = useState(`GU${String(Math.floor(100000 + Math.random() * 900000))}`);
+  const [orderNumber, setOrderNumber] = useState("");
   const [ident, setIdent] = useState<IdentData>(emptyIdent);
   const [addr, setAddr] = useState<AddrData>(emptyAddr);
   const [phoneCountry, setPhoneCountry] = useState("BR");
   const [cepLoading, setCepLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    setOrderNumber(`GU${String(Math.floor(100000 + Math.random() * 900000))}`);
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
@@ -85,9 +88,10 @@ export function CheckoutFlow() {
     });
   }, []);
 
-  const { items, updateQty, removeItem, itemCount, subtotal, clear } = useCartStore();
-  const count = itemCount();
-  const sub = subtotal();
+  const { items: storeItems, updateQty, removeItem, itemCount, subtotal, clear } = useCartStore();
+  const items = mounted ? storeItems : [];
+  const count = mounted ? itemCount() : 0;
+  const sub = mounted ? subtotal() : 0;
 
   const selectedShipping = SHIPPING_OPTIONS.find((s) => s.id === shipping)!;
   const shippingPrice = sub >= 200 ? 0 : selectedShipping.price;
