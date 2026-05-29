@@ -4,11 +4,12 @@ import { cn } from "@/lib/utils";
 
 interface LogoProps {
   className?: string;
+  imageClassName?: string;
   variant?: "default" | "white";
   href?: string;
 }
 
-export function Logo({ className, variant = "default", href = "/editora" }: LogoProps) {
+export function Logo({ className, imageClassName, variant = "default", href = "/editora" }: LogoProps) {
   const content = (
     <div className={cn("flex items-center", className)}>
       <Image
@@ -16,7 +17,7 @@ export function Logo({ className, variant = "default", href = "/editora" }: Logo
         alt="Editora Jocum"
         width={120}
         height={40}
-        className={cn("h-10 w-auto object-contain", variant === "white" && "brightness-0 invert")}
+        className={cn("h-10 w-auto object-contain mix-blend-multiply", variant === "white" && "brightness-0 invert", imageClassName)}
         priority
       />
     </div>

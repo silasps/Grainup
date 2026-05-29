@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowRight, BookOpen, Truck, ShieldCheck, Star } from "lucide-react";
+import { ArrowRight, Truck, ShieldCheck, Star, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { BookCard } from "@/components/editora/book-card";
+import { HeroBookCarousel } from "@/components/editora/hero-book-carousel";
+import { BookShelf } from "@/components/editora/book-shelf";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -26,7 +25,7 @@ async function getHomeData() {
       .eq("is_active", true)
       .eq("is_bestseller", true)
       .order("sales_count", { ascending: false })
-      .limit(8),
+      .limit(10),
 
     supabase
       .from("books")
@@ -34,7 +33,7 @@ async function getHomeData() {
       .eq("is_active", true)
       .eq("is_new", true)
       .order("created_at", { ascending: false })
-      .limit(8),
+      .limit(10),
 
     supabase
       .from("books")
@@ -42,7 +41,7 @@ async function getHomeData() {
       .eq("is_active", true)
       .eq("is_featured", true)
       .order("rating_avg", { ascending: false })
-      .limit(4),
+      .limit(8),
 
     supabase
       .from("reviews")
@@ -80,53 +79,68 @@ function normalizeBook(b: Record<string, unknown>) {
 export default async function EditoraHomePage() {
   const { bestsellers, newBooks, featuredBooks, reviews } = await getHomeData();
 
-  const hasBestsellers = bestsellers.length > 0;
-  const hasNew = newBooks.length > 0;
+  const heroBooks = (
+    featuredBooks.length > 0 ? featuredBooks : bestsellers.slice(0, 6)
+  ).map(normalizeBook);
+
+  const featuredNorm = featuredBooks.map(normalizeBook);
+  const bestsellersNorm = bestsellers.map(normalizeBook);
+  const newBooksNorm = newBooks.map(normalizeBook);
 
   return (
     <div className="flex flex-col">
       {/* HERO */}
       <section className="relative bg-gradient-to-br from-foreground via-foreground/95 to-brand-800 text-white overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[url('/grid.svg')] bg-center" />
-        <div className="container mx-auto max-w-7xl px-4 py-20 sm:py-28 lg:py-32 relative">
-          <div className="max-w-2xl">
-            <Badge className="mb-6 bg-brand hover:bg-brand text-white text-xs px-3 py-1">
-              Editora Jocum Brasil
-            </Badge>
-            <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight text-balance mb-6">
-              Livros que transformam
-              <span className="text-brand"> vidas</span>
-            </h1>
-            <p className="text-lg text-white/70 leading-relaxed mb-8 max-w-xl">
-              Conhecer a Deus e fazê-lo conhecido. Explore nosso catálogo com mais de 200 títulos
-              sobre missões, liderança, família, oração e vida cristã.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                size="lg"
-                className="bg-brand hover:bg-brand-700 text-white font-semibold px-8"
-                asChild
-              >
-                <Link href="/editora/livros">
-                  Ver catálogo completo
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="bg-transparent border-white text-white hover:bg-white hover:text-primary"
-                asChild
-              >
-                <Link href="/editora/ofertas">Ver ofertas</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
+        <div className="container mx-auto max-w-7xl px-4 py-16 sm:py-24 lg:py-28 relative">
+          <div className="grid lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px] gap-8 lg:gap-12 items-center">
 
-        {/* Decoração */}
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 hidden lg:flex items-center justify-center opacity-20">
-          <BookOpen className="w-64 h-64" />
+            {/* Texto + CTAs */}
+            <div>
+              <Badge className="mb-6 bg-brand hover:bg-brand text-white text-xs px-3 py-1">
+                Editora Jocum Brasil
+              </Badge>
+              <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight text-balance mb-6">
+                Livros que transformam
+                <span className="text-brand"> vidas</span>
+              </h1>
+              <p className="text-lg text-white/70 leading-relaxed mb-8 max-w-xl">
+                Conhecer a Deus e fazê-lo conhecido. Explore nosso catálogo com mais de 200 títulos
+                sobre missões, liderança, família, oração e vida cristã.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  size="lg"
+                  className="bg-brand hover:bg-brand-700 text-white font-semibold px-8"
+                  asChild
+                >
+                  <Link href="/editora/livros">
+                    Ver catálogo completo
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="bg-transparent border-white text-white hover:bg-white hover:text-primary"
+                  asChild
+                >
+                  <Link href="/editora/ofertas">Ver ofertas</Link>
+                </Button>
+              </div>
+            </div>
+
+            {/* Carrossel de capas — desktop only */}
+            {heroBooks.length > 0 ? (
+              <div className="hidden lg:flex items-center justify-center">
+                <HeroBookCarousel books={heroBooks} />
+              </div>
+            ) : (
+              <div className="hidden lg:flex items-center justify-center opacity-15">
+                <BookOpen className="w-52 h-52" />
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -154,104 +168,87 @@ export default async function EditoraHomePage() {
         </div>
       </section>
 
-      {/* DESTAQUES */}
-      {featuredBooks.length > 0 && (
-        <section className="py-16 bg-brand-50">
+      {/* DESTAQUES — prateleira horizontal */}
+      {featuredNorm.length > 0 && (
+        <section className="py-14 bg-brand-50">
           <div className="container mx-auto max-w-7xl px-4">
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-end justify-between mb-6">
               <div>
                 <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
                   Destaques da Editora
                 </h2>
-                <p className="text-muted-foreground mt-1">Livros mais bem avaliados pelos leitores</p>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Livros mais bem avaliados pelos leitores
+                </p>
               </div>
-              <Button variant="ghost" className="text-brand hover:text-brand-700 hidden sm:flex" asChild>
+              <Button variant="ghost" className="text-brand hover:text-brand-700 text-sm shrink-0" asChild>
                 <Link href="/editora/livros?ordenar=avaliacao">
-                  Ver todos <ArrowRight className="ml-1 h-4 w-4" />
+                  Ver todos <ArrowRight className="ml-1 h-3.5 w-3.5" />
                 </Link>
               </Button>
             </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {featuredBooks.map((b) => (
-                <BookCard key={b.id as string} book={normalizeBook(b as Record<string, unknown>)} />
-              ))}
-            </div>
+            <BookShelf books={featuredNorm} />
           </div>
         </section>
       )}
 
-      {/* MAIS VENDIDOS */}
-      {hasBestsellers && (
-        <section className="py-16">
+      {/* MAIS VENDIDOS — prateleira horizontal */}
+      {bestsellersNorm.length > 0 && (
+        <section className="py-14">
           <div className="container mx-auto max-w-7xl px-4">
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-end justify-between mb-6">
               <div>
                 <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
                   Mais vendidos
                 </h2>
-                <p className="text-muted-foreground mt-1">Os favoritos dos nossos leitores</p>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Os favoritos dos nossos leitores
+                </p>
               </div>
-              <Button variant="ghost" className="text-brand hover:text-brand-700 hidden sm:flex" asChild>
+              <Button variant="ghost" className="text-brand hover:text-brand-700 text-sm shrink-0" asChild>
                 <Link href="/editora/livros?ordenar=mais-vendidos">
-                  Ver todos <ArrowRight className="ml-1 h-4 w-4" />
+                  Ver todos <ArrowRight className="ml-1 h-3.5 w-3.5" />
                 </Link>
               </Button>
             </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {bestsellers.map((b) => (
-                <BookCard key={b.id as string} book={normalizeBook(b as Record<string, unknown>)} />
-              ))}
-            </div>
-
-            <div className="mt-8 text-center sm:hidden">
-              <Button variant="outline" className="border-brand text-brand hover:bg-brand-50" asChild>
-                <Link href="/editora/livros?ordenar=mais-vendidos">
-                  Ver todos os mais vendidos
-                </Link>
-              </Button>
-            </div>
+            <BookShelf books={bestsellersNorm} />
           </div>
         </section>
       )}
 
-      {/* LANÇAMENTOS */}
-      {hasNew && (
-        <section className="py-16 bg-secondary">
+      {/* LANÇAMENTOS — prateleira horizontal */}
+      {newBooksNorm.length > 0 && (
+        <section className="py-14 bg-secondary">
           <div className="container mx-auto max-w-7xl px-4">
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-end justify-between mb-6">
               <div>
                 <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
                   Lançamentos
                 </h2>
-                <p className="text-muted-foreground mt-1">Novidades que chegaram à editora</p>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Novidades que acabaram de chegar
+                </p>
               </div>
-              <Button variant="ghost" className="text-brand hover:text-brand-700 hidden sm:flex" asChild>
+              <Button variant="ghost" className="text-brand hover:text-brand-700 text-sm shrink-0" asChild>
                 <Link href="/editora/livros?ordenar=lancamentos">
-                  Ver todos <ArrowRight className="ml-1 h-4 w-4" />
+                  Ver todos <ArrowRight className="ml-1 h-3.5 w-3.5" />
                 </Link>
               </Button>
             </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {newBooks.map((b) => (
-                <BookCard key={b.id as string} book={normalizeBook(b as Record<string, unknown>)} />
-              ))}
-            </div>
+            <BookShelf books={newBooksNorm} />
           </div>
         </section>
       )}
 
       {/* PROVA SOCIAL — Avaliações */}
       {reviews.length > 0 && (
-        <section className="py-16">
+        <section className="py-14">
           <div className="container mx-auto max-w-7xl px-4">
             <div className="text-center mb-10">
               <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground mb-2">
                 O que dizem nossos leitores
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Avaliações verificadas de quem comprou e leu nossos livros
               </p>
             </div>
@@ -330,7 +327,7 @@ export default async function EditoraHomePage() {
               className="border-white/30 text-white hover:bg-white/10 hover:text-white"
               asChild
             >
-              <Link href="/afiliados">Seja um afiliado</Link>
+              <Link href="/editora/afiliados">Seja um afiliado</Link>
             </Button>
           </div>
         </div>

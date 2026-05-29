@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { EditoraHeader } from "@/components/editora/header";
 import { EditoraFooter } from "@/components/editora/footer";
+import { PromoBanner } from "@/components/editora/promo-banner";
 import { WhatsAppButton } from "@/components/shared/whatsapp-button";
 import { CookieBanner } from "@/components/shared/cookie-banner";
 
@@ -19,6 +20,7 @@ export default function EditoraLayout({
 }) {
   return (
     <>
+      <PromoBanner />
       <EditoraHeader />
       <main className="flex-1">{children}</main>
       <EditoraFooter />

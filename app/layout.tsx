@@ -24,6 +24,12 @@ export const metadata: Metadata = {
     "Livros que transformam vidas. Conhecer a Deus e fazê-lo conhecido.",
   keywords: ["livros cristãos", "editora jocum", "missões", "literatura cristã"],
   authors: [{ name: "Editora Jocum" }],
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Editora Jocum",
+  },
   openGraph: {
     type: "website",
     locale: "pt_BR",

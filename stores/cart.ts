@@ -11,20 +11,29 @@ export interface CartItem {
   quantity: number;
 }
 
+export type CartItemInput = Omit<CartItem, "quantity">;
+
 interface CartState {
   items: CartItem[];
-  addItem: (item: Omit<CartItem, "quantity">) => void;
+  // buyNowItem: fluxo "Comprar agora" — isolado do carrinho, não persistido
+  buyNowItem: CartItemInput | null;
+
+  addItem: (item: CartItemInput) => void;
   removeItem: (id: string) => void;
   updateQty: (id: string, qty: number) => void;
   clear: () => void;
   itemCount: () => number;
   subtotal: () => number;
+
+  setBuyNow: (item: CartItemInput) => void;
+  clearBuyNow: () => void;
 }
 
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      buyNowItem: null,
 
       addItem: (item) =>
         set((state) => {
@@ -56,7 +65,14 @@ export const useCartStore = create<CartState>()(
 
       subtotal: () =>
         get().items.reduce((s, i) => s + i.price * i.quantity, 0),
+
+      setBuyNow: (item) => set({ buyNowItem: item }),
+      clearBuyNow: () => set({ buyNowItem: null }),
     }),
-    { name: "grainup-cart" }
+    {
+      name: "grainup-cart",
+      // buyNowItem não é persistido — sempre começa null após reload
+      partialize: (state) => ({ items: state.items }),
+    }
   )
 );

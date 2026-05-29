@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Logo } from "@/components/shared/logo";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -63,13 +64,12 @@ function LoginForm() {
   }
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="bg-white rounded-2xl shadow-sm border border-border p-8 flex flex-col gap-6">
-        <div className="text-center">
+    <div className="w-full max-w-sm flex flex-col items-center gap-5">
+      <Logo href="/editora" imageClassName="h-16" />
+      <div className="bg-white rounded-2xl shadow-sm border border-border p-8 flex flex-col gap-6 w-full">
+        <div className="flex flex-col items-center gap-1 text-center">
+          <p className="text-muted-foreground text-sm">Bem-vindo de volta.</p>
           <h1 className="font-heading text-2xl font-bold text-foreground">Entrar</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Acesse sua conta Editora Jocum
-          </p>
         </div>
 
         {/* Google */}

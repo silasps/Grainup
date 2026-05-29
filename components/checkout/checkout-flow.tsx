@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  Check, ChevronRight, ShoppingBag, User, MapPin, Truck,
-  CreditCard, PackageCheck, Minus, Plus, Trash2, Loader2,
+  Check, ChevronRight, User, MapPin, Truck,
+  CreditCard, PackageCheck, Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,9 @@ import { formatCurrency } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import { PhoneInput, COUNTRIES } from "@/components/checkout/phone-input";
 
-type Step = "carrinho" | "identificacao" | "endereco" | "entrega" | "confirmacao";
+type Step = "identificacao" | "endereco" | "entrega" | "confirmacao";
 
 const STEPS: Array<{ id: Step; label: string; icon: React.ElementType }> = [
-  { id: "carrinho", label: "Carrinho", icon: ShoppingBag },
   { id: "identificacao", label: "Identificação", icon: User },
   { id: "endereco", label: "Endereço", icon: MapPin },
   { id: "entrega", label: "Entrega", icon: Truck },
@@ -54,7 +53,7 @@ const emptyAddr: AddrData = {
 };
 
 export function CheckoutFlow() {
-  const [step, setStep] = useState<Step>("carrinho");
+  const [step, setStep] = useState<Step>("identificacao");
   const [shipping, setShipping] = useState("pac");
   const [payment, setPayment] = useState("pix");
   const [orderPlaced, setOrderPlaced] = useState(false);
@@ -88,10 +87,16 @@ export function CheckoutFlow() {
     });
   }, []);
 
-  const { items: storeItems, updateQty, removeItem, itemCount, subtotal, clear } = useCartStore();
-  const items = mounted ? storeItems : [];
-  const count = mounted ? itemCount() : 0;
-  const sub = mounted ? subtotal() : 0;
+  const { items: storeItems, buyNowItem, itemCount, subtotal, clear, clearBuyNow } = useCartStore();
+
+  // "Comprar agora" usa apenas o buyNowItem, ignorando o carrinho regular
+  const items = mounted
+    ? buyNowItem
+      ? [{ ...buyNowItem, quantity: 1 }]
+      : storeItems
+    : [];
+  const count = items.reduce((s, i) => s + i.quantity, 0);
+  const sub = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
   const selectedShipping = SHIPPING_OPTIONS.find((s) => s.id === shipping)!;
   const shippingPrice = sub >= 200 ? 0 : selectedShipping.price;
@@ -204,6 +209,7 @@ export function CheckoutFlow() {
     setOrderPlaced(true);
     setStep("confirmacao");
     clear();
+    clearBuyNow();
   }
 
   if (orderPlaced && step === "confirmacao") {
@@ -260,7 +266,7 @@ export function CheckoutFlow() {
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
       {/* Stepper */}
-      <div className="flex items-center mb-8 overflow-x-auto pb-2">
+      <div className="flex items-center mb-8 overflow-x-auto px-1 py-1">
         {visibleSteps.map((s, i) => {
           const done = visibleStepIndex > i;
           const active = visibleStepIndex === i;
@@ -305,85 +311,6 @@ export function CheckoutFlow() {
         {/* Main content */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl border border-border p-6">
-
-            {/* ── Step: Carrinho ── */}
-            {step === "carrinho" && (
-              <div>
-                <h2 className="font-heading font-bold text-lg mb-5">
-                  Itens no carrinho ({count})
-                </h2>
-                {items.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground mb-4">Seu carrinho está vazio.</p>
-                    <Button variant="outline" asChild>
-                      <Link href="/editora/livros">Ver livros</Link>
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    {items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex gap-4 pb-4 border-b border-border last:border-0"
-                      >
-                        <div className="relative w-14 h-[72px] rounded-lg overflow-hidden bg-secondary flex-shrink-0">
-                          {item.coverUrl ? (
-                            <Image
-                              src={item.coverUrl}
-                              alt={item.title}
-                              fill
-                              className="object-cover"
-                              sizes="56px"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-lg">
-                              📖
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm line-clamp-2">{item.title}</p>
-                          <p className="text-sm font-bold text-brand mt-0.5">
-                            {formatCurrency(item.price * item.quantity)}
-                          </p>
-                          <div className="flex items-center gap-1 mt-2">
-                            <button
-                              onClick={() =>
-                                item.quantity > 1
-                                  ? updateQty(item.id, item.quantity - 1)
-                                  : removeItem(item.id)
-                              }
-                              className="p-1 hover:bg-secondary rounded transition-colors"
-                            >
-                              {item.quantity > 1 ? (
-                                <Minus className="h-3 w-3" />
-                              ) : (
-                                <Trash2 className="h-3 w-3 text-destructive" />
-                              )}
-                            </button>
-                            <span className="text-xs font-medium px-2">{item.quantity}</span>
-                            <button
-                              onClick={() => updateQty(item.id, item.quantity + 1)}
-                              className="p-1 hover:bg-secondary rounded transition-colors"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    <Button
-                      className="bg-brand hover:bg-brand-700 text-white mt-2"
-                      onClick={goNext}
-                    >
-                      Continuar
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* ── Step: Identificação ── */}
             {step === "identificacao" && (

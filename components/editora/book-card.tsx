@@ -37,6 +37,7 @@ interface BookCardProps {
 export function BookCard({ book, className }: BookCardProps) {
   const [ready, setReady] = useState(!book.coverUrl);
   const addItem = useCartStore((s) => s.addItem);
+  const setBuyNow = useCartStore((s) => s.setBuyNow);
   const router = useRouter();
 
   const hasDiscount = book.pricePromotional && book.pricePromotional < book.price;
@@ -59,7 +60,7 @@ export function BookCard({ book, className }: BookCardProps) {
 
   function handleBuyNow(e: React.MouseEvent) {
     e.preventDefault();
-    addItem(cartItem());
+    setBuyNow(cartItem());
     router.push("/checkout");
   }
 
