@@ -27,7 +27,6 @@ async function getCatalogData() {
     supabase
       .from("categories")
       .select("id, name, slug")
-      .eq("is_active", true)
       .order("name"),
   ]);
 

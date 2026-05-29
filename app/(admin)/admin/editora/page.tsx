@@ -70,7 +70,7 @@ async function getDashboardData() {
     // Financial movements for chart (6 months)
     supabase
       .from("financial_movements")
-      .select("amount, type, created_at")
+      .select("net_amount, status, created_at")
       .gte("created_at", sixMonthsAgo),
 
     // Reviews

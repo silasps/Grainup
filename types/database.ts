@@ -48,7 +48,7 @@ export type FiscalStatus =
   | "erro_emissao"
   | "pendencia_fiscal";
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       profiles: {
@@ -64,6 +64,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["profiles"]["Row"], "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
+        Relationships: never[];
       };
       user_roles: {
         Row: {
@@ -74,6 +75,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["user_roles"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["user_roles"]["Insert"]>;
+        Relationships: never[];
       };
       authors: {
         Row: {
@@ -86,6 +88,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["authors"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["authors"]["Insert"]>;
+        Relationships: never[];
       };
       categories: {
         Row: {
@@ -97,6 +100,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["categories"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;
+        Relationships: never[];
       };
       books: {
         Row: {
@@ -133,8 +137,63 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["books"]["Row"], "id" | "sales_count" | "rating_avg" | "rating_count" | "created_at" | "updated_at">;
-        Update: Partial<Database["public"]["Tables"]["books"]["Insert"]>;
+        Insert: {
+          title: string;
+          subtitle?: string | null;
+          slug: string;
+          author_id?: string | null;
+          category_id?: string | null;
+          cover_url?: string | null;
+          description_short?: string | null;
+          description_full?: string | null;
+          price: number;
+          price_promotional?: number | null;
+          stock?: number;
+          weight_grams?: number | null;
+          height_cm?: number | null;
+          width_cm?: number | null;
+          length_cm?: number | null;
+          pages?: number | null;
+          isbn?: string | null;
+          sku?: string | null;
+          ncm?: string | null;
+          cfop?: string | null;
+          publisher?: string | null;
+          published_at?: string | null;
+          is_active?: boolean;
+          is_featured?: boolean;
+          is_new?: boolean;
+          is_bestseller?: boolean;
+        };
+        Update: {
+          title?: string;
+          subtitle?: string | null;
+          slug?: string;
+          author_id?: string | null;
+          category_id?: string | null;
+          cover_url?: string | null;
+          description_short?: string | null;
+          description_full?: string | null;
+          price?: number;
+          price_promotional?: number | null;
+          stock?: number;
+          weight_grams?: number | null;
+          height_cm?: number | null;
+          width_cm?: number | null;
+          length_cm?: number | null;
+          pages?: number | null;
+          isbn?: string | null;
+          sku?: string | null;
+          ncm?: string | null;
+          cfop?: string | null;
+          publisher?: string | null;
+          published_at?: string | null;
+          is_active?: boolean;
+          is_featured?: boolean;
+          is_new?: boolean;
+          is_bestseller?: boolean;
+        };
+        Relationships: never[];
       };
       book_images: {
         Row: {
@@ -147,6 +206,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["book_images"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["book_images"]["Insert"]>;
+        Relationships: never[];
       };
       combos: {
         Row: {
@@ -163,6 +223,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["combos"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["combos"]["Insert"]>;
+        Relationships: never[];
       };
       combo_items: {
         Row: {
@@ -173,6 +234,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["combo_items"]["Row"], "id">;
         Update: Partial<Database["public"]["Tables"]["combo_items"]["Insert"]>;
+        Relationships: never[];
       };
       offers: {
         Row: {
@@ -192,6 +254,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["offers"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["offers"]["Insert"]>;
+        Relationships: never[];
       };
       addresses: {
         Row: {
@@ -211,6 +274,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["addresses"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["addresses"]["Insert"]>;
+        Relationships: never[];
       };
       orders: {
         Row: {
@@ -238,6 +302,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["orders"]["Row"], "id" | "order_number" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]>;
+        Relationships: never[];
       };
       order_items: {
         Row: {
@@ -252,6 +317,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["order_items"]["Row"], "id">;
         Update: Partial<Database["public"]["Tables"]["order_items"]["Insert"]>;
+        Relationships: never[];
       };
       shipping_rates: {
         Row: {
@@ -267,6 +333,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["shipping_rates"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["shipping_rates"]["Insert"]>;
+        Relationships: never[];
       };
       reviews: {
         Row: {
@@ -282,6 +349,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["reviews"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["reviews"]["Insert"]>;
+        Relationships: never[];
       };
       leads: {
         Row: {
@@ -296,6 +364,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["leads"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["leads"]["Insert"]>;
+        Relationships: never[];
       };
       support_tickets: {
         Row: {
@@ -314,6 +383,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["support_tickets"]["Row"], "id" | "ticket_number" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["support_tickets"]["Insert"]>;
+        Relationships: never[];
       };
       support_messages: {
         Row: {
@@ -327,6 +397,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["support_messages"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["support_messages"]["Insert"]>;
+        Relationships: never[];
       };
       faqs: {
         Row: {
@@ -341,6 +412,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["faqs"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["faqs"]["Insert"]>;
+        Relationships: never[];
       };
       faq_categories: {
         Row: {
@@ -352,6 +424,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["faq_categories"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["faq_categories"]["Insert"]>;
+        Relationships: never[];
       };
       news_posts: {
         Row: {
@@ -368,6 +441,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["news_posts"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["news_posts"]["Insert"]>;
+        Relationships: never[];
       };
       financial_movements: {
         Row: {
@@ -388,6 +462,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["financial_movements"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["financial_movements"]["Insert"]>;
+        Relationships: never[];
       };
       fiscal_documents: {
         Row: {
@@ -405,6 +480,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["fiscal_documents"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["fiscal_documents"]["Insert"]>;
+        Relationships: never[];
       };
       affiliates: {
         Row: {
@@ -428,6 +504,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["affiliates"]["Row"], "id" | "balance" | "balance_pending" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["affiliates"]["Insert"]>;
+        Relationships: never[];
       };
       affiliate_links: {
         Row: {
@@ -440,6 +517,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["affiliate_links"]["Row"], "id" | "clicks" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["affiliate_links"]["Insert"]>;
+        Relationships: never[];
       };
       affiliate_sales: {
         Row: {
@@ -453,6 +531,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["affiliate_sales"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["affiliate_sales"]["Insert"]>;
+        Relationships: never[];
       };
       contact_settings: {
         Row: {
@@ -471,6 +550,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["contact_settings"]["Row"], "updated_at">;
         Update: Partial<Database["public"]["Tables"]["contact_settings"]["Insert"]>;
+        Relationships: never[];
       };
       legal_pages: {
         Row: {
@@ -482,6 +562,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["legal_pages"]["Row"], "updated_at">;
         Update: Partial<Database["public"]["Tables"]["legal_pages"]["Insert"]>;
+        Relationships: never[];
       };
     };
     Views: Record<string, never>;
