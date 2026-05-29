@@ -49,7 +49,7 @@ export function BookShelf({ books, className }: BookShelfProps) {
         {books.map((book) => (
           <div
             key={book.id}
-            className="snap-start flex-shrink-0 w-[46vw] sm:w-44 lg:w-48 xl:w-52"
+            className="snap-start flex-shrink-0 w-[46vw] sm:w-44 lg:w-48 xl:w-52 flex flex-col"
           >
             <BookCard book={book} />
           </div>

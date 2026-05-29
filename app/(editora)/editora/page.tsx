@@ -324,7 +324,7 @@ export default async function EditoraHomePage() {
             <Button
               size="lg"
               variant="outline"
-              className="border-white/30 text-white hover:bg-white/10 hover:text-white"
+              className="bg-transparent border-white/50 text-white hover:bg-white/10 hover:text-white hover:border-white"
               asChild
             >
               <Link href="/editora/afiliados">Seja um afiliado</Link>

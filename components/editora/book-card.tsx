@@ -76,7 +76,7 @@ export function BookCard({ book, className }: BookCardProps) {
   return (
     <article
       className={cn(
-        "group flex flex-col bg-card rounded-xl border border-border overflow-hidden",
+        "group flex flex-col h-full bg-card rounded-xl border border-border overflow-hidden",
         "transition-all duration-200 hover:shadow-md hover:-translate-y-0.5",
         className
       )}

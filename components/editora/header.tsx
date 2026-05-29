@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, Search, User } from "lucide-react";
@@ -21,9 +21,22 @@ export function EditoraHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const lastScrollY = useRef(0);
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 8);
+    const handler = () => {
+      const y = window.scrollY;
+      setScrolled(y > 8);
+      if (y < 8) {
+        setVisible(true);
+      } else if (y > lastScrollY.current + 4) {
+        setVisible(false);
+      } else if (y < lastScrollY.current - 4) {
+        setVisible(true);
+      }
+      lastScrollY.current = y;
+    };
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
   }, []);
@@ -36,10 +49,11 @@ export function EditoraHeader() {
     <>
       <header
         className={cn(
-          "fixed top-0 left-0 right-0 z-40 transition-all duration-200",
+          "fixed top-0 left-0 right-0 z-40 transition-all duration-300",
           scrolled
             ? "bg-white/95 backdrop-blur-sm shadow-sm"
-            : "bg-white border-b border-border"
+            : "bg-white border-b border-border",
+          !visible && !menuOpen && "-translate-y-full"
         )}
       >
         <div className="container mx-auto max-w-7xl px-4">
