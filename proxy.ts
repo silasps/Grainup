@@ -11,7 +11,6 @@ const PUBLIC_ROUTES = [
 ];
 
 const ADMIN_ROUTES = /^\/admin/;
-const CONTA_ROUTES = /^\/minha-conta/;
 const AFILIADO_PAINEL = /^\/afiliados\/painel/;
 
 const ROLE_ROUTES: Record<string, RegExp> = {
@@ -20,11 +19,15 @@ const ROLE_ROUTES: Record<string, RegExp> = {
   admin_eifol: /^\/admin\/eifol/,
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+  // Se o Supabase não estiver configurado, passa sem autenticação
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.next();
+  }
+
   const { supabaseResponse, user, supabase } = await updateSession(request);
   const pathname = request.nextUrl.pathname;
 
-  // Rotas que não precisam de auth
   const isPublic = PUBLIC_ROUTES.some(
     (r) => pathname === r || pathname.startsWith(r + "/")
   );
@@ -33,12 +36,11 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/editora") ||
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/afiliados/inscricao") ||
-    pathname.startsWith("/afiliados") && !AFILIADO_PAINEL.test(pathname)
+    (pathname.startsWith("/afiliados") && !AFILIADO_PAINEL.test(pathname))
   ) {
     return supabaseResponse;
   }
 
-  // Precisa estar autenticado
   if (!user) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
@@ -46,7 +48,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Rotas de admin — verificar role
   if (ADMIN_ROUTES.test(pathname)) {
     const { data: rolesData } = await supabase
       .from("user_roles")
@@ -57,7 +58,6 @@ export async function middleware(request: NextRequest) {
     const isSuperAdmin = userRoles.includes("super_admin");
 
     if (!isSuperAdmin) {
-      // Verificar acesso específico por módulo
       const hasAccess = Object.entries(ROLE_ROUTES).some(
         ([role, pattern]) =>
           userRoles.includes(role) && pattern.test(pathname)
