@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Check, ChevronRight, User, MapPin, Truck,
+  Check, ChevronRight, MapPin, Truck,
   CreditCard, PackageCheck, Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -17,12 +17,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useCartStore } from "@/stores/cart";
 import { formatCurrency } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
-import { PhoneInput, COUNTRIES } from "@/components/checkout/phone-input";
 
-type Step = "identificacao" | "endereco" | "entrega" | "confirmacao";
+type Step = "endereco" | "entrega" | "confirmacao";
 
 const STEPS: Array<{ id: Step; label: string; icon: React.ElementType }> = [
-  { id: "identificacao", label: "Identificação", icon: User },
   { id: "endereco", label: "Endereço", icon: MapPin },
   { id: "entrega", label: "Entrega", icon: Truck },
   { id: "confirmacao", label: "Confirmação", icon: CreditCard },
@@ -40,30 +38,30 @@ const PAYMENT_OPTIONS = [
   { id: "cartao_debito", label: "Cartão de Débito", description: "Aprovação imediata" },
 ];
 
-interface IdentData { name: string; cpf: string; email: string; phone: string }
+interface IdentData { name: string; email: string }
 interface AddrData {
   cep: string; street: string; number: string;
   complement: string; neighborhood: string; city: string; state: string;
 }
 
-const emptyIdent: IdentData = { name: "", cpf: "", email: "", phone: "" };
+const emptyIdent: IdentData = { name: "", email: "" };
 const emptyAddr: AddrData = {
   cep: "", street: "", number: "", complement: "",
   neighborhood: "", city: "", state: "",
 };
 
 export function CheckoutFlow() {
-  const [step, setStep] = useState<Step>("identificacao");
+  const router = useRouter();
+  const [step, setStep] = useState<Step>("endereco");
   const [shipping, setShipping] = useState("pac");
   const [payment, setPayment] = useState("pix");
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [ident, setIdent] = useState<IdentData>(emptyIdent);
   const [addr, setAddr] = useState<AddrData>(emptyAddr);
-  const [phoneCountry, setPhoneCountry] = useState("BR");
   const [cepLoading, setCepLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -71,8 +69,10 @@ export function CheckoutFlow() {
     setOrderNumber(`GU${String(Math.floor(100000 + Math.random() * 900000))}`);
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
-      setIsLoggedIn(true);
+      if (!user) {
+        router.replace("/auth/cadastro?redirectTo=/checkout");
+        return;
+      }
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name, cpf, phone")
@@ -80,12 +80,11 @@ export function CheckoutFlow() {
         .single();
       setIdent({
         name: profile?.full_name ?? "",
-        cpf: profile?.cpf ?? "",
         email: user.email ?? "",
-        phone: profile?.phone ?? "",
       });
+      setAuthLoading(false);
     });
-  }, []);
+  }, [router]);
 
   const { items: storeItems, buyNowItem, itemCount, subtotal, clear, clearBuyNow } = useCartStore();
 
@@ -104,35 +103,17 @@ export function CheckoutFlow() {
   const total = sub + shippingPrice - pixDiscount;
 
   const currentStepIndex = STEPS.findIndex((s) => s.id === step);
-  const visibleSteps = STEPS.slice(0, -1).filter((s) => !(s.id === "identificacao" && isLoggedIn));
+  const visibleSteps = STEPS.slice(0, -1);
   const visibleStepIndex = visibleSteps.findIndex((s) => s.id === step);
 
   function goNext() {
-    let nextIndex = currentStepIndex + 1;
-    if (STEPS[nextIndex]?.id === "identificacao" && isLoggedIn) nextIndex++;
+    const nextIndex = currentStepIndex + 1;
     if (nextIndex < STEPS.length) setStep(STEPS[nextIndex].id);
-  }
-
-  function maskCpf(raw: string): string {
-    const d = raw.replace(/\D/g, "").slice(0, 11);
-    if (d.length <= 3) return d;
-    if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
-    if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
-    return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
   }
 
   function maskCep(raw: string): string {
     const d = raw.replace(/\D/g, "").slice(0, 8);
     return d.length <= 5 ? d : `${d.slice(0, 5)}-${d.slice(5)}`;
-  }
-
-  function setIdF(field: keyof IdentData) {
-    return (e: React.ChangeEvent<HTMLInputElement>) => {
-      const raw = e.target.value;
-      const value = field === "cpf" ? maskCpf(raw) : raw;
-      setIdent((p) => ({ ...p, [field]: value }));
-      setErrors((p) => ({ ...p, [field]: "" }));
-    };
   }
 
   function setAdF(field: keyof AddrData) {
@@ -167,25 +148,6 @@ export function CheckoutFlow() {
     }
   }
 
-  function validateIdent() {
-    const e: Record<string, string> = {};
-    if (!ident.name.trim()) e.name = "Obrigatório";
-    if (!ident.email.trim()) e.email = "Obrigatório";
-    if (!ident.cpf.trim()) {
-      e.cpf = "Obrigatório";
-    } else if (!/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(ident.cpf)) {
-      e.cpf = "CPF inválido";
-    }
-    if (ident.phone.trim()) {
-      const country = COUNTRIES.find((c) => c.code === phoneCountry);
-      if (country && !country.regex.test(ident.phone)) {
-        e.phone = "Número inválido para o país selecionado";
-      }
-    }
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  }
-
   function validateAddr() {
     const e: Record<string, string> = {};
     if (!addr.cep.trim()) e.cep = "Obrigatório";
@@ -197,10 +159,6 @@ export function CheckoutFlow() {
     return Object.keys(e).length === 0;
   }
 
-  function handleIdentNext() {
-    if (validateIdent()) goNext();
-  }
-
   function handleAddrNext() {
     if (validateAddr()) goNext();
   }
@@ -210,6 +168,14 @@ export function CheckoutFlow() {
     setStep("confirmacao");
     clear();
     clearBuyNow();
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-brand" />
+      </div>
+    );
   }
 
   if (orderPlaced && step === "confirmacao") {
@@ -311,63 +277,6 @@ export function CheckoutFlow() {
         {/* Main content */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl border border-border p-6">
-
-            {/* ── Step: Identificação ── */}
-            {step === "identificacao" && (
-              <div>
-                <h2 className="font-heading font-bold text-lg mb-5">Identificação</h2>
-                <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label="Nome completo" error={errors.name}>
-                      <Input
-                        placeholder="Seu nome"
-                        value={ident.name}
-                        onChange={setIdF("name")}
-                      />
-                    </Field>
-                    <Field label="CPF" error={errors.cpf}>
-                      <Input
-                        placeholder="000.000.000-00"
-                        inputMode="numeric"
-                        value={ident.cpf}
-                        onChange={setIdF("cpf")}
-                        maxLength={14}
-                      />
-                    </Field>
-                  </div>
-                  <Field label="E-mail" error={errors.email}>
-                    <Input
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={ident.email}
-                      onChange={setIdF("email")}
-                    />
-                  </Field>
-                  <Field label="Telefone / WhatsApp" error={errors.phone}>
-                    <PhoneInput
-                      value={ident.phone}
-                      countryCode={phoneCountry}
-                      onChange={(v) => {
-                        setIdent((p) => ({ ...p, phone: v }));
-                        setErrors((p) => ({ ...p, phone: "" }));
-                      }}
-                      onCountryChange={(code) => {
-                        setPhoneCountry(code);
-                        setIdent((p) => ({ ...p, phone: "" }));
-                        setErrors((p) => ({ ...p, phone: "" }));
-                      }}
-                    />
-                  </Field>
-                  <Button
-                    className="bg-brand hover:bg-brand-700 text-white mt-2"
-                    onClick={handleIdentNext}
-                  >
-                    Continuar
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </div>
-              </div>
-            )}
 
             {/* ── Step: Endereço ── */}
             {step === "endereco" && (

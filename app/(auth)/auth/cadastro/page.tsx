@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -73,8 +73,10 @@ const schema = z
 
 type FormData = z.infer<typeof schema>;
 
-export default function CadastroPage() {
+function CadastroForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo") ?? "/minha-conta";
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [countryCode, setCountryCode] = useState<CountryCode>("BR");
@@ -103,12 +105,12 @@ export default function CadastroPage() {
     const digits = phoneDisplay.replace(/\D/g, "");
     const whatsapp = digits ? `${country.ddi}${digits}` : undefined;
 
-    const { error } = await supabase.auth.signUp({
+    const { data: signUpData, error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
         data: { full_name: data.name, whatsapp },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${redirectTo}`,
       },
     });
 
@@ -117,16 +119,22 @@ export default function CadastroPage() {
       return;
     }
 
-    toast.success("Conta criada!", {
-      description: "Verifique seu e-mail para confirmar o cadastro.",
-    });
-    router.push("/auth/login");
+    if (signUpData.session) {
+      toast.success("Conta criada com sucesso!");
+      router.push(redirectTo);
+      router.refresh();
+    } else {
+      toast.success("Conta criada!", {
+        description: "Verifique seu e-mail para confirmar o cadastro e depois faça login.",
+      });
+      router.push(`/auth/login?redirectTo=${encodeURIComponent(redirectTo)}`);
+    }
   }
 
   async function signInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=${redirectTo}` },
     });
     if (error) toast.error("Erro ao entrar com Google");
   }
@@ -283,5 +291,13 @@ export default function CadastroPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function CadastroPage() {
+  return (
+    <Suspense fallback={<div className="w-full max-w-sm h-96 bg-white rounded-2xl border animate-pulse" />}>
+      <CadastroForm />
+    </Suspense>
   );
 }
