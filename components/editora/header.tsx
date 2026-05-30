@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Search, User, Tag, LayoutDashboard } from "lucide-react";
+import { Menu, X, Search, User, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { CartBadge } from "@/components/editora/cart-badge";
+import { LogoutButton } from "@/components/shared/logout-button";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -23,8 +24,7 @@ export function EditoraHeader({ adminArea }: { adminArea?: AdminArea | null }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [bannerVisible, setBannerVisible] = useState(true);
-  const [headerHeight, setHeaderHeight] = useState(104); // banner (~40) + nav (64)
+  const [headerHeight, setHeaderHeight] = useState(64);
   const headerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -58,28 +58,6 @@ export function EditoraHeader({ adminArea }: { adminArea?: AdminArea | null }) {
           scrolled ? "bg-white/95 backdrop-blur-sm shadow-sm" : "bg-white border-b border-border"
         )}
       >
-        {/* Banner de promoção */}
-        {bannerVisible && (
-          <div className="bg-brand text-white text-sm py-2.5 px-4 relative">
-            <div className="container mx-auto max-w-7xl flex items-center justify-center gap-3">
-              <Tag className="h-4 w-4 shrink-0" />
-              <p className="text-center leading-snug">
-                <span className="font-semibold">Frete grátis</span> em compras acima de R$200 para todo o Brasil.{" "}
-                <Link href="/editora/ofertas" onClick={() => setBannerVisible(false)} className="underline underline-offset-2 hover:text-white/80 transition-colors font-medium">
-                  Ver ofertas →
-                </Link>
-              </p>
-              <button
-                onClick={() => setBannerVisible(false)}
-                aria-label="Fechar aviso"
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Barra de navegação */}
         <div className="container mx-auto max-w-7xl px-4">
           <div className="flex h-16 items-center justify-between gap-4">
@@ -103,9 +81,9 @@ export function EditoraHeader({ adminArea }: { adminArea?: AdminArea | null }) {
               {adminArea && (
                 <Link
                   href={adminArea.href}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors"
                 >
-                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  <ShieldCheck className="h-3.5 w-3.5" />
                   {adminArea.label}
                 </Link>
               )}
@@ -181,11 +159,12 @@ export function EditoraHeader({ adminArea }: { adminArea?: AdminArea | null }) {
                 {adminArea && (
                   <Link
                     href={adminArea.href}
-                    className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-amber-700 bg-amber-50 rounded-md hover:bg-amber-100"
+                    className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-brand-700 bg-brand-50 rounded-md hover:bg-brand-100"
                   >
-                    <LayoutDashboard className="h-4 w-4" /> {adminArea.label}
+                    <ShieldCheck className="h-4 w-4" /> {adminArea.label}
                   </Link>
                 )}
+                <LogoutButton variant="menu-item" />
               </div>
             </div>
           </nav>

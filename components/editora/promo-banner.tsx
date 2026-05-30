@@ -1,16 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { X, Tag } from "lucide-react";
 
+const APPEAR_DELAY = 2000;
+const AUTO_CLOSE = 7000;
+
 export function PromoBanner() {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function startAutoClose() {
+    timerRef.current = setTimeout(() => setVisible(false), AUTO_CLOSE);
+  }
+
+  function clearAutoClose() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }
+
+  useEffect(() => {
+    const appear = setTimeout(() => {
+      setVisible(true);
+      startAutoClose();
+    }, APPEAR_DELAY);
+    return () => {
+      clearTimeout(appear);
+      clearAutoClose();
+    };
+  }, []);
 
   if (!visible) return null;
 
   return (
-    <div className="bg-brand text-white text-sm py-2.5 px-4 relative">
+    <div
+      className="bg-brand text-white text-sm py-2.5 px-4 relative animate-in slide-in-from-top duration-300"
+      onMouseEnter={clearAutoClose}
+      onMouseLeave={startAutoClose}
+    >
       <div className="container mx-auto max-w-7xl flex items-center justify-center gap-3">
         <Tag className="h-4 w-4 shrink-0" />
         <p className="text-center leading-snug">
@@ -20,7 +47,7 @@ export function PromoBanner() {
           </Link>
         </p>
         <button
-          onClick={() => setVisible(false)}
+          onClick={() => { clearAutoClose(); setVisible(false); }}
           aria-label="Fechar aviso"
           className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition-colors"
         >

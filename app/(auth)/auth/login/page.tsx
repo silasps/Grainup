@@ -6,14 +6,23 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, XCircle, CheckCircle2, X, Info, Store, ShieldCheck, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Logo } from "@/components/shared/logo";
 import { createClient } from "@/lib/supabase/client";
-import { toast } from "sonner";
+import { getMyRole } from "@/lib/actions/get-my-role";
+import type { UserRole } from "@/types/database";
+
+function roleToAdminArea(role: UserRole): { href: string; label: string } | null {
+  if (role === "super_admin" || role === "admin_editora") return { href: "/admin/editora", label: "Painel Admin" };
+  if (role === "admin_ead") return { href: "/admin/ead", label: "Painel EAD" };
+  if (role === "admin_eifol") return { href: "/admin/eifol", label: "Painel EIFOL" };
+  if (role === "afiliado_jocum" || role === "afiliado_diretor" || role === "lider_jocum") return { href: "/editora/afiliados", label: "Área de Afiliado" };
+  return null;
+}
 
 const schema = z.object({
   email: z.string().email("E-mail inválido"),
@@ -27,6 +36,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/editora";
   const [showPassword, setShowPassword] = useState(false);
+  const [alert, setAlert] = useState<{ type: "error" | "success" | "info"; message: string } | null>(null);
+  const [areaCard, setAreaCard] = useState<{ href: string; label: string } | null>(null);
   const supabase = createClient();
 
   const {
@@ -36,31 +47,78 @@ function LoginForm() {
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   async function onSubmit(data: FormData) {
-    const { error } = await supabase.auth.signInWithPassword({
+    setAlert(null);
+    const { data: authData, error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     });
 
     if (error) {
-      toast.error("Credenciais inválidas", {
-        description: "Verifique seu e-mail e senha e tente novamente.",
-      });
+      setAlert({ type: "error", message: "E-mail ou senha incorretos. Verifique seus dados e tente novamente." });
       return;
     }
 
-    toast.success("Bem-vindo de volta!");
+    const userId = authData.user?.id;
+    if (userId) {
+      const role = await getMyRole(userId);
+      if (role) {
+        const area = roleToAdminArea(role);
+        if (area) {
+          setAreaCard(area);
+          return;
+        }
+      }
+    }
+
     router.push(redirectTo);
     router.refresh();
   }
 
-  async function signInWithGoogle() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${redirectTo}`,
-      },
-    });
-    if (error) toast.error("Erro ao entrar com Google");
+  function signInWithGoogle() {
+    setAlert({ type: "info", message: "Login com Google não está disponível ainda." });
+  }
+
+  if (areaCard) {
+    return (
+      <div className="w-full max-w-sm flex flex-col items-center gap-5">
+        <Logo href="/editora" imageClassName="h-16" />
+        <div className="bg-white rounded-2xl shadow-sm border border-border p-8 flex flex-col gap-6 w-full">
+          <div className="flex flex-col items-center gap-1 text-center">
+            <p className="text-muted-foreground text-sm">Login realizado com sucesso!</p>
+            <h1 className="font-heading text-2xl font-bold text-foreground">Para onde ir?</h1>
+          </div>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => { router.push("/editora"); router.refresh(); }}
+              className="flex items-center gap-4 p-4 rounded-xl border border-border hover:border-brand hover:bg-brand/5 transition-colors text-left group"
+            >
+              <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg bg-secondary group-hover:bg-brand/10 transition-colors">
+                <Store className="h-5 w-5 text-muted-foreground group-hover:text-brand transition-colors" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground text-sm">Acessar a Loja</p>
+                <p className="text-xs text-muted-foreground">Navegue pelo catálogo de livros</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </button>
+
+            <button
+              onClick={() => { router.push(areaCard.href); router.refresh(); }}
+              className="flex items-center gap-4 p-4 rounded-xl border border-brand-100 bg-brand-50 hover:bg-brand-100 transition-colors text-left group"
+            >
+              <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 group-hover:bg-brand-200 transition-colors">
+                <ShieldCheck className="h-5 w-5 text-brand-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-brand-800 text-sm">{areaCard.label}</p>
+                <p className="text-xs text-brand-600">Sua área de acesso especial</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-brand-500 shrink-0" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -71,6 +129,32 @@ function LoginForm() {
           <p className="text-muted-foreground text-sm">Bem-vindo de volta.</p>
           <h1 className="font-heading text-2xl font-bold text-foreground">Entrar</h1>
         </div>
+
+        {alert && (
+          <div
+            className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+              alert.type === "error"
+                ? "border-destructive/40 bg-destructive/10 text-destructive"
+                : alert.type === "success"
+                ? "border-green-500/40 bg-green-50 text-green-700"
+                : "border-blue-400/40 bg-blue-50 text-blue-700"
+            }`}
+          >
+            <span className="mt-0.5 shrink-0">
+              {alert.type === "error" && <XCircle className="h-4 w-4" />}
+              {alert.type === "success" && <CheckCircle2 className="h-4 w-4" />}
+              {alert.type === "info" && <Info className="h-4 w-4" />}
+            </span>
+            <span className="flex-1">{alert.message}</span>
+            <button
+              type="button"
+              onClick={() => setAlert(null)}
+              className="shrink-0 opacity-60 hover:opacity-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Google */}
         <Button
@@ -122,15 +206,7 @@ function LoginForm() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Senha</Label>
-              <Link
-                href="/auth/recuperar-senha"
-                className="text-xs text-brand hover:underline"
-              >
-                Esqueceu a senha?
-              </Link>
-            </div>
+            <Label htmlFor="password">Senha</Label>
             <div className="relative">
               <Input
                 id="password"
@@ -142,11 +218,20 @@ function LoginForm() {
               />
               <button
                 type="button"
+                tabIndex={-1}
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
+            </div>
+            <div className="flex justify-end">
+              <Link
+                href="/auth/recuperar-senha"
+                className="text-xs text-brand hover:underline"
+              >
+                Esqueceu a senha?
+              </Link>
             </div>
             {errors.password && (
               <p className="text-xs text-destructive">{errors.password.message}</p>
