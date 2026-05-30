@@ -19,6 +19,7 @@ const CATEGORIES = [
 interface Profile {
   name: string;
   email: string;
+  phone: string;
   user_id: string;
 }
 
@@ -42,15 +43,30 @@ export default function SACPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("full_name, email")
-        .eq("id", user.id)
-        .single();
-      const name = (prof as { full_name?: string } | null)?.full_name ?? user.user_metadata?.full_name ?? "";
+
+      const [{ data: prof }, { data: lastOrder }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("full_name, phone")
+          .eq("id", user.id)
+          .single(),
+        supabase
+          .from("orders")
+          .select("order_number")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const typedProf = prof as { full_name?: string; phone?: string } | null;
+      const name = typedProf?.full_name ?? user.user_metadata?.full_name ?? "";
       const email = user.email ?? "";
-      setProfile({ name, email, user_id: user.id });
-      setForm((f) => ({ ...f, name, email }));
+      const phone = typedProf?.phone ?? "";
+      const order_id = (lastOrder as { order_number?: string } | null)?.order_number ?? "";
+
+      setProfile({ name, email, phone, user_id: user.id });
+      setForm((f) => ({ ...f, name, email, phone, order_id }));
     }
     loadUser();
   }, []);

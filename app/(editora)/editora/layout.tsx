@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 };
 
 type AdminArea = { href: string; label: string };
+type SessionState = { adminArea: AdminArea | null; isLoggedIn: boolean };
 
 function roleToAdminArea(role: string): AdminArea | null {
   if (role === "super_admin" || role === "admin_editora") return { href: "/admin/editora", label: "Painel Admin" };
@@ -43,16 +44,15 @@ async function getActiveAnnouncement() {
   }
 }
 
-async function getUserAdminArea(): Promise<AdminArea | null> {
+async function getSessionState(): Promise<SessionState> {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).limit(1).single();
-    if (!data) return null;
-    return roleToAdminArea(data.role);
+    if (!user) return { adminArea: null, isLoggedIn: false };
+    const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).limit(1).maybeSingle();
+    return { adminArea: data ? roleToAdminArea(data.role) : null, isLoggedIn: true };
   } catch {
-    return null;
+    return { adminArea: null, isLoggedIn: false };
   }
 }
 
@@ -61,11 +61,11 @@ export default async function EditoraLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [announcement, adminArea] = await Promise.all([getActiveAnnouncement(), getUserAdminArea()]);
+  const [announcement, { adminArea, isLoggedIn }] = await Promise.all([getActiveAnnouncement(), getSessionState()]);
 
   return (
     <>
-      <EditoraHeader adminArea={adminArea} />
+      <EditoraHeader adminArea={adminArea} isLoggedIn={isLoggedIn} />
       <main className="flex-1">{children}</main>
       <EditoraFooter />
       <WhatsAppButton phone="5541991435610" enabled />

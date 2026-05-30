@@ -24,6 +24,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { BookCard, type BookCardData } from "./book-card";
+import { cn } from "@/lib/utils";
 
 interface Category {
   id: string;
@@ -224,99 +225,122 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
     (showOnlyPromo ? 1 : 0) +
     (showOnlyNew ? 1 : 0);
 
+  const FilterRow = ({
+    id,
+    checked,
+    onCheckedChange,
+    label,
+  }: {
+    id: string;
+    checked: boolean;
+    onCheckedChange: (v: boolean) => void;
+    label: string;
+  }) => (
+    <label
+      htmlFor={id}
+      className={cn(
+        "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all select-none",
+        checked
+          ? "bg-brand-50 text-brand-700"
+          : "hover:bg-secondary/70 text-foreground/80 hover:text-foreground"
+      )}
+    >
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        className="flex-shrink-0"
+      />
+      <span className={cn("text-sm font-medium", checked && "font-semibold")}>{label}</span>
+    </label>
+  );
+
   const FiltersContent = () => (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-1">
       {/* Categoria */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-3">Categoria</h3>
-        <div className="flex flex-col gap-2">
+      <div className="px-1 pt-2 pb-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 px-2">
+          Categoria
+        </p>
+        <div className="flex flex-col gap-0.5">
           {categories.map((cat) => (
-            <div key={cat.id} className="flex items-center gap-2">
-              <Checkbox
-                id={`cat-${cat.slug}`}
-                checked={selectedCategories.has(cat.slug)}
-                onCheckedChange={() => toggleCategory(cat.slug)}
-              />
-              <Label
-                htmlFor={`cat-${cat.slug}`}
-                className="text-sm cursor-pointer font-normal"
-              >
-                {cat.name}
-              </Label>
-            </div>
+            <FilterRow
+              key={cat.id}
+              id={`cat-${cat.slug}`}
+              checked={selectedCategories.has(cat.slug)}
+              onCheckedChange={() => toggleCategory(cat.slug)}
+              label={cat.name}
+            />
           ))}
         </div>
       </div>
 
-      <Separator />
+      <div className="mx-3">
+        <Separator />
+      </div>
 
       {/* Faixa de preço */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-3">Faixa de preço</h3>
-        <div className="flex flex-col gap-2">
+      <div className="px-1 pt-3 pb-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 px-2">
+          Faixa de preço
+        </p>
+        <div className="flex flex-col gap-0.5">
           {PRICE_RANGES.map((range) => {
             const key = `${range.min}-${range.max}`;
             return (
-              <div key={key} className="flex items-center gap-2">
-                <Checkbox
-                  id={`price-${key}`}
-                  checked={selectedPriceRange === key}
-                  onCheckedChange={(checked) =>
-                    updateParam("preco", checked ? key : null)
-                  }
-                />
-                <Label
-                  htmlFor={`price-${key}`}
-                  className="text-sm cursor-pointer font-normal"
-                >
-                  {range.label}
-                </Label>
-              </div>
+              <FilterRow
+                key={key}
+                id={`price-${key}`}
+                checked={selectedPriceRange === key}
+                onCheckedChange={(checked) => updateParam("preco", checked ? key : null)}
+                label={range.label}
+              />
             );
           })}
         </div>
       </div>
 
-      <Separator />
+      <div className="mx-3">
+        <Separator />
+      </div>
 
-      {/* Tags */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-3">Filtros rápidos</h3>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="filter-promo"
-              checked={showOnlyPromo}
-              onCheckedChange={(checked) =>
-                updateParam("promocao", checked ? "1" : null)
-              }
-            />
-            <Label htmlFor="filter-promo" className="text-sm cursor-pointer font-normal">
-              Em promoção
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="filter-new"
-              checked={showOnlyNew}
-              onCheckedChange={(checked) =>
-                updateParam("novidades", checked ? "1" : null)
-              }
-            />
-            <Label htmlFor="filter-new" className="text-sm cursor-pointer font-normal">
-              Lançamentos
-            </Label>
-          </div>
+      {/* Filtros rápidos */}
+      <div className="px-1 pt-3 pb-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 px-2">
+          Filtros rápidos
+        </p>
+        <div className="flex flex-col gap-0.5">
+          <FilterRow
+            id="filter-promo"
+            checked={showOnlyPromo}
+            onCheckedChange={(checked) => updateParam("promocao", checked ? "1" : null)}
+            label="Em promoção"
+          />
+          <FilterRow
+            id="filter-new"
+            checked={showOnlyNew}
+            onCheckedChange={(checked) => updateParam("novidades", checked ? "1" : null)}
+            label="Lançamentos"
+          />
         </div>
       </div>
 
       {activeFilterCount > 0 && (
         <>
-          <Separator />
-          <Button variant="outline" size="sm" onClick={clearFilters} className="w-full">
-            <X className="h-3.5 w-3.5 mr-1.5" />
-            Limpar filtros
-          </Button>
+          <div className="mx-3">
+            <Separator />
+          </div>
+          <div className="px-2 pt-2 pb-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="w-full text-destructive hover:text-destructive hover:bg-destructive/5 border border-dashed border-destructive/30"
+            >
+              <X className="h-3.5 w-3.5 mr-1.5" />
+              Limpar filtros ({activeFilterCount})
+            </Button>
+          </div>
         </>
       )}
     </div>
@@ -387,11 +411,19 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
               </button>
             }
           />
-          <SheetContent side="left" className="w-80">
-            <SheetHeader>
-              <SheetTitle>Filtros</SheetTitle>
+          <SheetContent side="left" className="w-80 p-0">
+            <SheetHeader className="flex flex-row items-center justify-between px-4 py-3 border-b border-border bg-secondary/40">
+              <SheetTitle className="flex items-center gap-2 text-sm">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-brand" />
+                Filtros
+                {activeFilterCount > 0 && (
+                  <span className="h-5 w-5 rounded-full bg-brand text-white text-[10px] flex items-center justify-center font-bold">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </SheetTitle>
             </SheetHeader>
-            <div className="mt-6 overflow-y-auto">
+            <div className="overflow-y-auto">
               <FiltersContent />
             </div>
           </SheetContent>
@@ -448,20 +480,30 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
 
       <div className="flex gap-8">
         {/* Sidebar filters — desktop */}
-        <aside className="hidden lg:block w-56 flex-shrink-0">
+        <aside className="hidden lg:block w-60 flex-shrink-0">
           <div className="sticky top-24">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-foreground">Filtros</h2>
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={clearFilters}
-                  className="text-xs text-brand hover:underline"
-                >
-                  Limpar ({activeFilterCount})
-                </button>
-              )}
+            <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/40">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-brand" />
+                  <h2 className="text-sm font-semibold text-foreground">Filtros</h2>
+                  {activeFilterCount > 0 && (
+                    <span className="h-5 w-5 rounded-full bg-brand text-white text-[10px] flex items-center justify-center font-bold">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </div>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-xs text-brand hover:text-brand-700 font-medium transition-colors"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+              <FiltersContent />
             </div>
-            <FiltersContent />
           </div>
         </aside>
 

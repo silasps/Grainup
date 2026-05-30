@@ -36,6 +36,7 @@ const NAV_ITEMS = [
   { label: "Pedidos", href: "/admin/editora/pedidos", icon: ShoppingBag },
   { label: "Avaliações", href: "/admin/editora/avaliacoes", icon: Star },
   { label: "SAC", href: "/admin/editora/sac", icon: MessageSquare },
+  { label: "Usuários", href: "/admin/editora/usuarios", icon: Users },
   { label: "Leads", href: "/admin/editora/leads", icon: Users },
   { label: "Afiliados", href: "/admin/editora/afiliados", icon: Users },
   { label: "Ofertas", href: "/admin/editora/ofertas", icon: Tag },

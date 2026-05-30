@@ -20,7 +20,7 @@ const NAV_LINKS = [
 
 type AdminArea = { href: string; label: string };
 
-export function EditoraHeader({ adminArea }: { adminArea?: AdminArea | null }) {
+export function EditoraHeader({ adminArea, isLoggedIn }: { adminArea?: AdminArea | null; isLoggedIn?: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -98,9 +98,9 @@ export function EditoraHeader({ adminArea }: { adminArea?: AdminArea | null }) {
               </Button>
 
               <Button variant="ghost" size="icon" asChild className="hidden sm:flex">
-                <Link href="/minha-conta">
+                <Link href={isLoggedIn ? "/minha-conta" : "/auth/login"}>
                   <User className="h-4 w-4" />
-                  <span className="sr-only">Minha conta</span>
+                  <span className="sr-only">{isLoggedIn ? "Minha conta" : "Entrar"}</span>
                 </Link>
               </Button>
 
@@ -151,10 +151,10 @@ export function EditoraHeader({ adminArea }: { adminArea?: AdminArea | null }) {
               ))}
               <div className="border-t border-border mt-2 pt-2 flex flex-col gap-1">
                 <Link
-                  href="/minha-conta"
+                  href={isLoggedIn ? "/minha-conta" : "/auth/login"}
                   className="flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary"
                 >
-                  <User className="h-4 w-4" /> Minha conta
+                  <User className="h-4 w-4" /> {isLoggedIn ? "Minha conta" : "Entrar"}
                 </Link>
                 {adminArea && (
                   <Link
@@ -164,7 +164,7 @@ export function EditoraHeader({ adminArea }: { adminArea?: AdminArea | null }) {
                     <ShieldCheck className="h-4 w-4" /> {adminArea.label}
                   </Link>
                 )}
-                <LogoutButton variant="menu-item" />
+                {isLoggedIn && <LogoutButton variant="menu-item" />}
               </div>
             </div>
           </nav>
