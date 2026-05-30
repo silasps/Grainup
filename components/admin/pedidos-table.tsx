@@ -25,7 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelado: "bg-red-100 text-red-700 border-red-200",
 };
 
-interface OrderRow {
+export interface OrderRow {
   id: string;
   order_number: string;
   status: string;

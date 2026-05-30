@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { AdminHeader } from "@/components/admin/header";
-import { PedidosTable } from "@/components/admin/pedidos-table";
+import { PedidosTable, type OrderRow } from "@/components/admin/pedidos-table";
 import { formatCurrency } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "Pedidos — Admin Editora Jocum" };
