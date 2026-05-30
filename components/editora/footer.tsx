@@ -165,7 +165,7 @@ export function EditoraFooter() {
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-white/40">
-            © {new Date().getFullYear()} Editora Jocum. Todos os direitos reservados.
+            © {new Date().getFullYear()} Editora Jocum Brasil ® – Todos os direitos reservados.
           </p>
           <div className="flex items-center gap-4">
             {LINKS_LEGAL.map((l) => (
@@ -178,6 +178,15 @@ export function EditoraFooter() {
               </Link>
             ))}
           </div>
+        </div>
+
+        <div className="mt-4 space-y-1">
+          <p className="text-xs text-white/30">
+            CNPJ: 07.112.226/0001-23 · Av. Vereador Wadislau Bugalski 3826 – Almirante Tamandaré – PR · CEP: 83511-000
+          </p>
+          <p className="text-xs text-white/30">
+            Preços e condições de pagamento válidos exclusivamente para compras efetuadas no site. As imagens dos produtos são meramente ilustrativas. Todos os preços e condições comerciais estão sujeitos a alteração sem prévio aviso.
+          </p>
         </div>
       </div>
     </footer>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, Loader2, Megaphone, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Megaphone, ToggleLeft, ToggleRight, ImagePlus, X as XIcon, Move, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { saveAnnouncement, deleteAnnouncement, toggleAnnouncement } from "./actions";
 import { AdminHeader } from "@/components/admin/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ const schema = z.object({
   title: z.string().min(3, "Título obrigatório"),
   body: z.string().min(5, "Mensagem obrigatória"),
   badge: z.string().optional(),
+  image_url: z.string().optional(),
   cta_label: z.string().optional(),
   cta_url: z.string().optional(),
   type: z.enum(["promo", "info", "warning"]),
@@ -38,6 +40,297 @@ const TYPE_COLORS = {
   warning: "bg-amber-500 text-white",
 };
 
+type UploadMode = "empty" | "adjusting" | "ready";
+
+function ImageUpload({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const clipRef      = useRef<HTMLDivElement>(null);
+  const imgRef       = useRef<HTMLImageElement>(null);
+
+  const [mode,    setMode]    = useState<UploadMode>(value ? "ready" : "empty");
+  const [rawSrc,  setRawSrc]  = useState(value || "");
+  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+  const [offset,  setOffset]  = useState({ x: 0, y: 0 });
+
+  // All mutable values read inside event listeners live in refs
+  const scaleRef   = useRef(1);
+  const offsetRef  = useRef({ x: 0, y: 0 });
+  const dragRef    = useRef({ active: false, cx: 0, cy: 0, ox: 0, oy: 0 });
+  // Pinch tracking
+  const pinchRef   = useRef<{ dist: number; scale: number; mx: number; my: number; ox: number; oy: number } | null>(null);
+
+  // ── helpers ──────────────────────────────────────────────
+  const applyTransform = useCallback((x: number, y: number, s: number) => {
+    const img = imgRef.current;
+    if (!img) return;
+    scaleRef.current  = s;
+    offsetRef.current = { x, y };
+    setImgSize({ w: img.naturalWidth * s, h: img.naturalHeight * s });
+    setOffset({ x, y });
+  }, []);
+
+  // Zoom centred on a point (cx, cy) relative to clip box
+  const zoomAt = useCallback((cx: number, cy: number, factor: number) => {
+    const s  = scaleRef.current;
+    const ox = offsetRef.current.x;
+    const oy = offsetRef.current.y;
+    const newScale = Math.max(0.05, s * factor);
+    // Keep the image point under (cx, cy) fixed
+    const imgX = (cx - ox) / s;
+    const imgY = (cy - oy) / s;
+    applyTransform(cx - imgX * newScale, cy - imgY * newScale, newScale);
+  }, [applyTransform]);
+
+  // ── File pick ─────────────────────────────────────────────
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (rawSrc.startsWith("blob:")) URL.revokeObjectURL(rawSrc);
+    setRawSrc(URL.createObjectURL(file));
+    setMode("adjusting");
+    e.target.value = "";
+  }
+
+  // ── Image loaded: fill + centre ───────────────────────────
+  function handleImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    const img  = e.currentTarget;
+    const clip = clipRef.current;
+    if (!clip) return;
+    const cW = clip.clientWidth;
+    const cH = clip.clientHeight;
+    const s  = Math.max(cW / img.naturalWidth, cH / img.naturalHeight);
+    const ox = (cW - img.naturalWidth  * s) / 2;
+    const oy = (cH - img.naturalHeight * s) / 2;
+    applyTransform(ox, oy, s);
+  }
+
+  // ── Pointer drag (mouse / stylus) ─────────────────────────
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // Ignore if it looks like the start of a pinch (second pointer)
+    if (e.isPrimary === false) return;
+    dragRef.current = { active: true, cx: e.clientX, cy: e.clientY, ox: offsetRef.current.x, oy: offsetRef.current.y };
+    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = dragRef.current;
+    if (!d.active || e.isPrimary === false) return;
+    applyTransform(
+      d.ox + e.clientX - d.cx,
+      d.oy + e.clientY - d.cy,
+      scaleRef.current,
+    );
+  }
+  function onPointerUp() { dragRef.current.active = false; }
+
+  // ── Wheel zoom ────────────────────────────────────────────
+  // Added imperatively so we can mark it non-passive
+  useEffect(() => {
+    const el = clipRef.current;
+    if (!el || mode !== "adjusting") return;
+
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      const rect = el!.getBoundingClientRect();
+      zoomAt(e.clientX - rect.left, e.clientY - rect.top, 1 - e.deltaY * 0.001);
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [mode, zoomAt]);
+
+  // ── Pinch zoom (touch) ────────────────────────────────────
+  useEffect(() => {
+    const el = clipRef.current;
+    if (!el || mode !== "adjusting") return;
+
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length !== 2) return;
+      e.preventDefault();
+      dragRef.current.active = false; // disable single-finger drag during pinch
+      const t0 = e.touches[0], t1 = e.touches[1];
+      const rect = el!.getBoundingClientRect();
+      pinchRef.current = {
+        dist:  Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY),
+        scale: scaleRef.current,
+        mx: (t0.clientX + t1.clientX) / 2 - rect.left,
+        my: (t0.clientY + t1.clientY) / 2 - rect.top,
+        ox: offsetRef.current.x,
+        oy: offsetRef.current.y,
+      };
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      const p = pinchRef.current;
+      if (!p || e.touches.length !== 2) return;
+      e.preventDefault();
+      const t0 = e.touches[0], t1 = e.touches[1];
+      const newDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      const newScale = Math.max(0.05, p.scale * (newDist / p.dist));
+      const imgX = (p.mx - p.ox) / p.scale;
+      const imgY = (p.my - p.oy) / p.scale;
+      applyTransform(p.mx - imgX * newScale, p.my - imgY * newScale, newScale);
+    }
+
+    function onTouchEnd() { pinchRef.current = null; }
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove",  onTouchMove,  { passive: false });
+    el.addEventListener("touchend",   onTouchEnd);
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove",  onTouchMove);
+      el.removeEventListener("touchend",   onTouchEnd);
+    };
+  }, [mode, applyTransform]);
+
+  // ── Canvas crop → blob ────────────────────────────────────
+  function confirmCrop() {
+    const img  = imgRef.current;
+    const clip = clipRef.current;
+    if (!img || !clip) return;
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = document.createElement("canvas");
+    canvas.width  = clip.clientWidth  * dpr;
+    canvas.height = clip.clientHeight * dpr;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(
+      img,
+      offsetRef.current.x * dpr,
+      offsetRef.current.y * dpr,
+      img.naturalWidth  * scaleRef.current * dpr,
+      img.naturalHeight * scaleRef.current * dpr,
+    );
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      if (rawSrc.startsWith("blob:")) URL.revokeObjectURL(rawSrc);
+      const cropped = URL.createObjectURL(blob);
+      setRawSrc(cropped);
+      onChange(cropped);
+      setMode("ready");
+    }, "image/jpeg", 0.92);
+  }
+
+  function cancelAdjust() {
+    if (rawSrc.startsWith("blob:") && rawSrc !== value) URL.revokeObjectURL(rawSrc);
+    setRawSrc(value || "");
+    setMode(value ? "ready" : "empty");
+  }
+
+  function removeImage() {
+    if (rawSrc.startsWith("blob:")) URL.revokeObjectURL(rawSrc);
+    setRawSrc(""); onChange(""); setMode("empty");
+  }
+
+  // ── Adjust mode UI ────────────────────────────────────────
+  if (mode === "adjusting") {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <Move className="h-3.5 w-3.5" />
+          Arraste para mover · Scroll ou pinça para zoom
+        </p>
+
+        <div
+          ref={clipRef}
+          className="relative w-48 aspect-[2/3] overflow-hidden rounded-xl bg-black select-none ring-2 ring-brand shadow-lg cursor-grab active:cursor-grabbing"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            ref={imgRef}
+            src={rawSrc}
+            alt=""
+            draggable={false}
+            onLoad={handleImgLoad}
+            style={{
+              position: "absolute",
+              left: offset.x,
+              top: offset.y,
+              width:  imgSize.w || "auto",
+              height: imgSize.h || "auto",
+              userSelect: "none",
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <Button type="button" size="sm" onClick={confirmCrop} className="gap-1.5">
+            <Check className="h-3.5 w-3.5" /> Confirmar
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={cancelAdjust}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Empty / ready mode UI ─────────────────────────────────
+  return (
+    <>
+      <input ref={fileInputRef} type="file" accept="image/*" className="sr-only" onChange={handleFileChange} />
+      <div className="flex items-start gap-4">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className={`relative w-36 aspect-[2/3] rounded-xl border-2 overflow-hidden transition-all cursor-pointer
+            ${value ? "border-transparent shadow-sm" : "border-dashed border-border hover:border-brand/50 hover:bg-brand/5"}`}
+        >
+          {value ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={value} alt="preview" className="w-full h-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+              <ImagePlus className="h-7 w-7" />
+              <span className="text-xs text-center px-2 leading-tight">Clique para selecionar</span>
+            </div>
+          )}
+          {value && (
+            <div className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
+              <span className="text-white text-xs font-medium bg-black/60 rounded-lg px-2 py-1">Trocar</span>
+            </div>
+          )}
+        </button>
+
+        {value && (
+          <div className="flex flex-col gap-2 mt-1">
+            <button
+              type="button"
+              onClick={() => { setRawSrc(value); setMode("adjusting"); }}
+              className="flex items-center gap-1 text-xs text-brand hover:text-brand/80 transition-colors"
+            >
+              <Move className="h-3.5 w-3.5" /> Reajustar
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Trocar imagem
+            </button>
+            <button
+              type="button"
+              onClick={removeImage}
+              className="flex items-center gap-1 text-xs text-destructive hover:text-destructive/80 transition-colors"
+            >
+              <XIcon className="h-3.5 w-3.5" /> Remover
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 function AnnouncementForm({
   initial,
   onSave,
@@ -47,7 +340,6 @@ function AnnouncementForm({
   onSave: () => void;
   onCancel: () => void;
 }) {
-  const supabase = createClient();
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } =
     useForm<FormData>({
       resolver: zodResolver(schema),
@@ -55,6 +347,7 @@ function AnnouncementForm({
         title: initial?.title ?? "",
         body: initial?.body ?? "",
         badge: initial?.badge ?? "",
+        image_url: initial?.image_url ?? "",
         cta_label: initial?.cta_label ?? "",
         cta_url: initial?.cta_url ?? "",
         type: initial?.type ?? "promo",
@@ -68,10 +361,29 @@ function AnnouncementForm({
   const isActive = watch("is_active");
 
   async function onSubmit(data: FormData) {
+    // Upload blob to Supabase only on save
+    let imageUrl: string | null = data.image_url || null;
+    if (imageUrl?.startsWith("blob:")) {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const ext = blob.type.split("/").pop() ?? "jpg";
+      const path = `announcements/${Date.now()}.${ext}`;
+      const fd = new FormData();
+      fd.append("file", new File([blob], `${path}`, { type: blob.type }));
+      fd.append("bucket", "images");
+      fd.append("path", path);
+      const uploadRes = await fetch("/api/admin/upload", { method: "POST", body: fd });
+      const uploadJson = await uploadRes.json();
+      if (!uploadRes.ok) { toast.error("Erro ao enviar imagem", { description: uploadJson.error }); return; }
+      URL.revokeObjectURL(imageUrl);
+      imageUrl = uploadJson.url;
+    }
+
     const payload = {
       title: data.title,
       body: data.body,
       badge: data.badge || null,
+      image_url: imageUrl,
       cta_label: data.cta_label || null,
       cta_url: data.cta_url || null,
       type: data.type,
@@ -80,14 +392,8 @@ function AnnouncementForm({
       is_active: data.is_active,
     };
 
-    let error;
-    if (initial) {
-      ({ error } = await supabase.from("announcements").update(payload).eq("id", initial.id));
-    } else {
-      ({ error } = await supabase.from("announcements").insert(payload));
-    }
-
-    if (error) { toast.error("Erro ao salvar anúncio"); return; }
+    const { error } = await saveAnnouncement(payload, initial?.id);
+    if (error) { toast.error("Erro ao salvar anúncio", { description: error }); return; }
     toast.success(initial ? "Anúncio atualizado!" : "Anúncio criado!");
     onSave();
   }
@@ -112,6 +418,16 @@ function AnnouncementForm({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="badge">Badge <span className="text-muted-foreground font-normal text-xs">(opcional)</span></Label>
           <Input id="badge" placeholder="Ex: Só hoje!" {...register("badge")} />
+        </div>
+
+        <div className="sm:col-span-2 flex flex-col gap-1.5">
+          <Label>
+            Imagem <span className="text-muted-foreground font-normal text-xs">(opcional — formato retrato recomendado)</span>
+          </Label>
+          <ImageUpload
+            value={watch("image_url") ?? ""}
+            onChange={(url) => setValue("image_url", url)}
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -191,14 +507,14 @@ export default function AnunciosPage() {
   }
 
   async function handleDelete(id: string) {
-    const { error } = await supabase.from("announcements").delete().eq("id", id);
+    const { error } = await deleteAnnouncement(id);
     if (error) { toast.error("Erro ao remover"); return; }
     toast.success("Anúncio removido");
     setAnnouncements((p) => p.filter((a) => a.id !== id));
   }
 
   async function toggleActive(a: Announcement) {
-    await supabase.from("announcements").update({ is_active: !a.is_active }).eq("id", a.id);
+    await toggleAnnouncement(a.id, !a.is_active);
     setAnnouncements((p) => p.map((x) => x.id === a.id ? { ...x, is_active: !x.is_active } : x));
   }
 

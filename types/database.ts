@@ -572,6 +572,7 @@ export type Database = {
           cta_label: string | null;
           cta_url: string | null;
           badge: string | null;
+          image_url: string | null;
           type: "promo" | "info" | "warning";
           starts_at: string | null;
           ends_at: string | null;
