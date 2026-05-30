@@ -564,14 +564,14 @@ function RelatoriosTab({ orders, movements }: { orders: FiscalOrder[]; movements
         <div className="flex items-center gap-2">
           <button
             onClick={exportMonthly}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary transition-colors"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-brand text-xs text-brand font-medium bg-brand-50 hover:bg-brand hover:text-white transition-colors cursor-pointer"
           >
             <Download className="h-3.5 w-3.5" />
             Relatório mensal CSV
           </button>
           <button
             onClick={exportPedidos}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-xs text-muted-foreground hover:bg-secondary transition-colors"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-brand text-xs text-brand font-medium bg-brand-50 hover:bg-brand hover:text-white transition-colors cursor-pointer"
           >
             <Download className="h-3.5 w-3.5" />
             Pedidos CSV
