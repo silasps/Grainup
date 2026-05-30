@@ -56,9 +56,16 @@ export default async function PedidoDetalhesPage({
   if (!order) notFound();
 
   type OrderItem = { id: string; title: string; quantity: number; unit_price: number; total_price: number };
-  const items = (order.order_items ?? []) as OrderItem[];
-
-  const addr = order.shipping_address as Record<string, string> | null;
+  type OrderDetail = {
+    id: string; order_number: string; status: string; total: number; subtotal: number;
+    shipping_cost: number; discount: number; payment_method: string | null;
+    payment_status: string | null; tracking_code: string | null; created_at: string;
+    shipping_address: Record<string, string> | null;
+    order_items: OrderItem[];
+  };
+  const o = order as unknown as OrderDetail;
+  const items = o.order_items ?? [];
+  const addr = o.shipping_address;
 
   return (
     <div className="flex flex-col gap-4">
@@ -70,17 +77,17 @@ export default async function PedidoDetalhesPage({
         </Button>
         <div className="flex-1 min-w-0">
           <h1 className="font-heading font-bold text-lg leading-tight">
-            Pedido #{order.order_number}
+            Pedido #{o.order_number}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {formatDateTime(order.created_at)}
+            {formatDateTime(o.created_at)}
           </p>
         </div>
         <Badge
           variant="secondary"
-          className={cn("text-xs shrink-0", STATUS_COLORS[order.status])}
+          className={cn("text-xs shrink-0", STATUS_COLORS[o.status])}
         >
-          {STATUS_LABELS[order.status] ?? order.status}
+          {STATUS_LABELS[o.status] ?? o.status}
         </Badge>
       </div>
 
@@ -111,30 +118,30 @@ export default async function PedidoDetalhesPage({
         <div className="flex flex-col gap-2 text-sm">
           <div className="flex justify-between text-muted-foreground">
             <span>Subtotal</span>
-            <span>{formatCurrency(order.subtotal)}</span>
+            <span>{formatCurrency(o.subtotal)}</span>
           </div>
-          {order.shipping_cost > 0 && (
+          {o.shipping_cost > 0 && (
             <div className="flex justify-between text-muted-foreground">
               <span>Frete</span>
-              <span>{formatCurrency(order.shipping_cost)}</span>
+              <span>{formatCurrency(o.shipping_cost)}</span>
             </div>
           )}
-          {order.shipping_cost === 0 && (
+          {o.shipping_cost === 0 && (
             <div className="flex justify-between text-brand">
               <span>Frete</span>
               <span className="font-medium">Grátis</span>
             </div>
           )}
-          {order.discount > 0 && (
+          {o.discount > 0 && (
             <div className="flex justify-between text-emerald-600">
               <span>Desconto</span>
-              <span>-{formatCurrency(order.discount)}</span>
+              <span>-{formatCurrency(o.discount)}</span>
             </div>
           )}
           <Separator className="my-1" />
           <div className="flex justify-between font-bold text-base">
             <span>Total</span>
-            <span className="text-brand">{formatCurrency(order.total)}</span>
+            <span className="text-brand">{formatCurrency(o.total)}</span>
           </div>
         </div>
       </div>
@@ -164,17 +171,17 @@ export default async function PedidoDetalhesPage({
           <h2 className="font-semibold text-sm">Pagamento</h2>
         </div>
         <p className="text-sm text-foreground">
-          {order.payment_method ? PAYMENT_LABELS[order.payment_method] ?? order.payment_method : "—"}
+          {o.payment_method ? PAYMENT_LABELS[o.payment_method] ?? o.payment_method : "—"}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-          {order.payment_status}
+          {o.payment_status}
         </p>
       </div>
 
-      {order.tracking_code && (
+      {o.tracking_code && (
         <div className="bg-brand-50 border border-brand/20 rounded-xl p-5">
           <p className="text-sm font-semibold text-brand mb-0.5">Código de rastreio</p>
-          <p className="text-sm font-mono text-foreground">{order.tracking_code}</p>
+          <p className="text-sm font-mono text-foreground">{o.tracking_code}</p>
         </div>
       )}
     </div>

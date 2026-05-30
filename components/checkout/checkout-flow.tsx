@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Check, ChevronRight, MapPin, Truck,
-  CreditCard, PackageCheck, Loader2,
+  CreditCard, PackageCheck, Loader2, Plus,
 } from "lucide-react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,20 @@ const PAYMENT_OPTIONS = [
   { id: "cartao_debito", label: "Cartão de Débito", description: "Aprovação imediata" },
 ];
 
+type SavedAddress = {
+  id: string;
+  label: string | null;
+  full_name: string;
+  zip_code: string;
+  street: string;
+  number: string;
+  complement: string | null;
+  neighborhood: string;
+  city: string;
+  state: string;
+  is_default: boolean;
+};
+
 interface IdentData { name: string; email: string }
 interface AddrData {
   cep: string; street: string; number: string;
@@ -63,32 +78,62 @@ export function CheckoutFlow() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [authLoading, setAuthLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [placing, setPlacing] = useState(false);
+
+  // Saved addresses
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedSavedId, setSelectedSavedId] = useState<string | null>(null);
+  const [showManualForm, setShowManualForm] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    setOrderNumber(`GU${String(Math.floor(100000 + Math.random() * 900000))}`);
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
         router.replace("/auth/cadastro?redirectTo=/checkout");
         return;
       }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, cpf, phone")
-        .eq("id", user.id)
-        .single();
-      setIdent({
-        name: profile?.full_name ?? "",
-        email: user.email ?? "",
-      });
+      const [{ data: profile }, { data: addresses }] = await Promise.all([
+        supabase.from("profiles").select("full_name, cpf, phone").eq("id", user.id).single(),
+        supabase
+          .from("addresses")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("is_default", { ascending: false })
+          .order("created_at", { ascending: false }),
+      ]);
+      setIdent({ name: profile?.full_name ?? "", email: user.email ?? "" });
+
+      const addrs = (addresses ?? []) as SavedAddress[];
+      setSavedAddresses(addrs);
+
+      if (addrs.length > 0) {
+        const def = addrs.find((a) => a.is_default) ?? addrs[0];
+        setSelectedSavedId(def.id);
+        fillAddrFromSaved(def);
+      } else {
+        setShowManualForm(true);
+      }
+
       setAuthLoading(false);
     });
   }, [router]);
 
-  const { items: storeItems, buyNowItem, itemCount, subtotal, clear, clearBuyNow } = useCartStore();
+  function fillAddrFromSaved(a: SavedAddress) {
+    setAddr({
+      cep: a.zip_code,
+      street: a.street,
+      number: a.number,
+      complement: a.complement ?? "",
+      neighborhood: a.neighborhood,
+      city: a.city,
+      state: a.state,
+    });
+    setErrors({});
+  }
 
-  // "Comprar agora" usa apenas o buyNowItem, ignorando o carrinho regular
+  const { items: storeItems, buyNowItem, clear, clearBuyNow } = useCartStore();
+
   const items = mounted
     ? buyNowItem
       ? [{ ...buyNowItem, quantity: 1 }]
@@ -164,11 +209,84 @@ export function CheckoutFlow() {
     if (validateAddr()) goNext();
   }
 
-  function placeOrder() {
+  async function placeOrder() {
+    setPlacing(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Sessão expirada. Faça login novamente.");
+      setPlacing(false);
+      return;
+    }
+
+    const paymentMethodMap: Record<string, "pix" | "credito" | "debito"> = {
+      pix: "pix",
+      cartao_credito: "credito",
+      cartao_debito: "debito",
+    };
+
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .insert({
+        user_id: user.id,
+        customer_email: ident.email,
+        customer_name: ident.name,
+        shipping_address: {
+          cep: addr.cep,
+          street: addr.street,
+          number: addr.number,
+          complement: addr.complement || null,
+          neighborhood: addr.neighborhood,
+          city: addr.city,
+          state: addr.state,
+        },
+        subtotal: sub,
+        discount: pixDiscount,
+        shipping_cost: shippingPrice,
+        total,
+        status: "aguardando_pagamento" as const,
+        payment_status: "pendente" as const,
+        payment_method: paymentMethodMap[payment] ?? null,
+        fiscal_status: "nao_emitida" as const,
+        customer_cpf: null,
+        affiliate_id: null,
+        coupon_code: null,
+        notes: null,
+        tracking_code: null,
+      })
+      .select("id, order_number")
+      .single();
+
+    if (orderError || !order) {
+      toast.error("Erro ao finalizar pedido. Tente novamente.");
+      setPlacing(false);
+      return;
+    }
+
+    const { error: itemsError } = await supabase.from("order_items").insert(
+      items.map((item) => ({
+        order_id: order.id,
+        book_id: item.type === "book" ? item.id : null,
+        combo_id: item.type === "combo" ? item.id : null,
+        title: item.title,
+        quantity: item.quantity,
+        unit_price: item.price,
+        total_price: item.price * item.quantity,
+      }))
+    );
+
+    if (itemsError) {
+      toast.error("Erro ao salvar itens do pedido. Contate o suporte.");
+      setPlacing(false);
+      return;
+    }
+
+    setOrderNumber(order.order_number);
     setOrderPlaced(true);
     setStep("confirmacao");
     clear();
     clearBuyNow();
+    setPlacing(false);
   }
 
   if (authLoading) {
@@ -283,78 +401,166 @@ export function CheckoutFlow() {
             {step === "endereco" && (
               <div>
                 <h2 className="font-heading font-bold text-lg mb-5">Endereço de entrega</h2>
-                <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <Field label="CEP" error={errors.cep} className="col-span-2">
-                      <div className="relative">
-                        <Input
-                          placeholder="00000-000"
-                          inputMode="numeric"
-                          value={addr.cep}
-                          onChange={setAdF("cep")}
-                          maxLength={9}
-                        />
-                        {cepLoading && (
-                          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+
+                {/* Saved addresses */}
+                {savedAddresses.length > 0 && (
+                  <div className="flex flex-col gap-3 mb-5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Endereços salvos
+                    </p>
+                    {savedAddresses.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className={cn(
+                          "w-full text-left p-4 rounded-xl border-2 transition-colors",
+                          selectedSavedId === a.id && !showManualForm
+                            ? "border-brand bg-brand-50"
+                            : "border-border hover:border-brand/50"
                         )}
+                        onClick={() => {
+                          setSelectedSavedId(a.id);
+                          setShowManualForm(false);
+                          fillAddrFromSaved(a);
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2 mb-0.5">
+                              {a.label && (
+                                <span className="text-xs font-semibold text-brand bg-brand-50 border border-brand/20 px-2 py-0.5 rounded-full">
+                                  {a.label}
+                                </span>
+                              )}
+                              {a.is_default && (
+                                <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                                  Padrão
+                                </span>
+                              )}
+                            </div>
+                            <p className="font-medium text-sm text-foreground">{a.full_name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {a.street}, {a.number}
+                              {a.complement && ` — ${a.complement}`}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {a.neighborhood} · {a.city}/{a.state} · CEP {a.zip_code}
+                            </p>
+                          </div>
+                          {selectedSavedId === a.id && !showManualForm && (
+                            <div className="w-5 h-5 rounded-full bg-brand flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Check className="h-3 w-3 text-white" />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      className={cn(
+                        "w-full text-left p-4 rounded-xl border-2 transition-colors flex items-center gap-3",
+                        showManualForm
+                          ? "border-brand bg-brand-50"
+                          : "border-dashed border-border hover:border-brand/50"
+                      )}
+                      onClick={() => {
+                        setShowManualForm(true);
+                        setSelectedSavedId(null);
+                        setAddr(emptyAddr);
+                        setErrors({});
+                      }}
+                    >
+                      <div className={cn(
+                        "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                        showManualForm ? "border-brand bg-brand" : "border-muted-foreground/40"
+                      )}>
+                        {showManualForm
+                          ? <Check className="h-3 w-3 text-white" />
+                          : <Plus className="h-3 w-3 text-muted-foreground/60" />
+                        }
                       </div>
-                    </Field>
+                      <span className="text-sm text-muted-foreground">Usar outro endereço</span>
+                    </button>
                   </div>
-                  <Field label="Logradouro" error={errors.street}>
-                    <Input
-                      placeholder="Rua, Avenida..."
-                      value={addr.street}
-                      onChange={setAdF("street")}
-                    />
-                  </Field>
-                  <div className="grid grid-cols-3 gap-4">
-                    <Field label="Número" error={errors.number}>
+                )}
+
+                {/* Manual form */}
+                {showManualForm && (
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <Field label="CEP" error={errors.cep} className="col-span-2">
+                        <div className="relative">
+                          <Input
+                            placeholder="00000-000"
+                            inputMode="numeric"
+                            value={addr.cep}
+                            onChange={setAdF("cep")}
+                            maxLength={9}
+                          />
+                          {cepLoading && (
+                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                          )}
+                        </div>
+                      </Field>
+                    </div>
+                    <Field label="Logradouro" error={errors.street}>
                       <Input
-                        placeholder="123"
-                        value={addr.number}
-                        onChange={setAdF("number")}
+                        placeholder="Rua, Avenida..."
+                        value={addr.street}
+                        onChange={setAdF("street")}
                       />
                     </Field>
-                    <Field label="Complemento" className="col-span-2">
+                    <div className="grid grid-cols-3 gap-4">
+                      <Field label="Número" error={errors.number}>
+                        <Input
+                          placeholder="123"
+                          value={addr.number}
+                          onChange={setAdF("number")}
+                        />
+                      </Field>
+                      <Field label="Complemento" className="col-span-2">
+                        <Input
+                          placeholder="Apto, Bloco..."
+                          value={addr.complement}
+                          onChange={setAdF("complement")}
+                        />
+                      </Field>
+                    </div>
+                    <Field label="Bairro">
                       <Input
-                        placeholder="Apto, Bloco..."
-                        value={addr.complement}
-                        onChange={setAdF("complement")}
+                        placeholder="Seu bairro"
+                        value={addr.neighborhood}
+                        onChange={setAdF("neighborhood")}
                       />
                     </Field>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field label="Cidade" error={errors.city}>
+                        <Input
+                          placeholder="Sua cidade"
+                          value={addr.city}
+                          onChange={setAdF("city")}
+                        />
+                      </Field>
+                      <Field label="Estado" error={errors.state}>
+                        <Input
+                          placeholder="PR"
+                          value={addr.state}
+                          onChange={setAdF("state")}
+                          maxLength={2}
+                        />
+                      </Field>
+                    </div>
                   </div>
-                  <Field label="Bairro">
-                    <Input
-                      placeholder="Seu bairro"
-                      value={addr.neighborhood}
-                      onChange={setAdF("neighborhood")}
-                    />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Cidade" error={errors.city}>
-                      <Input
-                        placeholder="Sua cidade"
-                        value={addr.city}
-                        onChange={setAdF("city")}
-                      />
-                    </Field>
-                    <Field label="Estado" error={errors.state}>
-                      <Input
-                        placeholder="PR"
-                        value={addr.state}
-                        onChange={setAdF("state")}
-                        maxLength={2}
-                      />
-                    </Field>
-                  </div>
-                  <Button
-                    className="bg-brand hover:bg-brand-700 text-white mt-2"
-                    onClick={handleAddrNext}
-                  >
-                    Continuar
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </div>
+                )}
+
+                <Button
+                  className="bg-brand hover:bg-brand-700 text-white mt-5 w-full"
+                  onClick={handleAddrNext}
+                >
+                  Continuar
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
             )}
 
@@ -483,9 +689,14 @@ export function CheckoutFlow() {
                     size="lg"
                     className="bg-brand hover:bg-brand-700 text-white font-semibold w-full"
                     onClick={placeOrder}
+                    disabled={placing}
                   >
-                    <PackageCheck className="h-5 w-5 mr-2" />
-                    Confirmar pedido
+                    {placing ? (
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    ) : (
+                      <PackageCheck className="h-5 w-5 mr-2" />
+                    )}
+                    {placing ? "Processando..." : "Confirmar pedido"}
                   </Button>
 
                   <p className="text-xs text-center text-muted-foreground">

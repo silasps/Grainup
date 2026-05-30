@@ -362,7 +362,7 @@ function NotasFiscaisTab({ orders }: { orders: FiscalOrder[] }) {
                             {FISCAL_LABEL[o.fiscal_status] ?? o.fiscal_status}
                           </span>
                           {hasError && (
-                            <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" title={doc?.error_message ?? "Erro fiscal"} />
+                            <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" aria-label={doc?.error_message ?? "Erro fiscal"} />
                           )}
                         </div>
                         {hasError && doc?.error_message && (
