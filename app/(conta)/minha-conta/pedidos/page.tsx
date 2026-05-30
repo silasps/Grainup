@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, ChevronLeft } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = {
   aguardando_pagamento: "Aguardando pagamento",
@@ -54,6 +54,13 @@ export default async function MeusOrdensPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="bg-white rounded-xl border border-border p-5">
+        <Link
+          href="/minha-conta"
+          className="md:hidden inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-3 transition-colors"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+          Minha conta
+        </Link>
         <h1 className="font-heading font-bold text-lg">Meus pedidos</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           {orders?.length ?? 0} pedidos realizados

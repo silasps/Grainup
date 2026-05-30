@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { Logo } from "@/components/shared/logo";
-import { User, ShoppingBag, MapPin, ChevronRight, LayoutDashboard } from "lucide-react";
+import { LogoutButton } from "@/components/shared/logout-button";
+import { User, ShoppingBag, MapPin, ChevronRight, UserCircle, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 
 const NAV = [
-  { href: "/minha-conta", label: "Minha conta", icon: User },
+  { href: "/minha-conta", label: "Visão geral", icon: User },
   { href: "/minha-conta/pedidos", label: "Pedidos", icon: ShoppingBag },
   { href: "/minha-conta/enderecos", label: "Endereços", icon: MapPin },
+  { href: "/minha-conta/dados", label: "Meus dados", icon: UserCircle },
+  { href: "/minha-conta/seguranca", label: "Segurança", icon: ShieldCheck },
 ];
 
 function roleToAdminArea(role: string) {
@@ -30,14 +33,20 @@ export default async function ContaLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-secondary">
-      <header className="flex h-16 items-center px-6 border-b border-border bg-white">
+      <header className="flex h-16 items-center justify-between px-6 border-b border-border bg-white">
         <Logo />
+        <Link
+          href="/editora/livros"
+          className="md:hidden text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          ← Voltar à loja
+        </Link>
       </header>
 
       <div className="container mx-auto max-w-5xl px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Sidebar nav */}
-          <aside className="md:col-span-1">
+          {/* Sidebar nav — hidden on mobile (cards on overview page serve as nav) */}
+          <aside className="hidden md:block md:col-span-1">
             <div className="bg-white rounded-xl border border-border overflow-hidden">
               <div className="px-4 py-3 border-b border-border">
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
@@ -67,13 +76,17 @@ export default async function ContaLayout({ children }: { children: React.ReactN
             {adminArea && (
               <Link
                 href={adminArea.href}
-                className="flex items-center gap-2 mt-3 px-4 py-3 text-sm font-medium bg-amber-50 border border-amber-200 text-amber-700 rounded-xl hover:bg-amber-100 transition-colors"
+                className="flex items-center gap-2 mt-3 px-4 py-3 text-sm font-medium bg-brand-50 border border-brand-100 text-brand-700 rounded-xl hover:bg-brand-100 transition-colors"
               >
-                <LayoutDashboard className="h-4 w-4" />
+                <ShieldCheck className="h-4 w-4" />
                 {adminArea.label}
                 <ChevronRight className="h-3.5 w-3.5 ml-auto" />
               </Link>
             )}
+
+            <div className="bg-white rounded-xl border border-border overflow-hidden mt-3">
+              <LogoutButton />
+            </div>
 
             <Link
               href="/editora/livros"

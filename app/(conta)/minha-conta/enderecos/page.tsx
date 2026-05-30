@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, Loader2, MapPin, Star } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, MapPin, Star, ChevronLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -268,6 +268,13 @@ export default function EnderecosPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <Link
+        href="/minha-conta"
+        className="md:hidden inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-1 transition-colors"
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+        Minha conta
+      </Link>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading font-bold text-xl text-foreground">Endereços</h1>
