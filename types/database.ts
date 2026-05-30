@@ -564,6 +564,25 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["legal_pages"]["Insert"]>;
         Relationships: never[];
       };
+      announcements: {
+        Row: {
+          id: string;
+          title: string;
+          body: string;
+          cta_label: string | null;
+          cta_url: string | null;
+          badge: string | null;
+          type: "promo" | "info" | "warning";
+          starts_at: string | null;
+          ends_at: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["announcements"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["announcements"]["Insert"]>;
+        Relationships: never[];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

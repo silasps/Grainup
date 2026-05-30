@@ -76,7 +76,7 @@ type FormData = z.infer<typeof schema>;
 function CadastroForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") ?? "/minha-conta";
+  const redirectTo = searchParams.get("redirectTo") ?? "/editora";
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [countryCode, setCountryCode] = useState<CountryCode>("BR");

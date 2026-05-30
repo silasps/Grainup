@@ -76,14 +76,15 @@ export default async function AdminSACPage() {
 
         {/* Tickets list */}
         <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="overflow-y-auto max-h-[calc(100vh-280px)]">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary/30">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Cliente</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Assunto</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Categoria</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Status</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Aberto</th>
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-border shadow-sm">
+                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Cliente</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Assunto</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Categoria</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Status</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Aberto</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -122,6 +123,7 @@ export default async function AdminSACPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </main>
     </div>

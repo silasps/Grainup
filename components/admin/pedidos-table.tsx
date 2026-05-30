@@ -115,16 +115,16 @@ export function PedidosTable({ orders }: { orders: OrderRow[] }) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-y-auto max-h-[calc(100vh-320px)]">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Pedido</th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Cliente</th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Data</th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Status</th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground hidden md:table-cell">Pagamento</th>
-              <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground">Total</th>
+          <thead className="sticky top-0 z-10">
+            <tr className="border-b border-border shadow-sm">
+              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Pedido</th>
+              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Cliente</th>
+              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Data</th>
+              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Status</th>
+              <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white hidden md:table-cell">Pagamento</th>
+              <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">

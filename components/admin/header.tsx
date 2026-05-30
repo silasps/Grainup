@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { Bell, ExternalLink, User, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -51,10 +51,10 @@ export function AdminHeader({ title, subtitle }: AdminHeaderProps) {
 
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-1.5 text-xs">
-          <Link href="/editora" target="_blank">
+          <a href="/editora" target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-3.5 w-3.5" />
             Ver loja
-          </Link>
+          </a>
         </Button>
 
         <Button variant="ghost" size="icon" className="relative">
@@ -71,19 +71,25 @@ export function AdminHeader({ title, subtitle }: AdminHeaderProps) {
             }
           />
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>Admin GrainUp</DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Admin GrainUp</DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/admin/editora/configuracoes")}>
-              Configurações
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={() => router.push("/admin/editora/configuracoes")}>
+                Configurações
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleLogout}
-              className="text-destructive focus:text-destructive"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sair
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="text-destructive focus:text-destructive"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -122,6 +122,7 @@ export function CheckoutFlow() {
       const value = field === "cep" ? maskCep(raw) : raw;
       setAddr((p) => ({ ...p, [field]: value }));
       setErrors((p) => ({ ...p, [field]: "" }));
+      if (field === "cep") lookupCep(value);
     };
   }
 
@@ -291,7 +292,6 @@ export function CheckoutFlow() {
                           inputMode="numeric"
                           value={addr.cep}
                           onChange={setAdF("cep")}
-                          onBlur={(e) => lookupCep(e.target.value)}
                           maxLength={9}
                         />
                         {cepLoading && (

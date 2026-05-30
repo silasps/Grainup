@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, DollarSign, Users, TrendingUp, Share2, CheckCircle, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AfiliadoForm } from "./afiliado-form";
 
 export const metadata: Metadata = {
   title: "Programa de Afiliados",
@@ -180,27 +181,19 @@ export default function AfiliadosPage() {
       </section>
 
       {/* Formulário de interesse */}
-      <section id="cadastro" className="py-16 bg-foreground text-white">
-        <div className="container mx-auto max-w-7xl px-4 max-w-lg mx-auto text-center">
-          <BookOpen className="h-10 w-10 text-brand mx-auto mb-4" />
-          <h2 className="font-heading text-2xl sm:text-3xl font-bold mb-4">
-            Pronto para começar?
-          </h2>
-          <p className="text-white/60 mb-8">
-            Cadastre-se ou entre em contato para saber mais sobre o programa.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button size="lg" className="bg-brand hover:bg-brand-700 text-white font-semibold px-8" asChild>
-              <Link href="/auth/cadastro">
-                Criar conta gratuita
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 hover:text-white" asChild>
-              <Link href="/editora/contato">
-                Falar com a equipe
-              </Link>
-            </Button>
+      <section id="cadastro" className="py-16 bg-secondary">
+        <div className="container mx-auto max-w-7xl px-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="text-center mb-10">
+              <BookOpen className="h-10 w-10 text-brand mx-auto mb-4" />
+              <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground mb-3">
+                Quero ser afiliado
+              </h2>
+              <p className="text-muted-foreground">
+                Preencha o formulário abaixo. Nossa equipe analisará sua solicitação em até 3 dias úteis.
+              </p>
+            </div>
+            <AfiliadoForm />
           </div>
         </div>
       </section>

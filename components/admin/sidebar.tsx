@@ -18,6 +18,7 @@ import {
   Megaphone,
   ChevronLeft,
   ChevronRight,
+  ArrowUpRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/logo";
@@ -99,6 +100,21 @@ export function AdminSidebar() {
           );
         })}
       </nav>
+
+      {/* Back to store */}
+      <a
+        href="/editora"
+        target="_blank"
+        rel="noopener noreferrer"
+        title={collapsed ? "Ver loja" : undefined}
+        className={cn(
+          "flex items-center gap-2.5 mx-2 mb-2 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors border border-white/20 text-white/80 hover:bg-white/10 hover:text-white hover:border-white/30",
+          collapsed && "justify-center"
+        )}
+      >
+        <ArrowUpRight className="h-4 w-4 flex-shrink-0" />
+        {!collapsed && <span className="truncate">Ver loja</span>}
+      </a>
 
       {/* Collapse toggle — desktop only */}
       <button

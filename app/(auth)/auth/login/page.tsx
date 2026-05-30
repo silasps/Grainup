@@ -25,7 +25,7 @@ type FormData = z.infer<typeof schema>;
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") ?? "/minha-conta";
+  const redirectTo = searchParams.get("redirectTo") ?? "/editora";
   const [showPassword, setShowPassword] = useState(false);
   const supabase = createClient();
 

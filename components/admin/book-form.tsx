@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { slugify } from "@/lib/utils/format";
 import { Upload, Loader2, ArrowLeft, Save } from "lucide-react";
-import Link from "next/link";
 
 interface Author { id: string; name: string }
 interface Category { id: string; name: string }
@@ -141,19 +140,16 @@ export function BookForm({ book, authors, categories }: Props) {
         if (error) { toast.error(error.message); return; }
         toast.success("Livro criado!");
       }
-      router.push("/admin/editora/livros");
-      router.refresh();
+      router.back();
     });
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
       <div className="p-6 space-y-6 max-w-4xl">
-        <Button variant="ghost" size="sm" type="button" asChild className="w-fit -mt-2">
-          <Link href="/admin/editora/livros">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Voltar
-          </Link>
+        <Button variant="ghost" size="sm" type="button" className="w-fit -mt-2 cursor-pointer" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Voltar
         </Button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

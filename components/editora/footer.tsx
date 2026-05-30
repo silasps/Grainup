@@ -39,6 +39,7 @@ const LINKS_LOJA = [
   { href: "/editora/combos", label: "Combos" },
   { href: "/editora/ofertas", label: "Ofertas" },
   { href: "/editora/novidades", label: "Novidades" },
+  { href: "/editora/sobre", label: "Nossa história" },
 ];
 
 const LINKS_AJUDA = [

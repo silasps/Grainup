@@ -408,10 +408,10 @@ export function FinanceiroDashboard({ movements }: Props) {
         </div>
 
         <PaginationBar />
-        <div className="overflow-x-auto">
+        <div className="overflow-y-auto max-h-[400px]">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary/30">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-border shadow-sm">
                 {([
                   { key: "date", label: "Data", align: "left" },
                   { key: "payment_method", label: "Pagamento", align: "left" },
@@ -422,7 +422,7 @@ export function FinanceiroDashboard({ movements }: Props) {
                   <th
                     key={key}
                     onClick={() => handleSort(key)}
-                    className={`px-5 py-3 text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors text-${align}`}
+                    className={`px-5 py-3 text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors text-${align} bg-white`}
                   >
                     <span className="inline-flex items-center gap-1">
                       {align === "right" && <SortIcon col={key} />}
@@ -431,7 +431,7 @@ export function FinanceiroDashboard({ movements }: Props) {
                     </span>
                   </th>
                 ))}
-                <th className="px-5 py-3 text-xs font-semibold text-muted-foreground text-left">Status</th>
+                <th className="px-5 py-3 text-xs font-semibold text-muted-foreground text-left bg-white">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
