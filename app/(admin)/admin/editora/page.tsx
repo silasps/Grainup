@@ -116,7 +116,7 @@ export default async function AdminEditoraDashboardPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <AdminHeader title="Dashboard" subtitle="Visão geral da Editora" />
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 md:p-6">
         <AdminDashboard data={data} />
       </main>
     </div>

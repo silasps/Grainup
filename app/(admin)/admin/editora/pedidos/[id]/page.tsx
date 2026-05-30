@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { AdminHeader } from "@/components/admin/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,8 +34,7 @@ interface OrderItem {
   quantity: number;
   unit_price: number;
   total_price: number;
-  book_title: string | null;
-  book_cover: string | null;
+  title: string;
 }
 
 interface OrderDetail {
@@ -57,7 +56,7 @@ interface OrderDetail {
 }
 
 async function getOrder(id: string): Promise<OrderDetail | null> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
   const { data } = await supabase
     .from("orders")
     .select(
@@ -65,7 +64,7 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
        subtotal, discount, shipping_cost, total,
        customer_name, customer_email, shipping_address,
        created_at, updated_at,
-       order_items(id, quantity, unit_price, total_price, book_title, book_cover)`
+       order_items(id, quantity, unit_price, total_price, title)`
     )
     .eq("id", id)
     .single();
@@ -89,7 +88,7 @@ export default async function AdminOrderDetailPage({
         title={`Pedido #${order.order_number}`}
         subtitle={formatDateTime(order.created_at)}
       />
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
         <Button variant="ghost" size="sm" asChild className="w-fit -mt-2">
           <Link href="/admin/editora/pedidos">
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -111,17 +110,9 @@ export default async function AdminOrderDetailPage({
                 ) : (
                   (order.order_items ?? []).map((item) => (
                     <div key={item.id} className="flex items-center gap-4 px-5 py-4">
-                      {item.book_cover ? (
-                        <img
-                          src={item.book_cover}
-                          alt={item.book_title ?? ""}
-                          className="h-14 w-10 object-cover rounded border border-border"
-                        />
-                      ) : (
-                        <div className="h-14 w-10 bg-secondary rounded border border-border" />
-                      )}
+                      <div className="h-14 w-10 bg-secondary rounded border border-border flex-shrink-0" />
                       <div className="flex-1">
-                        <p className="text-sm font-medium">{item.book_title ?? "Livro"}</p>
+                        <p className="text-sm font-medium">{item.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {item.quantity}x {formatCurrency(item.unit_price)}
                         </p>

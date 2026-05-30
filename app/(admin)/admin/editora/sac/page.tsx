@@ -58,7 +58,7 @@ export default async function AdminSACPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <AdminHeader title="SAC" subtitle={`${tickets.length} chamados`} />
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[

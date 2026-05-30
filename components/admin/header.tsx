@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, ExternalLink, User, LogOut } from "lucide-react";
+import { Bell, ExternalLink, User, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useMobileMenu } from "@/components/admin/mobile-menu-context";
 
 interface AdminHeaderProps {
   title: string;
@@ -23,6 +24,7 @@ interface AdminHeaderProps {
 export function AdminHeader({ title, subtitle }: AdminHeaderProps) {
   const router = useRouter();
   const supabase = createClient();
+  const { toggle } = useMobileMenu();
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -32,14 +34,19 @@ export function AdminHeader({ title, subtitle }: AdminHeaderProps) {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between px-6 border-b border-border bg-white">
-      <div>
-        <h1 className="font-heading font-semibold text-foreground text-base leading-none">
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
-        )}
+    <header className="flex h-14 items-center justify-between px-4 md:px-6 border-b border-border bg-white">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" className="md:hidden" onClick={toggle} aria-label="Abrir menu">
+          <Menu className="h-5 w-5" />
+        </Button>
+        <div>
+          <h1 className="font-heading font-semibold text-foreground text-base leading-none">
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

@@ -21,10 +21,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,7 +84,7 @@ function buildMonthlyChart(movements: AnyRecord[]) {
     if (key in months) months[key] += m.amount as number;
   }
 
-  return Object.entries(months).map(([mes, receita]) => ({ mes, receita }));
+  return Object.entries(months).map(([mes, receita]) => ({ mes, receita, isMock: false }));
 }
 
 function buildStatusPie(orders: AnyRecord[]) {
@@ -122,33 +118,30 @@ function KpiCard({
 }) {
   const isPositive = (trend?.pct ?? 0) >= 0;
   const card = (
-    <div className="bg-white rounded-xl border border-border p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow">
-      <div className="flex items-center justify-between">
+    <div className="h-full bg-white rounded-xl border border-border p-5 flex flex-col justify-between hover:shadow-sm transition-shadow">
+      <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-muted-foreground font-medium">{label}</span>
         <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center">
           <Icon className="h-4 w-4 text-brand" />
         </div>
       </div>
-      <div>
+      <div className="mb-3">
         <p className="text-2xl font-bold text-foreground">{value}</p>
         {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
       </div>
-      {trend && (
-        <div className={cn("flex items-center gap-1 text-xs font-medium", isPositive ? "text-emerald-600" : "text-red-500")}>
-          {isPositive ? (
-            <TrendingUp className="h-3.5 w-3.5" />
-          ) : (
-            <TrendingDown className="h-3.5 w-3.5" />
-          )}
-          <span>
-            {isPositive ? "+" : ""}{trend.pct.toFixed(1)}% {trend.label}
-          </span>
-        </div>
-      )}
+      {/* sempre ocupa o espaço, mesmo sem trend */}
+      <div className="h-4">
+        {trend && (
+          <div className={cn("flex items-center gap-1 text-xs font-medium", isPositive ? "text-emerald-600" : "text-red-500")}>
+            {isPositive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+            <span>{isPositive ? "+" : ""}{trend.pct.toFixed(1)}% {trend.label}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 
-  return href ? <Link href={href}>{card}</Link> : card;
+  return href ? <Link className="block h-full" href={href}>{card}</Link> : card;
 }
 
 export function AdminDashboard({ data }: { data: DashboardData }) {
@@ -166,7 +159,11 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
     ["novo", "em_atendimento", "aguardando_cliente"].includes(t.status as string)
   ).length;
 
-  const chartData = buildMonthlyChart(data.movements);
+  const rawChartData = buildMonthlyChart(data.movements);
+  const MOCK_VALUES = [4200, 7800, 5100, 9300, 6700, 11200];
+  const chartData = rawChartData.every((d) => d.receita === 0)
+    ? rawChartData.map((d, i) => ({ ...d, receita: MOCK_VALUES[i] ?? 0, isMock: true }))
+    : rawChartData;
   const pieData = buildStatusPie(data.orders);
 
   return (
@@ -200,7 +197,7 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Receita este mês"
           value={formatCurrency(thisRevenue)}
@@ -240,7 +237,9 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="font-semibold text-foreground text-sm">Receita mensal</h2>
-              <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
+              <p className="text-xs text-muted-foreground">
+                Últimos 6 meses{chartData[0]?.isMock ? " · visualização de exemplo" : ""}
+              </p>
             </div>
             <Button variant="ghost" size="sm" asChild className="text-xs text-brand h-7">
               <Link href="/admin/editora/financeiro">
@@ -289,43 +288,37 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
           </ResponsiveContainer>
         </div>
 
-        {/* Status pie */}
+        {/* Status breakdown */}
         <div className="bg-white rounded-xl border border-border p-5">
-          <div className="mb-5">
+          <div className="mb-4">
             <h2 className="font-semibold text-foreground text-sm">Pedidos por status</h2>
             <p className="text-xs text-muted-foreground">Últimos 90 dias</p>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={75}
-                paddingAngle={2}
-                dataKey="value"
-              >
-                {pieData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
+          {pieData.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Nenhum pedido</p>
+          ) : (() => {
+            const total = pieData.reduce((s, d) => s + d.value, 0);
+            return (
+              <div className="flex flex-col gap-3">
+                {pieData.map((entry) => (
+                  <div key={entry.name} className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 w-24 flex-shrink-0">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+                      <span className="text-xs text-muted-foreground truncate">{entry.name}</span>
+                    </div>
+                    <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${(entry.value / total) * 100}%`, backgroundColor: entry.color }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold w-8 text-right flex-shrink-0">{entry.value}</span>
+                  </div>
                 ))}
-              </Pie>
-              <Legend
-                iconType="circle"
-                iconSize={8}
-                formatter={(value) => (
-                  <span style={{ fontSize: 11, color: "#555" }}>{value}</span>
-                )}
-              />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: 8,
-                  border: "1px solid #e5e7eb",
-                  fontSize: 12,
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+                <p className="text-xs text-muted-foreground text-right mt-1">{total} pedidos no total</p>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

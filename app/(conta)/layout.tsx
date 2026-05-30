@@ -1,14 +1,33 @@
 import Link from "next/link";
 import { Logo } from "@/components/shared/logo";
-import { User, ShoppingBag, MapPin, ChevronRight } from "lucide-react";
+import { User, ShoppingBag, MapPin, ChevronRight, LayoutDashboard } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 
 const NAV = [
-  { href: "/minha-conta", label: "Minha conta", icon: User, exact: true },
+  { href: "/minha-conta", label: "Minha conta", icon: User },
   { href: "/minha-conta/pedidos", label: "Pedidos", icon: ShoppingBag },
   { href: "/minha-conta/enderecos", label: "Endereços", icon: MapPin },
 ];
 
-export default function ContaLayout({ children }: { children: React.ReactNode }) {
+function roleToAdminArea(role: string) {
+  if (role === "super_admin" || role === "admin_editora") return { href: "/admin/editora", label: "Painel Admin" };
+  if (role === "admin_ead") return { href: "/admin/ead", label: "Painel EAD" };
+  if (role === "admin_eifol") return { href: "/admin/eifol", label: "Painel EIFOL" };
+  if (role === "afiliado_jocum" || role === "afiliado_diretor" || role === "lider_jocum") return { href: "/editora/afiliados", label: "Área de Afiliado" };
+  return null;
+}
+
+export default async function ContaLayout({ children }: { children: React.ReactNode }) {
+  let adminArea: { href: string; label: string } | null = null;
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).limit(1).single();
+      if (data) adminArea = roleToAdminArea(data.role);
+    }
+  } catch { /* unauthenticated */ }
+
   return (
     <div className="min-h-screen bg-secondary">
       <header className="flex h-16 items-center px-6 border-b border-border bg-white">
@@ -44,6 +63,17 @@ export default function ContaLayout({ children }: { children: React.ReactNode })
                 })}
               </nav>
             </div>
+
+            {adminArea && (
+              <Link
+                href={adminArea.href}
+                className="flex items-center gap-2 mt-3 px-4 py-3 text-sm font-medium bg-amber-50 border border-amber-200 text-amber-700 rounded-xl hover:bg-amber-100 transition-colors"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                {adminArea.label}
+                <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+              </Link>
+            )}
 
             <Link
               href="/editora/livros"

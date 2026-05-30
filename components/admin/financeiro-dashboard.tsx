@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useMemo, useEffect } from "react";
 import {
   AreaChart,
   Area,
@@ -13,6 +14,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { ChevronUp, ChevronDown, ChevronsUpDown, X } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
 
 interface Movement {
@@ -74,9 +76,6 @@ export function FinanceiroDashboard({ movements }: Props) {
     return { name: method.toUpperCase(), value: count };
   });
 
-  // Recent 20 movements
-  const recent = movements.slice(0, 20);
-
   const STATUS_LABEL: Record<string, string> = {
     pago: "Pago",
     pendente: "Pendente",
@@ -90,9 +89,127 @@ export function FinanceiroDashboard({ movements }: Props) {
     estornado: "text-orange-600 bg-orange-50",
   };
 
+  const PAY_LABEL: Record<string, string> = {
+    pix: "Pix",
+    credito: "Crédito",
+    debito: "Débito",
+    boleto: "Boleto",
+  };
+
+  // Filter + sort state
+  const [filterPayment, setFilterPayment] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterPeriod, setFilterPeriod] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  type SortKey = "date" | "gross_amount" | "gateway_fee" | "net_amount" | "payment_method";
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("desc"); }
+  }
+
+  function handlePeriodChange(val: string) {
+    setFilterPeriod(val);
+    if (val !== "all") { setDateFrom(""); setDateTo(""); }
+  }
+
+  function handleDateChange(from: string, to: string) {
+    setDateFrom(from);
+    setDateTo(to);
+    if (from || to) setFilterPeriod("all");
+  }
+
+  const periodDays: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "180d": 180 };
+
+  const filtered = useMemo(() => {
+    const cutoff = filterPeriod !== "all"
+      ? new Date(Date.now() - periodDays[filterPeriod] * 86400000)
+      : null;
+    const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
+    const to = dateTo ? new Date(dateTo + "T23:59:59") : null;
+
+    return movements
+      .filter((m) => {
+        if (filterPayment !== "all" && m.payment_method !== filterPayment) return false;
+        if (filterStatus !== "all" && m.status !== filterStatus) return false;
+        const d = new Date(m.paid_at ?? m.created_at);
+        if (cutoff && d < cutoff) return false;
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        let va: number | string, vb: number | string;
+        if (sortKey === "date") {
+          va = new Date(a.paid_at ?? a.created_at).getTime();
+          vb = new Date(b.paid_at ?? b.created_at).getTime();
+        } else if (sortKey === "payment_method") {
+          va = a.payment_method ?? "";
+          vb = b.payment_method ?? "";
+        } else {
+          va = a[sortKey] as number;
+          vb = b[sortKey] as number;
+        }
+        if (va < vb) return sortDir === "asc" ? -1 : 1;
+        if (va > vb) return sortDir === "asc" ? 1 : -1;
+        return 0;
+      });
+  }, [movements, filterPayment, filterStatus, filterPeriod, dateFrom, dateTo, sortKey, sortDir]);
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="h-3 w-3 text-brand" />
+      : <ChevronDown className="h-3 w-3 text-brand" />;
+  }
+
+  const [pageSize, setPageSize] = useState(15);
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [filterPayment, filterStatus, filterPeriod, dateFrom, dateTo, pageSize]);
+
+  // Reset to page 1 when filters change
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const paymentMethods = [...new Set(movements.map((m) => m.payment_method).filter(Boolean))];
+  const statuses = [...new Set(movements.map((m) => m.status).filter(Boolean))];
+
+  function PaginationBar() {
+    return (
+      <div className="flex items-center justify-between px-5 py-3 text-xs text-muted-foreground">
+        <button
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={safePage === 1}
+          className="px-3 py-1.5 rounded-md border border-border hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          ← Anterior
+        </button>
+        <span>Página {safePage} de {totalPages} · {filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
+        <button
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          disabled={safePage === totalPages}
+          className="px-3 py-1.5 rounded-md border border-border hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Próxima →
+        </button>
+      </div>
+    );
+  }
+
+  const fmt = (iso: string) => new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" }).format(new Date(iso));
+  const dates = paid.map((m) => m.paid_at ?? m.created_at).sort();
+  const periodLabel = dates.length > 0 ? `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}` : null;
+
   return (
     <main className="flex-1 overflow-y-auto p-6 space-y-6">
       {/* KPI cards */}
+      {periodLabel && (
+        <p className="text-xs text-muted-foreground">Totais pagos · {periodLabel}</p>
+      )}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
           { label: "Receita Bruta", value: formatCurrency(totals.gross) },
@@ -174,55 +291,186 @@ export function FinanceiroDashboard({ movements }: Props) {
         </div>
       </div>
 
-      {/* Recent movements table */}
+      {/* Movements table */}
       <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
-          <h3 className="text-sm font-semibold text-foreground">Últimas movimentações</h3>
+        {/* Header + filters */}
+        <div className="px-5 py-4 border-b border-border flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Movimentações</h3>
+            <div className="flex items-center gap-2">
+<select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="bg-transparent text-[11px] text-muted-foreground focus:outline-none cursor-pointer"
+              >
+                <option value={15}>15 por página</option>
+                <option value={30}>30 por página</option>
+                <option value={50}>50 por página</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {/* Período rápido */}
+            <div className={`flex items-center h-8 rounded-md border text-xs text-foreground focus-within:ring-1 focus-within:ring-brand ${filterPeriod !== "all" ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
+              <select
+                value={filterPeriod}
+                onChange={(e) => handlePeriodChange(e.target.value)}
+                className="h-full bg-transparent pl-2 pr-1 focus:outline-none cursor-pointer"
+              >
+                <option value="all">Todo período</option>
+                <option value="7d">Últimos 7 dias</option>
+                <option value="30d">Últimos 30 dias</option>
+                <option value="90d">Últimos 90 dias</option>
+                <option value="180d">Últimos 6 meses</option>
+              </select>
+              {filterPeriod !== "all" && (
+                <button onClick={() => setFilterPeriod("all")} className="ml-0.5 text-brand hover:text-brand-700 flex-shrink-0" aria-label="Remover filtro de período">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Separador */}
+            <span className="text-border self-center select-none">|</span>
+
+            {/* De */}
+            <div className={`flex items-center h-8 rounded-md border text-xs text-foreground focus-within:ring-1 focus-within:ring-brand ${dateFrom ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
+              <span className="pl-2 pr-1 text-muted-foreground whitespace-nowrap">De</span>
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => handleDateChange(e.target.value, dateTo)}
+                className="h-full bg-transparent pr-1 focus:outline-none cursor-pointer text-xs"
+              />
+              {dateFrom && (
+                <button onClick={() => handleDateChange("", dateTo)} className="ml-0.5 text-brand hover:text-brand-700 flex-shrink-0" aria-label="Remover data inicial">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Até */}
+            <div className={`flex items-center h-8 rounded-md border text-xs text-foreground focus-within:ring-1 focus-within:ring-brand ${dateTo ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
+              <span className="pl-2 pr-1 text-muted-foreground whitespace-nowrap">Até</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => handleDateChange(dateFrom, e.target.value)}
+                className="h-full bg-transparent pr-1 focus:outline-none cursor-pointer text-xs"
+              />
+              {dateTo && (
+                <button onClick={() => handleDateChange(dateFrom, "")} className="ml-0.5 text-brand hover:text-brand-700 flex-shrink-0" aria-label="Remover data final">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Forma de pagamento */}
+            <div className={`flex items-center h-8 rounded-md border text-xs text-foreground focus-within:ring-1 focus-within:ring-brand ${filterPayment !== "all" ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
+              <select
+                value={filterPayment}
+                onChange={(e) => setFilterPayment(e.target.value)}
+                className="h-full bg-transparent pl-2 pr-1 focus:outline-none cursor-pointer"
+              >
+                <option value="all">Forma de pag.</option>
+                {paymentMethods.map((p) => (
+                  <option key={p} value={p}>{PAY_LABEL[p] ?? p}</option>
+                ))}
+              </select>
+              {filterPayment !== "all" && (
+                <button onClick={() => setFilterPayment("all")} className="ml-0.5 text-brand hover:text-brand-700 flex-shrink-0" aria-label="Remover filtro de pagamento">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Status */}
+            <div className={`flex items-center h-8 rounded-md border text-xs text-foreground focus-within:ring-1 focus-within:ring-brand ${filterStatus !== "all" ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="h-full bg-transparent pl-2 pr-1 focus:outline-none cursor-pointer"
+              >
+                <option value="all">Status</option>
+                {statuses.map((s) => (
+                  <option key={s} value={s}>{STATUS_LABEL[s] ?? s}</option>
+                ))}
+              </select>
+              {filterStatus !== "all" && (
+                <button onClick={() => setFilterStatus("all")} className="ml-0.5 text-brand hover:text-brand-700 flex-shrink-0" aria-label="Remover filtro de status">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
+
+        <PaginationBar />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-secondary/30">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Data</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Pagamento</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground">Bruto</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground">Taxa</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground">Líquido</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground">Status</th>
+                {([
+                  { key: "date", label: "Data", align: "left" },
+                  { key: "payment_method", label: "Pagamento", align: "left" },
+                  { key: "gross_amount", label: "Bruto", align: "right" },
+                  { key: "gateway_fee", label: "Taxa", align: "right" },
+                  { key: "net_amount", label: "Líquido", align: "right" },
+                ] as { key: SortKey; label: string; align: string }[]).map(({ key, label, align }) => (
+                  <th
+                    key={key}
+                    onClick={() => handleSort(key)}
+                    className={`px-5 py-3 text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors text-${align}`}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {align === "right" && <SortIcon col={key} />}
+                      {label}
+                      {align === "left" && <SortIcon col={key} />}
+                    </span>
+                  </th>
+                ))}
+                <th className="px-5 py-3 text-xs font-semibold text-muted-foreground text-left">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {recent.map((m) => (
-                <tr key={m.id} className="hover:bg-secondary/30 transition-colors">
-                  <td className="px-5 py-3 text-muted-foreground text-xs">
-                    {new Intl.DateTimeFormat("pt-BR").format(new Date(m.paid_at ?? m.created_at))}
-                  </td>
-                  <td className="px-5 py-3 capitalize text-muted-foreground">
-                    {m.payment_method?.replace("_", " ") ?? "—"}
-                  </td>
-                  <td className="px-5 py-3 text-right font-medium">
-                    {formatCurrency(m.gross_amount)}
-                  </td>
-                  <td className="px-5 py-3 text-right text-muted-foreground">
-                    {formatCurrency(m.gateway_fee)}
-                  </td>
-                  <td className="px-5 py-3 text-right font-semibold text-brand">
-                    {formatCurrency(m.net_amount)}
-                  </td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        STATUS_COLOR[m.status] ?? "text-muted-foreground bg-secondary"
-                      }`}
-                    >
-                      {STATUS_LABEL[m.status] ?? m.status}
-                    </span>
+              {paginated.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    Nenhuma movimentação encontrada.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginated.map((m) => (
+                  <tr key={m.id} className="hover:bg-secondary/30 transition-colors">
+                    <td className="px-5 py-3 text-muted-foreground text-xs whitespace-nowrap">
+                      {new Intl.DateTimeFormat("pt-BR").format(new Date(m.paid_at ?? m.created_at))}
+                    </td>
+                    <td className="px-5 py-3 capitalize text-muted-foreground whitespace-nowrap">
+                      {PAY_LABEL[m.payment_method] ?? m.payment_method?.replace("_", " ") ?? "—"}
+                    </td>
+                    <td className="px-5 py-3 text-right font-medium whitespace-nowrap">
+                      {formatCurrency(m.gross_amount)}
+                    </td>
+                    <td className="px-5 py-3 text-right text-muted-foreground whitespace-nowrap">
+                      {formatCurrency(m.gateway_fee)}
+                    </td>
+                    <td className="px-5 py-3 text-right font-semibold text-brand whitespace-nowrap">
+                      {formatCurrency(m.net_amount)}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLOR[m.status] ?? "text-muted-foreground bg-secondary"}`}>
+                        {STATUS_LABEL[m.status] ?? m.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && <PaginationBar />}
       </div>
     </main>
   );

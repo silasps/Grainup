@@ -15,12 +15,14 @@ import {
   HelpCircle,
   Newspaper,
   Tag,
+  Megaphone,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/logo";
 import { useState } from "react";
+import { useMobileMenu } from "./mobile-menu-context";
 
 const NAV_ITEMS = [
   {
@@ -39,6 +41,7 @@ const NAV_ITEMS = [
   { label: "Combos", href: "/admin/editora/combos", icon: BookOpen },
   { label: "FAQ", href: "/admin/editora/faq", icon: HelpCircle },
   { label: "Novidades", href: "/admin/editora/novidades", icon: Newspaper },
+  { label: "Anúncios", href: "/admin/editora/anuncios", icon: Megaphone },
   { label: "Financeiro", href: "/admin/editora/financeiro", icon: TrendingUp },
   { label: "Fiscal", href: "/admin/editora/fiscal", icon: FileText },
   { label: "Config.", href: "/admin/editora/configuracoes", icon: Settings },
@@ -47,6 +50,7 @@ const NAV_ITEMS = [
 export function AdminSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { open: mobileOpen, close: mobileClose } = useMobileMenu();
 
   function isActive(item: (typeof NAV_ITEMS)[number]) {
     if (item.exact) return pathname === item.href;
@@ -56,8 +60,13 @@ export function AdminSidebar() {
   return (
     <aside
       className={cn(
-        "flex-shrink-0 flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-200",
-        collapsed ? "w-14" : "w-56"
+        "flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
+        // Mobile: fixed drawer, slide in/out
+        "fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-200",
+        mobileOpen ? "translate-x-0" : "-translate-x-full",
+        // Desktop: static, collapsible width
+        "md:static md:z-auto md:translate-x-0 md:flex-shrink-0 md:transition-all",
+        collapsed ? "md:w-14" : "md:w-56"
       )}
     >
       {/* Logo */}
@@ -75,6 +84,7 @@ export function AdminSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={mobileClose}
               title={collapsed ? item.label : undefined}
               className={cn(
                 "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5",
@@ -90,10 +100,10 @@ export function AdminSidebar() {
         })}
       </nav>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — desktop only */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center justify-center h-10 border-t border-sidebar-border text-sidebar-foreground/50 hover:text-white transition-colors"
+        className="hidden md:flex items-center justify-center h-10 border-t border-sidebar-border text-sidebar-foreground/50 hover:text-white transition-colors"
       >
         {collapsed ? (
           <ChevronRight className="h-4 w-4" />

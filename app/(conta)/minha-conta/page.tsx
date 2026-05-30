@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ShoppingBag, MapPin, Star, ArrowRight } from "lucide-react";
+import { ShoppingBag, MapPin, Star, ArrowRight, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default async function MinhaConta() {
@@ -17,10 +17,20 @@ export default async function MinhaConta() {
     .single();
   const profile = profileData as { full_name: string; phone: string | null } | null;
 
-  const { count: ordersCount } = await supabase
-    .from("orders")
-    .select("id", { count: "exact" })
-    .eq("user_id", user.id);
+  const [{ count: ordersCount }, { data: roleData }] = await Promise.all([
+    supabase.from("orders").select("id", { count: "exact" }).eq("user_id", user.id),
+    supabase.from("user_roles").select("role").eq("user_id", user.id).limit(1).maybeSingle(),
+  ]);
+
+  const adminArea = (() => {
+    const role = roleData?.role;
+    if (!role) return null;
+    if (role === "super_admin" || role === "admin_editora") return { href: "/admin/editora", label: "Painel Admin", desc: "Gerencie livros, pedidos e muito mais." };
+    if (role === "admin_ead") return { href: "/admin/ead", label: "Painel EAD", desc: "Acesse o painel do EAD." };
+    if (role === "admin_eifol") return { href: "/admin/eifol", label: "Painel EIFOL", desc: "Acesse o painel EIFOL." };
+    if (role === "afiliado_jocum" || role === "afiliado_diretor" || role === "lider_jocum") return { href: "/editora/afiliados", label: "Área de Afiliado", desc: "Veja seus links e comissões." };
+    return null;
+  })();
 
   const name = profile?.full_name ?? user.email?.split("@")[0] ?? "Visitante";
 
@@ -82,6 +92,23 @@ export default async function MinhaConta() {
           );
         })}
       </div>
+
+      {/* Admin / afiliado area */}
+      {adminArea && (
+        <Link
+          href={adminArea.href}
+          className="flex items-center gap-4 bg-amber-50 border border-amber-200 rounded-xl p-5 hover:bg-amber-100 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <LayoutDashboard className="h-5 w-5 text-amber-700" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-amber-900 text-sm">{adminArea.label}</p>
+            <p className="text-xs text-amber-700 mt-0.5">{adminArea.desc}</p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-amber-600 flex-shrink-0" />
+        </Link>
+      )}
 
       {/* CTA */}
       <div className="bg-brand-50 border border-brand/20 rounded-xl p-5 flex items-center justify-between gap-4">
