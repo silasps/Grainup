@@ -105,7 +105,7 @@ export function CheckoutFlow() {
   const [shipping, setShipping] = useState("pac");
   const [payment, setPayment] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState("");
-  const [ident, setIdent] = useState<IdentData>({ name: "", email: "" });
+  const [ident, setIdent] = useState<IdentData>({ name: "", email: "", cpf: "" });
   const [addr, setAddr] = useState<AddrData>(emptyAddr);
   const [cepLoading, setCepLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});

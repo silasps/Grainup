@@ -45,28 +45,32 @@ export async function placeOrderAction(input: PlaceOrderInput) {
 
   const supabase = await createAdminClient();
 
+  // order_number é omitido do tipo Insert gerado, mas pode ser passado para sobrescrever o DEFAULT
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payload: any = {
+    order_number: generateOrderNumber(),
+    user_id: user.id,
+    customer_email: input.customerEmail,
+    customer_name: input.customerName,
+    customer_cpf: input.customerCpf || null,
+    shipping_address: input.shippingAddress,
+    subtotal: input.subtotal,
+    discount: input.discount,
+    shipping_cost: input.shippingCost,
+    total: input.total,
+    status: "aguardando_pagamento",
+    payment_status: "pendente",
+    payment_method: input.paymentMethod,
+    fiscal_status: "nao_emitida",
+    affiliate_id: null,
+    coupon_code: null,
+    notes: null,
+    tracking_code: null,
+  };
+
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .insert({
-      order_number: generateOrderNumber(),
-      user_id: user.id,
-      customer_email: input.customerEmail,
-      customer_name: input.customerName,
-      customer_cpf: input.customerCpf || null,
-      shipping_address: input.shippingAddress,
-      subtotal: input.subtotal,
-      discount: input.discount,
-      shipping_cost: input.shippingCost,
-      total: input.total,
-      status: "aguardando_pagamento",
-      payment_status: "pendente",
-      payment_method: input.paymentMethod,
-      fiscal_status: "nao_emitida",
-      affiliate_id: null,
-      coupon_code: null,
-      notes: null,
-      tracking_code: null,
-    })
+    .insert(payload)
     .select("id, order_number")
     .single();
 
@@ -89,12 +93,10 @@ export async function placeOrderAction(input: PlaceOrderInput) {
 
   if (itemsError) {
     console.error("placeOrderAction — order_items insert:", itemsError);
-    // Pedido foi criado mas itens falharam — rollback manual
     await supabase.from("orders").delete().eq("id", order.id);
     return { error: itemsError.message ?? "Erro ao salvar itens do pedido." };
   }
 
-  // Salva CPF no perfil se ainda não tinha
   if (input.customerCpf) {
     await supabase
       .from("profiles")
