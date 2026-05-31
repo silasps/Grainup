@@ -61,14 +61,23 @@ export default async function EditoraLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [announcement, { adminArea, isLoggedIn }] = await Promise.all([getActiveAnnouncement(), getSessionState()]);
+    const supabase = await createClient();
+  const [announcement, { adminArea, isLoggedIn }, { data: contactSettings }] = await Promise.all([
+    getActiveAnnouncement(),
+    getSessionState(),
+    supabase.from("contact_settings").select("whatsapp, phone, whatsapp_message, whatsapp_enabled").limit(1).maybeSingle(),
+  ]);
+
+  const waPhone = (contactSettings?.whatsapp || contactSettings?.phone || "5541991435610").replace(/\D/g, "");
+  const waEnabled = contactSettings?.whatsapp_enabled ?? true;
+  const waMessage = contactSettings?.whatsapp_message ?? undefined;
 
   return (
     <>
       <EditoraHeader adminArea={adminArea} isLoggedIn={isLoggedIn} />
       <main className="flex-1">{children}</main>
       <EditoraFooter />
-      <WhatsAppButton phone="5541991435610" enabled />
+      <WhatsAppButton phone={waPhone} enabled={waEnabled} message={waMessage} />
       <CookieBanner />
       <PromoOverlay announcement={announcement} />
     </>

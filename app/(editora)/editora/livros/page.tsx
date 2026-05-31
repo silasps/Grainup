@@ -19,7 +19,7 @@ async function getCatalogData() {
       .select(`
         id, title, slug, cover_url, price, price_promotional,
         rating_avg, rating_count, is_bestseller, is_new, is_featured,
-        authors(name)
+        category_id, authors(name)
       `)
       .eq("is_active", true)
       .order("title"),

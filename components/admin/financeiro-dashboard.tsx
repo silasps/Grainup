@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import {
   AreaChart,
   Area,
@@ -166,39 +166,8 @@ export function FinanceiroDashboard({ movements }: Props) {
       : <ChevronDown className="h-3 w-3 text-brand" />;
   }
 
-  const [pageSize, setPageSize] = useState(15);
-  const [page, setPage] = useState(1);
-  useEffect(() => setPage(1), [filterPayment, filterStatus, filterPeriod, dateFrom, dateTo, pageSize]);
-
-  // Reset to page 1 when filters change
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-
   const paymentMethods = [...new Set(movements.map((m) => m.payment_method).filter(Boolean))];
   const statuses = [...new Set(movements.map((m) => m.status).filter(Boolean))];
-
-  function PaginationBar() {
-    return (
-      <div className="flex items-center justify-between px-5 py-3 text-xs text-muted-foreground">
-        <button
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={safePage === 1}
-          className="px-3 py-1.5 rounded-md border border-border hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          ← Anterior
-        </button>
-        <span>Página {safePage} de {totalPages} · {filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
-        <button
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={safePage === totalPages}
-          className="px-3 py-1.5 rounded-md border border-border hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          Próxima →
-        </button>
-      </div>
-    );
-  }
 
   const fmt = (iso: string) => new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" }).format(new Date(iso));
   const dates = paid.map((m) => m.paid_at ?? m.created_at).sort();
@@ -297,17 +266,7 @@ export function FinanceiroDashboard({ movements }: Props) {
         <div className="px-5 py-4 border-b border-border flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Movimentações</h3>
-            <div className="flex items-center gap-2">
-<select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="bg-transparent text-[11px] text-muted-foreground focus:outline-none cursor-pointer"
-              >
-                <option value={15}>15 por página</option>
-                <option value={30}>30 por página</option>
-                <option value={50}>50 por página</option>
-              </select>
-            </div>
+            <span className="text-xs text-muted-foreground">{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {/* Período rápido */}
@@ -407,8 +366,7 @@ export function FinanceiroDashboard({ movements }: Props) {
           </div>
         </div>
 
-        <PaginationBar />
-        <div className="overflow-y-auto max-h-[400px]">
+        <div className="overflow-y-auto max-h-[calc(100vh-520px)] min-h-[200px]">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-border shadow-sm">
@@ -435,14 +393,14 @@ export function FinanceiroDashboard({ movements }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {paginated.length === 0 ? (
+              {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-sm text-muted-foreground">
                     Nenhuma movimentação encontrada.
                   </td>
                 </tr>
               ) : (
-                paginated.map((m) => (
+                filtered.map((m) => (
                   <tr key={m.id} className="hover:bg-secondary/30 transition-colors">
                     <td className="px-5 py-3 text-muted-foreground text-xs whitespace-nowrap">
                       {new Intl.DateTimeFormat("pt-BR").format(new Date(m.paid_at ?? m.created_at))}
@@ -470,7 +428,6 @@ export function FinanceiroDashboard({ movements }: Props) {
             </tbody>
           </table>
         </div>
-        {totalPages > 1 && <PaginationBar />}
       </div>
     </main>
   );

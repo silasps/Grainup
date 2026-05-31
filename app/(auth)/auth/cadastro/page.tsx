@@ -73,6 +73,14 @@ const schema = z
 
 type FormData = z.infer<typeof schema>;
 
+function applyCpfMask(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  return d
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
+
 function CadastroForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -81,6 +89,7 @@ function CadastroForm() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [countryCode, setCountryCode] = useState<CountryCode>("BR");
   const [phoneDisplay, setPhoneDisplay] = useState("");
+  const [cpfDisplay, setCpfDisplay] = useState("");
   const supabase = createClient();
 
   const country = COUNTRIES.find((c) => c.code === countryCode) ?? COUNTRIES[0];
@@ -104,12 +113,14 @@ function CadastroForm() {
   async function onSubmit(data: FormData) {
     const digits = phoneDisplay.replace(/\D/g, "");
     const whatsapp = digits ? `${country.ddi}${digits}` : undefined;
+    const cpfDigits = cpfDisplay.replace(/\D/g, "");
+    const cpf = cpfDigits.length === 11 ? cpfDigits : undefined;
 
     const { data: signUpData, error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
-        data: { full_name: data.name, whatsapp },
+        data: { full_name: data.name, whatsapp, cpf },
         emailRedirectTo: `${window.location.origin}/auth/callback?next=${redirectTo}`,
       },
     });
@@ -117,6 +128,10 @@ function CadastroForm() {
     if (error) {
       toast.error("Erro ao criar conta", { description: error.message });
       return;
+    }
+
+    if (signUpData.session && signUpData.user && cpf) {
+      await supabase.from("profiles").update({ cpf }).eq("id", signUpData.user.id);
     }
 
     if (signUpData.session) {
@@ -183,6 +198,22 @@ function CadastroForm() {
               {...register("email")}
             />
             {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+          </div>
+
+          {/* CPF */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="cpf">
+              CPF{" "}
+              <span className="text-muted-foreground font-normal text-xs">(para nota fiscal)</span>
+            </Label>
+            <Input
+              id="cpf"
+              placeholder="000.000.000-00"
+              inputMode="numeric"
+              value={cpfDisplay}
+              onChange={(e) => setCpfDisplay(applyCpfMask(e.target.value))}
+              maxLength={14}
+            />
           </div>
 
           {/* WhatsApp */}
@@ -285,7 +316,10 @@ function CadastroForm() {
 
         <p className="text-center text-sm text-muted-foreground">
           Já tem conta?{" "}
-          <Link href="/auth/login" className="text-brand hover:underline font-medium">
+          <Link
+            href={`/auth/login?redirectTo=${encodeURIComponent(redirectTo)}`}
+            className="text-brand hover:underline font-medium"
+          >
             Entrar
           </Link>
         </p>

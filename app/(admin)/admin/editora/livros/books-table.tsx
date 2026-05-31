@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,7 +99,11 @@ export function BooksTable({ books }: { books: BookRow[] }) {
                 const author = book.authors as { name: string } | null;
                 const hasDiscount = book.price_promotional && book.price_promotional < book.price;
                 return (
-                  <tr key={book.id} className="hover:bg-secondary/30 transition-colors">
+                  <tr
+                    key={book.id}
+                    onClick={() => router.push(`/admin/editora/livros/${book.id}`)}
+                    className="hover:bg-secondary/30 transition-colors cursor-pointer"
+                  >
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <div className="relative w-8 h-10 rounded bg-secondary overflow-hidden flex-shrink-0">

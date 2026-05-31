@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import {
   Mail,
   MapPin,
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createClient } from "@/lib/supabase/client";
+import { saveContactAction, saveLegalPageAction } from "@/app/(admin)/admin/editora/configuracoes/actions";
 import { PhoneInput, COUNTRIES } from "@/components/checkout/phone-input";
 
 type ContactSettings = {
@@ -108,8 +108,7 @@ interface Props {
 }
 
 export function ConfigDashboard({ contact, legalPages }: Props) {
-  const supabase = createClient();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   // Parse phone fields from DB on init
   const parsedPhone = parseStoredPhone(contact?.phone ?? null);
@@ -158,27 +157,24 @@ export function ConfigDashboard({ contact, legalPages }: Props) {
     setLegalStatus((prev) => ({ ...prev, [id]: "idle" }));
   }
 
-  function saveContact() {
-    startTransition(async () => {
-      const { error } = await supabase.from("contact_settings").upsert({
-        id: contact?.id ?? crypto.randomUUID(),
-        ...contactForm,
-        phone: buildStoredPhone(phoneCountry, phoneLocal),
-        whatsapp: buildStoredPhone(whatsappCountry, whatsappLocal),
-        business_hours: JSON.stringify(schedule),
-      });
-      setContactStatus(error ? "error" : "ok");
+  async function saveContact() {
+    setIsPending(true);
+    const { error } = await saveContactAction({
+      id: contact?.id ?? crypto.randomUUID(),
+      ...contactForm,
+      phone: buildStoredPhone(phoneCountry, phoneLocal),
+      whatsapp: buildStoredPhone(whatsappCountry, whatsappLocal),
+      business_hours: JSON.stringify(schedule),
     });
+    setIsPending(false);
+    setContactStatus(error ? "error" : "ok");
   }
 
-  function saveLegalPage(page: LegalPage) {
-    startTransition(async () => {
-      const { error } = await supabase
-        .from("legal_pages")
-        .update({ title: page.title, content: page.content })
-        .eq("id", page.id);
-      setLegalStatus((prev) => ({ ...prev, [page.id]: error ? "error" : "ok" }));
-    });
+  async function saveLegalPage(page: LegalPage) {
+    setIsPending(true);
+    const { error } = await saveLegalPageAction({ id: page.id, title: page.title, content: page.content });
+    setIsPending(false);
+    setLegalStatus((prev) => ({ ...prev, [page.id]: error ? "error" : "ok" }));
   }
 
   return (
@@ -196,7 +192,7 @@ export function ConfigDashboard({ contact, legalPages }: Props) {
 
       {/* ─── Contato ─────────────────────────────────────────────── */}
       <TabsContent value="contato" className="min-h-0 overflow-y-auto p-4 md:p-6">
-        <div className="max-w-2xl space-y-6 pb-6">
+        <div className="max-w-2xl space-y-6 pb-16">
           <Section icon={<Mail className="h-4 w-4" />} title="Canal principal">
             <Field label="E-mail de contato">
               <Input

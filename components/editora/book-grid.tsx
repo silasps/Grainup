@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ interface BookRow {
   is_bestseller: boolean;
   is_new: boolean;
   is_featured: boolean;
+  category_id: string | null;
   authors: { name: string } | null;
 }
 
@@ -91,8 +92,6 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const [, startTransition] = useTransition();
-
   const [search, setSearch] = useState(
     (searchParams.busca as string) ?? ""
   );
@@ -117,9 +116,7 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
     } else {
       next.set(key, value);
     }
-    startTransition(() => {
-      router.push(`${pathname}?${next.toString()}`);
-    });
+    router.push(`${pathname}?${next.toString()}`);
   }
 
   function toggleCategory(slug: string) {
@@ -131,15 +128,11 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
     } else {
       next.append("categoria", slug);
     }
-    startTransition(() => {
-      router.push(`${pathname}?${next.toString()}`);
-    });
+    router.push(`${pathname}?${next.toString()}`);
   }
 
   function clearFilters() {
-    startTransition(() => {
-      router.push(pathname);
-    });
+    router.push(pathname);
     setSearch("");
   }
 
@@ -157,10 +150,12 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
       );
     }
 
-    // Categories
+    // Categories — map selected slugs to category IDs for filtering
     if (selectedCategories.size > 0) {
-      // Note: books need category relationship — filter by what's available
-      // For now, filter is applied via URL params and server re-fetch
+      const selectedIds = new Set(
+        categories.filter((c) => selectedCategories.has(c.slug)).map((c) => c.id)
+      );
+      result = result.filter((b) => b.category_id && selectedIds.has(b.category_id));
     }
 
     // Price range
@@ -481,9 +476,9 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
       <div className="flex gap-8">
         {/* Sidebar filters — desktop */}
         <aside className="hidden lg:block w-60 flex-shrink-0">
-          <div className="sticky top-24">
-            <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/40">
+          <div className="sticky top-24 max-h-[calc(100vh-8rem)] flex flex-col">
+            <div className="bg-white rounded-2xl border border-border shadow-sm flex flex-col min-h-0 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/40 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <SlidersHorizontal className="h-3.5 w-3.5 text-brand" />
                   <h2 className="text-sm font-semibold text-foreground">Filtros</h2>
@@ -502,7 +497,9 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
                   </button>
                 )}
               </div>
-              <FiltersContent />
+              <div className="overflow-y-auto flex-1">
+                <FiltersContent />
+              </div>
             </div>
           </div>
         </aside>

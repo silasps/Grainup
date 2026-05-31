@@ -59,7 +59,7 @@ function LoginForm() {
     }
 
     const userId = authData.user?.id;
-    if (userId) {
+    if (userId && redirectTo === "/editora") {
       const role = await getMyRole(userId);
       if (role) {
         const area = roleToAdminArea(role);
@@ -250,7 +250,10 @@ function LoginForm() {
 
         <p className="text-center text-sm text-muted-foreground">
           Não tem conta?{" "}
-          <Link href="/auth/cadastro" className="text-brand hover:underline font-medium">
+          <Link
+            href={`/auth/cadastro?redirectTo=${encodeURIComponent(redirectTo)}`}
+            className="text-brand hover:underline font-medium"
+          >
             Criar conta
           </Link>
         </p>

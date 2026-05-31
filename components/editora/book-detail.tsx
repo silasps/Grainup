@@ -3,8 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ShoppingCart,
+  Zap,
   Star,
   Truck,
   ShieldCheck,
@@ -130,6 +132,7 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
   const [qty, setQty] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const addItem = useCartStore((s) => s.addItem);
+  const router = useRouter();
 
   const hasDiscount = book.price_promotional && book.price_promotional < book.price;
   const discountPct = hasDiscount
@@ -160,6 +163,20 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
       description: `${qty} ${qty === 1 ? "unidade" : "unidades"}`,
       action: { label: "Ver carrinho", onClick: () => {} },
     });
+  }
+
+  function handleBuyNow() {
+    for (let i = 0; i < qty; i++) {
+      addItem({
+        id: book.id,
+        type: "book",
+        title: book.title,
+        slug: book.slug,
+        coverUrl: book.cover_url,
+        price: book.price_promotional ?? book.price,
+      });
+    }
+    router.push("/checkout");
   }
 
   return (
@@ -339,6 +356,17 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
               >
                 <ShoppingCart className="h-5 w-5 mr-2" />
                 {book.stock === 0 ? "Sem estoque" : "Adicionar ao carrinho"}
+              </Button>
+
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full font-semibold border-brand text-brand hover:bg-brand hover:text-white transition-colors"
+                onClick={handleBuyNow}
+                disabled={book.stock === 0}
+              >
+                <Zap className="h-5 w-5 mr-2" />
+                Comprar agora
               </Button>
             </div>
 
