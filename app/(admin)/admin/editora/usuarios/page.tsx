@@ -27,7 +27,7 @@ export default async function AdminUsuariosPage() {
 
   const adminClient = await createAdminClient();
 
-  const [{ data: profiles }, { data: userRolesData }, { data: authData }] = await Promise.all([
+  const [{ data: profiles }, { data: userRolesData }, { data: authData }, { data: auditData }] = await Promise.all([
     adminClient
       .from("profiles")
       .select("id, full_name, phone, created_at")
@@ -35,6 +35,7 @@ export default async function AdminUsuariosPage() {
       .limit(500),
     adminClient.from("user_roles").select("user_id, role"),
     adminClient.auth.admin.listUsers({ perPage: 500 }),
+    adminClient.from("admin_user_creations").select("user_id, created_by_name"),
   ]);
 
   const roleMap = new Map(
@@ -45,6 +46,10 @@ export default async function AdminUsuariosPage() {
     (authData?.users ?? []).map((u) => [u.id, u.email ?? null])
   );
 
+  const adminCreatedMap = new Map(
+    (auditData ?? []).map((a) => [a.user_id, a.created_by_name as string])
+  );
+
   const allUsers: UserRow[] = (profiles ?? []).map((p) => ({
     id: p.id,
     full_name: (p.full_name as string | null) ?? null,
@@ -52,6 +57,7 @@ export default async function AdminUsuariosPage() {
     phone: (p as { phone?: string | null }).phone ?? null,
     created_at: p.created_at as string,
     role: roleMap.get(p.id) ?? null,
+    created_by_admin: adminCreatedMap.get(p.id) ?? null,
   }));
 
   const users =

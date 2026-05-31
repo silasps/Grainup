@@ -4,9 +4,10 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, X, Mail, Phone, User, ShieldCheck, Pencil, Trash2, Check } from "lucide-react";
+import { Search, X, Mail, Phone, User, ShieldCheck, Pencil, Trash2, Check, ShieldPlus } from "lucide-react";
 import { updateUserRoleAction, deleteUserAction } from "./actions";
 import { useRouter } from "next/navigation";
+import { CreateUserDialog } from "./create-user-dialog";
 
 export interface UserRow {
   id: string;
@@ -15,6 +16,7 @@ export interface UserRow {
   phone: string | null;
   created_at: string;
   role: string | null;
+  created_by_admin?: string | null;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -139,6 +141,7 @@ export function UsersTable({ users, isSuperAdmin }: { users: UserRow[]; isSuperA
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
+        <CreateUserDialog isSuperAdmin={isSuperAdmin} />
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -218,8 +221,16 @@ export function UsersTable({ users, isSuperAdmin }: { users: UserRow[]; isSuperA
                             )}
                           </div>
                           <div>
-                            <p className="font-medium text-foreground">
+                            <p className="font-medium text-foreground flex items-center gap-1.5">
                               {u.full_name ?? <span className="text-muted-foreground italic">Sem nome</span>}
+                              {u.created_by_admin && (
+                                <span
+                                  title={`Criado pelo admin: ${u.created_by_admin}`}
+                                  className="inline-flex items-center"
+                                >
+                                  <ShieldPlus className="h-3 w-3 text-brand" />
+                                </span>
+                              )}
                             </p>
                             <p className="text-xs text-muted-foreground md:hidden">{u.email}</p>
                           </div>
