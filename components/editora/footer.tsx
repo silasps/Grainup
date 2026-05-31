@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
@@ -28,11 +26,19 @@ function YouTubeIcon({ className }: { className?: string }) {
   );
 }
 
-const SOCIAL_LINKS = [
+const SOCIAL_LINKS_FALLBACK = [
   { href: "https://instagram.com/editorajocum", label: "Instagram", Icon: InstagramIcon },
   { href: "https://facebook.com/editorajocum", label: "Facebook", Icon: FacebookIcon },
   { href: "https://youtube.com/editorajocum", label: "YouTube", Icon: YouTubeIcon },
 ];
+
+type ContactInfo = {
+  phone?: string | null;
+  address?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  youtube?: string | null;
+};
 
 const LINKS_LOJA = [
   { href: "/editora/livros", label: "Todos os livros" },
@@ -55,7 +61,19 @@ const LINKS_LEGAL = [
   { href: "/editora/trocas-e-devolucoes", label: "Política de devoluções" },
 ];
 
-export function EditoraFooter() {
+export function EditoraFooter({ contact }: { contact?: ContactInfo | null }) {
+  const hasSocialLinks = contact?.instagram || contact?.facebook || contact?.youtube;
+  const socialLinks = hasSocialLinks
+    ? ([
+        contact?.instagram && { href: contact.instagram, label: "Instagram", Icon: InstagramIcon },
+        contact?.facebook && { href: contact.facebook, label: "Facebook", Icon: FacebookIcon },
+        contact?.youtube && { href: contact.youtube, label: "YouTube", Icon: YouTubeIcon },
+      ].filter(Boolean) as typeof SOCIAL_LINKS_FALLBACK)
+    : SOCIAL_LINKS_FALLBACK;
+
+  const displayPhone = contact?.phone?.replace(/^\+\d+\s/, "") || "(41) 9914-35610";
+  const displayAddress = contact?.address || "Almirante Tamandaré, PR";
+
   return (
     <footer className="bg-foreground text-background mt-auto">
       <div className="container mx-auto max-w-7xl px-4 py-12">
@@ -77,7 +95,7 @@ export function EditoraFooter() {
               Conhecer a Deus e fazê-lo conhecido.
             </p>
             <div className="flex items-center gap-3">
-              {SOCIAL_LINKS.map(({ href, label, Icon }) => (
+              {socialLinks.map(({ href, label, Icon }) => (
                 <a
                   key={label}
                   href={href}
@@ -85,7 +103,6 @@ export function EditoraFooter() {
                   rel="noopener noreferrer"
                   aria-label={label}
                   className="text-white/60 hover:text-white transition-colors"
-                  suppressHydrationWarning
                 >
                   <Icon className="h-5 w-5" />
                 </a>
@@ -151,12 +168,8 @@ export function EditoraFooter() {
 
             <div className="mt-6">
               <h4 className="text-sm font-semibold text-white mb-2">Contato</h4>
-              <p className="text-sm text-white/60">
-                (41) 9914-35610
-              </p>
-              <p className="text-sm text-white/60">
-                Almirante Tamandaré, PR
-              </p>
+              <p className="text-sm text-white/60">{displayPhone}</p>
+              <p className="text-sm text-white/60">{displayAddress}</p>
             </div>
           </div>
         </div>

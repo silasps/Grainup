@@ -23,6 +23,7 @@ export async function saveContactAction(payload: ContactPayload) {
   if (error) return { error: error.message };
   revalidatePath("/editora", "layout");
   revalidatePath("/editora/contato");
+  revalidatePath("/admin/editora/configuracoes");
   return { error: null };
 }
 

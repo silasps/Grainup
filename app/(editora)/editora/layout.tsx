@@ -65,7 +65,7 @@ export default async function EditoraLayout({
   const [announcement, { adminArea, isLoggedIn }, { data: contactSettings }] = await Promise.all([
     getActiveAnnouncement(),
     getSessionState(),
-    supabase.from("contact_settings").select("whatsapp, phone, whatsapp_message, whatsapp_enabled").limit(1).maybeSingle(),
+    supabase.from("contact_settings").select("whatsapp, phone, whatsapp_message, whatsapp_enabled, instagram, facebook, youtube, address").limit(1).maybeSingle(),
   ]);
 
   const waPhone = (contactSettings?.whatsapp || contactSettings?.phone || "5541991435610").replace(/\D/g, "");
@@ -76,7 +76,7 @@ export default async function EditoraLayout({
     <>
       <EditoraHeader adminArea={adminArea} isLoggedIn={isLoggedIn} />
       <main className="flex-1">{children}</main>
-      <EditoraFooter />
+      <EditoraFooter contact={contactSettings} />
       <WhatsAppButton phone={waPhone} enabled={waEnabled} message={waMessage} />
       <CookieBanner />
       <PromoOverlay announcement={announcement} />
