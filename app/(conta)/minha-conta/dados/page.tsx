@@ -71,6 +71,7 @@ export default function MeusDadosPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState("");
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -90,11 +91,12 @@ export default function MeusDadosPage() {
       setEmail(user.email ?? "");
       supabase
         .from("profiles")
-        .select("full_name, phone, cpf, avatar_url")
+        .select("id, full_name, phone, cpf, avatar_url")
         .eq("user_id", user.id)
         .maybeSingle()
         .then(({ data }) => {
           if (data) {
+            setProfileId(data.id);
             setFullName(data.full_name ?? "");
             setAvatarUrl(data.avatar_url ?? null);
             if (data.phone) {
@@ -148,6 +150,7 @@ export default function MeusDadosPage() {
       .from("profiles")
       .upsert(
         {
+          id: profileId ?? crypto.randomUUID(),
           user_id: userId,
           full_name: fullName.trim(),
           phone: phoneValue,
