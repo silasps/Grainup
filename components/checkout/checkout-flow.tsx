@@ -370,21 +370,17 @@ export function CheckoutFlow() {
     );
   }
 
-  const showBack = step !== "endereco";
-
   return (
     <div className="flex-1 flex flex-col bg-white min-h-0">
       {/* Step header */}
       <div className="flex items-center gap-2 px-4 py-4 border-b border-border bg-white">
-        {showBack && (
-          <button
-            onClick={goBack}
-            className="p-1.5 rounded-full hover:bg-secondary transition-colors flex-shrink-0"
-            aria-label="Voltar"
-          >
-            <ChevronLeft className="h-5 w-5 text-foreground" />
-          </button>
-        )}
+        <button
+          onClick={step === "endereco" ? () => router.back() : goBack}
+          className="p-1.5 rounded-full hover:bg-secondary transition-colors flex-shrink-0"
+          aria-label="Voltar"
+        >
+          <ChevronLeft className="h-5 w-5 text-foreground" />
+        </button>
         <h1 className="font-bold text-base leading-tight">
           {STEP_TITLES[step]}
         </h1>
