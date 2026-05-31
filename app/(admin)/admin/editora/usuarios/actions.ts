@@ -73,7 +73,7 @@ export async function createUserAction(data: {
     return { error: createError?.message ?? "Erro ao criar usuário" };
   }
 
-  await adminClient
+  const { error: upsertError } = await adminClient
     .from("profiles")
     .upsert(
       {
@@ -87,37 +87,94 @@ export async function createUserAction(data: {
       { onConflict: "user_id" }
     );
 
+  if (upsertError) {
+    // Revert auth user creation to avoid orphaned auth records
+    await adminClient.auth.admin.deleteUser(newUser.user.id);
+    return { error: `Erro ao salvar perfil: ${upsertError.message}` };
+  }
+
   if (data.role && data.role !== "cliente") {
     await adminClient
       .from("user_roles")
       .insert({ user_id: newUser.user.id, role: data.role as never });
   }
 
-  await adminClient.from("admin_user_creations").insert({
+  await (adminClient.from("admin_user_creations") as ReturnType<typeof adminClient.from>).insert({
     user_id: newUser.user.id,
     created_by: currentUser.id,
     created_by_name: creatorName,
     created_by_role: currentRole,
-  });
+  } as never);
 
   revalidatePath("/admin/editora/usuarios");
   return { error: null };
 }
 
-export async function deleteUserAction(profileId: string) {
-  const supabase = await createAdminClient();
+export async function updateUserAction(data: {
+  userId: string;
+  full_name: string;
+  phone?: string;
+  role: string;
+  newPassword?: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  if (!currentUser) return { error: "Não autorizado" };
 
-  const { data: profile } = await supabase
+  const { data: roleData } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+
+  const currentRole = roleData?.role;
+  if (currentRole !== "super_admin" && currentRole !== "admin_editora") {
+    return { error: "Sem permissão para editar usuários" };
+  }
+
+  const adminClient = await createAdminClient();
+
+  const { data: existingProfile } = await adminClient
     .from("profiles")
-    .select("user_id")
-    .eq("id", profileId)
-    .single();
+    .select("id")
+    .eq("user_id", data.userId)
+    .maybeSingle();
 
-  if (!profile) return { error: "Usuário não encontrado" };
+  const profilePayload = { full_name: data.full_name, phone: data.phone ?? null };
+  const { error: profileError } = existingProfile
+    ? await adminClient.from("profiles").update(profilePayload).eq("user_id", data.userId)
+    : await adminClient.from("profiles").insert({
+        id: data.userId,
+        user_id: data.userId,
+        ...profilePayload,
+        cpf: null,
+        avatar_url: null,
+      });
+  if (profileError) return { error: profileError.message };
 
-  const { error } = await supabase.auth.admin.deleteUser(profile.user_id);
+  await adminClient.from("user_roles").delete().eq("user_id", data.userId);
+  if (data.role && data.role !== "cliente") {
+    const { error } = await adminClient
+      .from("user_roles")
+      .insert({ user_id: data.userId, role: data.role as never });
+    if (error) return { error: error.message };
+  }
+
+  if (data.newPassword) {
+    const { error } = await adminClient.auth.admin.updateUserById(data.userId, {
+      password: data.newPassword,
+    });
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath("/admin/editora/usuarios");
+  return { error: null };
+}
+
+export async function deleteUserAction(userId: string) {
+  const supabase = await createAdminClient();
+  const { error } = await supabase.auth.admin.deleteUser(userId);
   if (error) return { error: error.message };
-
   revalidatePath("/admin/editora/usuarios");
   return { error: null };
 }

@@ -15,14 +15,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus } from "lucide-react";
+import { PhoneInput, COUNTRIES } from "@/components/checkout/phone-input";
 import { createUserAction } from "./actions";
+
+function buildStoredPhone(countryCode: string, localValue: string): string {
+  const country = COUNTRIES.find((c) => c.code === countryCode) ?? COUNTRIES[0];
+  return localValue ? `${country.ddi} ${localValue}` : "";
+}
 
 const EDITABLE_ROLES = [
   { value: "cliente", label: "Cliente" },
   { value: "admin_editora", label: "Admin Editora" },
   { value: "afiliado_jocum", label: "Afiliado JOCUM" },
   { value: "afiliado_diretor", label: "Afiliado Diretor" },
-  { value: "lider_jocum", label: "Líder JOCUM" },
 ];
 
 const SUPER_ADMIN_ROLES = [
@@ -33,14 +38,12 @@ const SUPER_ADMIN_ROLES = [
   { value: "admin_eifol", label: "Admin EIFOL" },
   { value: "afiliado_jocum", label: "Afiliado JOCUM" },
   { value: "afiliado_diretor", label: "Afiliado Diretor" },
-  { value: "lider_jocum", label: "Líder JOCUM" },
 ];
 
 const EMPTY_FORM = {
   full_name: "",
   email: "",
   password: "",
-  phone: "",
   role: "cliente",
 };
 
@@ -50,6 +53,8 @@ export function CreateUserDialog({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [phoneCountry, setPhoneCountry] = useState("BR");
+  const [phoneLocal, setPhoneLocal] = useState("");
 
   const availableRoles = isSuperAdmin ? SUPER_ADMIN_ROLES : EDITABLE_ROLES;
 
@@ -65,7 +70,7 @@ export function CreateUserDialog({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       full_name: form.full_name,
       email: form.email,
       password: form.password,
-      phone: form.phone || undefined,
+      phone: buildStoredPhone(phoneCountry, phoneLocal) || undefined,
       role: form.role,
     });
     setLoading(false);
@@ -74,12 +79,14 @@ export function CreateUserDialog({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     } else {
       setOpen(false);
       setForm(EMPTY_FORM);
+      setPhoneCountry("BR");
+      setPhoneLocal("");
       router.refresh();
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setError(null); setForm(EMPTY_FORM); } }}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setError(null); setForm(EMPTY_FORM); setPhoneCountry("BR"); setPhoneLocal(""); } }}>
       <DialogTrigger render={<Button size="sm" className="gap-1.5" />}>
         <UserPlus className="h-4 w-4" />
         Novo usuário
@@ -129,13 +136,12 @@ export function CreateUserDialog({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="phone">Telefone</Label>
-            <Input
-              id="phone"
-              name="phone"
-              value={form.phone}
-              onChange={handleChange}
-              placeholder="+55 11 99999-9999"
+            <Label>Telefone</Label>
+            <PhoneInput
+              value={phoneLocal}
+              countryCode={phoneCountry}
+              onChange={setPhoneLocal}
+              onCountryChange={setPhoneCountry}
             />
           </div>
           <div className="flex flex-col gap-1.5">

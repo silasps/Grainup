@@ -30,8 +30,7 @@ export default async function AdminUsuariosPage() {
   const [{ data: profiles }, { data: userRolesData }, { data: authData }, { data: auditData }] = await Promise.all([
     adminClient
       .from("profiles")
-      .select("id, full_name, phone, created_at")
-      .order("created_at", { ascending: false })
+      .select("id, user_id, full_name, phone, created_at")
       .limit(500),
     adminClient.from("user_roles").select("user_id, role"),
     adminClient.auth.admin.listUsers({ perPage: 500 }),
@@ -42,23 +41,31 @@ export default async function AdminUsuariosPage() {
     (userRolesData ?? []).map((r) => [r.user_id, r.role])
   );
 
-  const emailMap = new Map(
-    (authData?.users ?? []).map((u) => [u.id, u.email ?? null])
+  // profile keyed by user_id (or id as fallback for legacy rows)
+  const profileMap = new Map(
+    (profiles ?? []).map((p) => [(p.user_id as string | null) ?? p.id, p])
   );
 
   const adminCreatedMap = new Map(
-    (auditData ?? []).map((a) => [a.user_id, a.created_by_name as string])
+    ((auditData ?? []) as { user_id: string; created_by_name: string }[]).map((a) => [a.user_id, a.created_by_name])
   );
 
-  const allUsers: UserRow[] = (profiles ?? []).map((p) => ({
-    id: p.id,
-    full_name: (p.full_name as string | null) ?? null,
-    email: emailMap.get(p.id) ?? null,
-    phone: (p as { phone?: string | null }).phone ?? null,
-    created_at: p.created_at as string,
-    role: roleMap.get(p.id) ?? null,
-    created_by_admin: adminCreatedMap.get(p.id) ?? null,
-  }));
+  // Auth users are the source of truth — everyone appears, with or without a profile
+  const allUsers: UserRow[] = (authData?.users ?? [])
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((authUser) => {
+      const p = profileMap.get(authUser.id);
+      return {
+        id: p?.id ?? authUser.id,
+        user_id: authUser.id,
+        full_name: (p?.full_name as string | null) ?? (authUser.user_metadata?.full_name as string | null) ?? null,
+        email: authUser.email ?? null,
+        phone: (p as { phone?: string | null } | undefined)?.phone ?? null,
+        created_at: authUser.created_at,
+        role: roleMap.get(authUser.id) ?? null,
+        created_by_admin: adminCreatedMap.get(authUser.id) ?? null,
+      };
+    });
 
   const users =
     currentRole === "super_admin"
@@ -73,7 +80,7 @@ export default async function AdminUsuariosPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <AdminHeader title="Usuários" subtitle={subtitle} />
-      <UsersTable users={users} isSuperAdmin={currentRole === "super_admin"} />
+      <UsersTable users={users} isSuperAdmin={currentRole === "super_admin"} currentUserId={user.id} currentUserRole={currentRole ?? null} />
     </div>
   );
 }

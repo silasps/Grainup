@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   AreaChart,
   Area,
@@ -14,8 +15,9 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { ChevronUp, ChevronDown, ChevronsUpDown, X } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, X, ExternalLink } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
+import { ExportMenu } from "@/components/admin/export-menu";
 
 interface Movement {
   id: string;
@@ -44,6 +46,7 @@ const PAY_COLORS: Record<string, string> = {
 const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export function FinanceiroDashboard({ movements }: Props) {
+  const router = useRouter();
   const paid = movements.filter((m) => m.status === "pago");
 
   const totals = {
@@ -176,9 +179,13 @@ export function FinanceiroDashboard({ movements }: Props) {
   return (
     <main className="flex-1 overflow-y-auto p-6 space-y-6">
       {/* KPI cards */}
-      {periodLabel && (
-        <p className="text-xs text-muted-foreground">Totais pagos · {periodLabel}</p>
-      )}
+      <div className="flex items-center justify-between">
+        {periodLabel
+          ? <p className="text-xs text-muted-foreground">Totais pagos · {periodLabel}</p>
+          : <span />
+        }
+        <ExportMenu movements={movements} mode="dashboard" monthlyData={monthlyData} />
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
           { label: "Receita Bruta", value: formatCurrency(totals.gross) },
@@ -266,7 +273,16 @@ export function FinanceiroDashboard({ movements }: Props) {
         <div className="px-5 py-4 border-b border-border flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Movimentações</h3>
-            <span className="text-xs text-muted-foreground">{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">{filtered.length} registro{filtered.length !== 1 ? "s" : ""}</span>
+              <button
+                onClick={() => router.push("/admin/editora/financeiro/movimentacoes")}
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-border bg-white text-xs font-medium text-foreground hover:bg-secondary/60 transition-colors"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Ver todas
+              </button>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {/* Período rápido */}

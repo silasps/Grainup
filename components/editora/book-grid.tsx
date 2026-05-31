@@ -98,18 +98,20 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const currentSort = ((searchParams.ordenar as string) ?? "relevancia") as SortOption;
-  const selectedCategories = useMemo(() => {
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(() => {
     const cats = searchParams.categoria;
     if (!cats) return new Set<string>();
     if (typeof cats === "string") return new Set([cats]);
-    return new Set(cats);
-  }, [searchParams.categoria]);
-
-  const selectedPriceRange = (searchParams.preco as string) ?? "";
-  const showOnlyPromo = searchParams.promocao === "1";
-  const showOnlyNew = searchParams.novidades === "1";
+    return new Set(cats as string[]);
+  });
+  const [selectedPriceRange, setSelectedPriceRange] = useState((searchParams.preco as string) ?? "");
+  const [showOnlyPromo, setShowOnlyPromo] = useState(searchParams.promocao === "1");
+  const [showOnlyNew, setShowOnlyNew] = useState(searchParams.novidades === "1");
 
   function updateParam(key: string, value: string | null) {
+    if (key === "preco") setSelectedPriceRange(value ?? "");
+    if (key === "promocao") setShowOnlyPromo(value === "1");
+    if (key === "novidades") setShowOnlyNew(value === "1");
     const next = new URLSearchParams(params.toString());
     if (value === null || value === "") {
       next.delete(key);
@@ -120,6 +122,12 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
   }
 
   function toggleCategory(slug: string) {
+    setSelectedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
     const next = new URLSearchParams(params.toString());
     const existing = next.getAll("categoria");
     if (existing.includes(slug)) {
@@ -132,6 +140,10 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
   }
 
   function clearFilters() {
+    setSelectedCategories(new Set());
+    setSelectedPriceRange("");
+    setShowOnlyPromo(false);
+    setShowOnlyNew(false);
     router.push(pathname);
     setSearch("");
   }
@@ -220,31 +232,41 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
     (showOnlyPromo ? 1 : 0) +
     (showOnlyNew ? 1 : 0);
 
+  const categoryIdsWithBooks = useMemo(
+    () => new Set(books.map((b) => b.category_id).filter(Boolean)),
+    [books]
+  );
+
   const FilterRow = ({
     id,
     checked,
     onCheckedChange,
     label,
+    disabled,
   }: {
     id: string;
     checked: boolean;
     onCheckedChange: (v: boolean) => void;
     label: string;
+    disabled?: boolean;
   }) => (
     <label
       htmlFor={id}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all select-none",
-        checked
-          ? "bg-brand-50 text-brand-700"
-          : "hover:bg-secondary/70 text-foreground/80 hover:text-foreground"
+        "flex items-center gap-3 px-3 py-2 rounded-lg transition-all select-none",
+        disabled
+          ? "opacity-40 cursor-not-allowed"
+          : checked
+          ? "bg-brand-50 text-brand-700 cursor-pointer"
+          : "hover:bg-secondary/70 text-foreground/80 hover:text-foreground cursor-pointer"
       )}
     >
       <Checkbox
         id={id}
         checked={checked}
-        onCheckedChange={onCheckedChange}
-        className="flex-shrink-0"
+        onCheckedChange={disabled ? undefined : onCheckedChange}
+        disabled={disabled}
+        className="flex-shrink-0 border-brand"
       />
       <span className={cn("text-sm font-medium", checked && "font-semibold")}>{label}</span>
     </label>
@@ -265,6 +287,7 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
               checked={selectedCategories.has(cat.slug)}
               onCheckedChange={() => toggleCategory(cat.slug)}
               label={cat.name}
+              disabled={!categoryIdsWithBooks.has(cat.id)}
             />
           ))}
         </div>

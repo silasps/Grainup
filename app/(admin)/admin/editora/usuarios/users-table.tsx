@@ -3,14 +3,14 @@
 import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Search, X, Mail, Phone, User, ShieldCheck, Pencil, Trash2, Check, ShieldPlus } from "lucide-react";
-import { updateUserRoleAction, deleteUserAction } from "./actions";
+import { Search, X, Mail, Phone, User, ShieldCheck, ShieldPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CreateUserDialog } from "./create-user-dialog";
+import { EditUserDialog } from "./edit-user-dialog";
 
 export interface UserRow {
   id: string;
+  user_id: string;
   full_name: string | null;
   email: string | null;
   phone: string | null;
@@ -46,7 +46,6 @@ const EDITABLE_ROLES = [
   { value: "admin_editora", label: "Admin Editora" },
   { value: "afiliado_jocum", label: "Afiliado JOCUM" },
   { value: "afiliado_diretor", label: "Afiliado Diretor" },
-  { value: "lider_jocum", label: "Líder JOCUM" },
 ];
 
 const SUPER_ADMIN_ROLES = [
@@ -57,8 +56,18 @@ const SUPER_ADMIN_ROLES = [
   { value: "admin_eifol", label: "Admin EIFOL" },
   { value: "afiliado_jocum", label: "Afiliado JOCUM" },
   { value: "afiliado_diretor", label: "Afiliado Diretor" },
-  { value: "lider_jocum", label: "Líder JOCUM" },
 ];
+
+// Hierarchy level: higher = more senior. Used to prevent editing by peers/inferiors.
+const ROLE_LEVEL: Record<string, number> = {
+  super_admin: 100,
+  admin_editora: 70,
+  admin_ead: 70,
+  admin_eifol: 70,
+  afiliado_diretor: 40,
+  afiliado_jocum: 30,
+  cliente: 10,
+};
 
 function roleLabel(role: string | null) {
   if (!role) return "Cliente";
@@ -70,14 +79,35 @@ function roleColor(role: string | null) {
   return ROLE_COLORS[role] ?? "bg-secondary text-muted-foreground";
 }
 
-export function UsersTable({ users, isSuperAdmin }: { users: UserRow[]; isSuperAdmin: boolean }) {
+export function UsersTable({
+  users,
+  isSuperAdmin,
+  currentUserId,
+  currentUserRole,
+}: {
+  users: UserRow[];
+  isSuperAdmin: boolean;
+  currentUserId: string;
+  currentUserRole: string | null;
+}) {
   const [query, setQuery] = useState("");
   const [filterRole, setFilterRole] = useState("all");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editRole, setEditRole] = useState<string>("");
-  const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const router = useRouter();
+
+  const myLevel = ROLE_LEVEL[currentUserRole ?? "cliente"] ?? 10;
+
+  function canEdit(u: UserRow): boolean {
+    if (u.user_id === currentUserId) return isSuperAdmin;
+    const targetLevel = ROLE_LEVEL[u.role ?? "cliente"] ?? 10;
+    return myLevel > targetLevel;
+  }
+
+  function openUser(u: UserRow) {
+    setSelectedUser(u);
+    setDialogOpen(true);
+  }
 
   const roles = useMemo(() => {
     const set = new Set(users.map((u) => u.role ?? ""));
@@ -96,31 +126,6 @@ export function UsersTable({ users, isSuperAdmin }: { users: UserRow[]; isSuperA
       return true;
     });
   }, [users, query, filterRole]);
-
-  function startEdit(u: UserRow) {
-    setEditingId(u.id);
-    setEditRole(u.role ?? "cliente");
-  }
-
-  async function saveRole() {
-    if (!editingId) return;
-    setSaving(true);
-    const roleToSave = editRole === "cliente" ? null : editRole;
-    await updateUserRoleAction(editingId, roleToSave);
-    setSaving(false);
-    setEditingId(null);
-    router.refresh();
-  }
-
-  async function confirmDelete(id: string) {
-    if (!confirm("Tem certeza que deseja excluir este usuário? Essa ação não pode ser desfeita.")) return;
-    setDeletingId(id);
-    await deleteUserAction(id);
-    setDeletingId(null);
-    router.refresh();
-  }
-
-  const availableRoles = isSuperAdmin ? SUPER_ADMIN_ROLES : EDITABLE_ROLES;
 
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-6">
@@ -192,7 +197,6 @@ export function UsersTable({ users, isSuperAdmin }: { users: UserRow[]; isSuperA
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white hidden md:table-cell">Contato</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Papel</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white hidden lg:table-cell">Cadastro</th>
-                <th className="px-5 py-3 bg-white" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -206,23 +210,31 @@ export function UsersTable({ users, isSuperAdmin }: { users: UserRow[]; isSuperA
                 </tr>
               ) : (
                 filtered.map((u) => {
-                  const isEditing = editingId === u.id;
-                  const isDeleting = deletingId === u.id;
+                  const isMe = u.user_id === currentUserId;
 
                   return (
-                    <tr key={u.id} className="hover:bg-secondary/30 transition-colors">
+                    <tr
+                      key={u.id}
+                      onClick={() => openUser(u)}
+                      className={`cursor-pointer transition-colors ${isMe ? "bg-brand-50/50 hover:bg-brand-50" : "hover:bg-secondary/30"}`}
+                    >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isMe ? "bg-brand/10 ring-2 ring-brand/40" : "bg-secondary"}`}>
                             {u.role === "super_admin" || u.role?.startsWith("admin_") ? (
-                              <ShieldCheck className="h-3.5 w-3.5 text-brand" />
+                              <ShieldCheck className={`h-3.5 w-3.5 ${isMe ? "text-brand" : "text-brand"}`} />
                             ) : (
-                              <User className="h-3.5 w-3.5 text-muted-foreground" />
+                              <User className={`h-3.5 w-3.5 ${isMe ? "text-brand" : "text-muted-foreground"}`} />
                             )}
                           </div>
                           <div>
                             <p className="font-medium text-foreground flex items-center gap-1.5">
                               {u.full_name ?? <span className="text-muted-foreground italic">Sem nome</span>}
+                              {isMe && (
+                                <span className="text-[10px] font-semibold bg-brand text-white px-1.5 py-0.5 rounded-full leading-none">
+                                  você
+                                </span>
+                              )}
                               {u.created_by_admin && (
                                 <span
                                   title={`Criado pelo admin: ${u.created_by_admin}`}
@@ -253,67 +265,12 @@ export function UsersTable({ users, isSuperAdmin }: { users: UserRow[]; isSuperA
                         </div>
                       </td>
                       <td className="px-5 py-3">
-                        {isEditing ? (
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={editRole}
-                              onChange={(e) => setEditRole(e.target.value)}
-                              className="h-8 rounded-md border border-border bg-white pl-2 pr-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand cursor-pointer"
-                              autoFocus
-                            >
-                              {availableRoles.map((r) => (
-                                <option key={r.value} value={r.value}>{r.label}</option>
-                              ))}
-                            </select>
-                            <button
-                              onClick={saveRole}
-                              disabled={saving}
-                              className="p-1 rounded hover:bg-emerald-50 text-emerald-600 transition-colors disabled:opacity-50"
-                              title="Salvar"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setEditingId(null)}
-                              className="p-1 rounded hover:bg-secondary text-muted-foreground transition-colors"
-                              title="Cancelar"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <Badge variant="secondary" className={`text-xs ${roleColor(u.role)}`}>
-                            {roleLabel(u.role)}
-                          </Badge>
-                        )}
+                        <Badge variant="secondary" className={`text-xs ${roleColor(u.role)}`}>
+                          {roleLabel(u.role)}
+                        </Badge>
                       </td>
                       <td className="px-5 py-3 text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">
                         {new Intl.DateTimeFormat("pt-BR").format(new Date(u.created_at))}
-                      </td>
-                      <td className="px-5 py-3">
-                        {!isEditing && (
-                          <div className="flex gap-1 justify-end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => startEdit(u)}
-                              title="Alterar papel"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => confirmDelete(u.id)}
-                              disabled={isDeleting}
-                              title="Excluir usuário"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
                       </td>
                     </tr>
                   );
@@ -323,6 +280,14 @@ export function UsersTable({ users, isSuperAdmin }: { users: UserRow[]; isSuperA
           </table>
         </div>
       </div>
+      <EditUserDialog
+        user={selectedUser}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        isSuperAdmin={isSuperAdmin}
+        canEdit={selectedUser ? canEdit(selectedUser) : false}
+        isMe={selectedUser?.user_id === currentUserId}
+      />
     </main>
   );
 }
