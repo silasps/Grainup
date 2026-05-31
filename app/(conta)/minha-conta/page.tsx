@@ -48,7 +48,7 @@ export default async function MinhaConta() {
     { data: roleData },
     { data: lastOrderData },
   ] = await Promise.all([
-    supabase.from("profiles").select("full_name, phone").eq("id", user.id).single(),
+    supabase.from("profiles").select("full_name, phone, cpf").eq("user_id", user.id).maybeSingle(),
     supabase.from("orders").select("id", { count: "exact", head: true }).eq("user_id", user.id),
     supabase.from("user_roles").select("role").eq("user_id", user.id).limit(1).maybeSingle(),
     supabase
@@ -60,7 +60,7 @@ export default async function MinhaConta() {
       .maybeSingle(),
   ]);
 
-  const profile = profileData as { full_name: string; phone: string | null } | null;
+  const profile = profileData as { full_name: string; phone: string | null; cpf: string | null } | null;
   const lastOrder = lastOrderData as unknown as LastOrder | null;
 
   const adminArea = (() => {
@@ -76,7 +76,7 @@ export default async function MinhaConta() {
   const name = profile?.full_name ?? user.email?.split("@")[0] ?? "Visitante";
   const firstName = name.split(" ")[0];
   const initials = name.split(" ").filter(Boolean).map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
-  const profileIncomplete = !profile?.phone || !profile?.full_name;
+  const profileIncomplete = !profile?.full_name || !profile?.phone || !profile?.cpf;
 
   const cards = [
     {

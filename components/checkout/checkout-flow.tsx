@@ -116,6 +116,7 @@ export function CheckoutFlow() {
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [showStickyFooter, setShowStickyFooter] = useState(false);
+  const [returnToReview, setReturnToReview] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topConfirmRef = useRef<HTMLButtonElement>(null);
@@ -195,8 +196,14 @@ export function CheckoutFlow() {
   const savings = originalTotal - total;
 
   function goBack() {
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep("revisao");
+      return;
+    }
     const i = STEP_ORDER.indexOf(step);
     if (i > 1) setStep(STEP_ORDER[i - 1]);
+    else router.back();
   }
 
   function maskCep(raw: string): string {
@@ -250,15 +257,27 @@ export function CheckoutFlow() {
 
   function handleSelectAddress(a: SavedAddress) {
     fillAddrFromSaved(a);
-    setStep("frete");
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep("revisao");
+    } else {
+      setStep("frete");
+    }
   }
 
   function handleAddrFormContinue() {
-    if (validateAddr()) setStep("frete");
+    if (!validateAddr()) return;
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep("revisao");
+    } else {
+      setStep("frete");
+    }
   }
 
   function handleSelectPayment(id: string) {
     setPayment(id);
+    setReturnToReview(false);
     setStep("revisao");
   }
 
@@ -375,7 +394,7 @@ export function CheckoutFlow() {
       {/* Step header */}
       <div className="flex items-center gap-2 px-4 py-4 border-b border-border bg-white">
         <button
-          onClick={step === "endereco" ? () => router.back() : goBack}
+          onClick={goBack}
           className="p-1.5 rounded-full hover:bg-secondary transition-colors flex-shrink-0"
           aria-label="Voltar"
         >
@@ -688,7 +707,7 @@ export function CheckoutFlow() {
                     <p className="text-xs text-muted-foreground">CEP {addr.cep}</p>
                     <button
                       type="button"
-                      onClick={() => setStep("endereco")}
+                      onClick={() => { setReturnToReview(true); setStep("endereco"); }}
                       className="text-brand text-xs font-medium mt-2 hover:underline block"
                     >
                       Alterar endereço
@@ -733,7 +752,7 @@ export function CheckoutFlow() {
                     ))}
                     <button
                       type="button"
-                      onClick={() => setStep("frete")}
+                      onClick={() => { setReturnToReview(true); setStep("frete"); }}
                       className="text-brand text-xs font-medium mt-3 hover:underline block cursor-pointer"
                     >
                       Alterar forma de entrega
@@ -757,7 +776,7 @@ export function CheckoutFlow() {
                   )}
                   <button
                     type="button"
-                    onClick={() => setStep("pagamento")}
+                    onClick={() => { setReturnToReview(true); setStep("pagamento"); }}
                     className="text-brand text-xs font-medium mt-2 hover:underline block"
                   >
                     Alterar forma de pagamento
@@ -794,7 +813,14 @@ export function CheckoutFlow() {
             <Button
               size="lg"
               className="bg-brand hover:bg-brand-700 text-white font-semibold w-full"
-              onClick={() => setStep("pagamento")}
+              onClick={() => {
+                if (returnToReview) {
+                  setReturnToReview(false);
+                  setStep("revisao");
+                } else {
+                  setStep("pagamento");
+                }
+              }}
             >
               Continuar
             </Button>
