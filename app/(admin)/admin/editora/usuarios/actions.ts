@@ -81,6 +81,8 @@ export async function createUserAction(data: {
         user_id: newUser.user.id,
         full_name: data.full_name,
         phone: data.phone ?? null,
+        cpf: null,
+        avatar_url: null,
       },
       { onConflict: "user_id" }
     );
