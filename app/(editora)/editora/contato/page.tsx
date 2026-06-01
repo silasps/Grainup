@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { ContatoForm } from "./contato-form";
 import { ContactInfo } from "./contact-info";
 import { Send } from "lucide-react";
 
 export const metadata: Metadata = { title: "Contato — Editora Jocum" };
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function ContatoPage() {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
   const { data: contact } = await supabase
     .from("contact_settings")
     .select("email, whatsapp, phone, whatsapp_message, whatsapp_enabled, address, business_hours, instagram, facebook, youtube")
