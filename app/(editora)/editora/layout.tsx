@@ -4,7 +4,9 @@ import { EditoraFooter } from "@/components/editora/footer";
 import { PromoOverlay } from "@/components/editora/promo-overlay";
 import { WhatsAppButton } from "@/components/shared/whatsapp-button";
 import { CookieBanner } from "@/components/shared/cookie-banner";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: {
@@ -61,11 +63,11 @@ export default async function EditoraLayout({
 }: {
   children: React.ReactNode;
 }) {
-    const supabase = await createClient();
+  const adminSupabase = await createAdminClient();
   const [announcement, { adminArea, isLoggedIn }, { data: contactSettings }] = await Promise.all([
     getActiveAnnouncement(),
     getSessionState(),
-    supabase.from("contact_settings").select("whatsapp, phone, whatsapp_message, whatsapp_enabled, instagram, facebook, youtube, address").limit(1).maybeSingle(),
+    adminSupabase.from("contact_settings").select("whatsapp, phone, whatsapp_message, whatsapp_enabled, instagram, facebook, youtube, address").limit(1).maybeSingle(),
   ]);
 
   const waPhone = (contactSettings?.whatsapp || contactSettings?.phone || "5541991435610").replace(/\D/g, "");
