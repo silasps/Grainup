@@ -24,7 +24,7 @@ export interface ComboData {
   id: string;
   titulo: string;
   descricao: string;
-  temas: string[];
+  temas?: string[];
   descontoReais: number;
   livros: ComboBook[];
 }
@@ -104,29 +104,31 @@ export function ComboCard({ combo }: { combo: ComboData }) {
   }
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-md transition-shadow flex flex-col bg-card">
+    <div className="rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-md transition-shadow flex flex-col bg-card h-full">
 
       {/* ── Cabeçalho ─── */}
-      <div className="bg-foreground px-5 pt-5 pb-4 text-white">
+      <div className="bg-foreground px-5 pt-5 pb-4 text-white min-h-[112px] flex flex-col justify-between">
         <div className="flex items-start gap-3 mb-3">
           <div className="bg-brand rounded-lg p-2 shrink-0 mt-0.5">
             <Gift className="h-4 w-4 text-white" />
           </div>
           <div className="min-w-0">
-            <h2 className="font-heading text-base font-bold leading-snug">{combo.titulo}</h2>
-            <p className="text-white/60 text-xs leading-relaxed mt-0.5">{combo.descricao}</p>
+            <h2 className="font-heading text-base font-bold leading-snug line-clamp-2">{combo.titulo}</h2>
+            <p className="text-white/60 text-xs leading-relaxed mt-0.5 line-clamp-3">{combo.descricao}</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {combo.temas.map((t) => (
-            <Badge
-              key={t}
-              className="bg-brand-800/60 text-brand-100 hover:bg-brand-700/60 border-0 text-xs"
-            >
-              {t}
-            </Badge>
-          ))}
-        </div>
+        {combo.temas && combo.temas.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {combo.temas.map((t) => (
+              <Badge
+                key={t}
+                className="bg-brand-800/60 text-brand-100 hover:bg-brand-700/60 border-0 text-xs"
+              >
+                {t}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Corpo: capas (1) + lista (2) ─── */}

@@ -12,61 +12,73 @@ export const metadata: Metadata = {
 
 export const revalidate = 3600;
 
-const COMBOS_BASE: Omit<ComboData, "livros">[] = [
-  {
-    id: "missoes",
-    titulo: "Kit Missões Mundiais",
-    descricao: "3 livros essenciais para quem quer entender e viver a missão de Deus no mundo.",
-    temas: ["Missões", "Evangelismo", "Chamado"],
-    descontoReais: 30,
-  },
-  {
-    id: "lideranca",
-    titulo: "Kit Liderança Cristã",
-    descricao: "Uma coleção cuidadosa para desenvolver líderes servidores e íntegros.",
-    temas: ["Liderança", "Caráter", "Discipulado"],
-    descontoReais: 25,
-  },
-  {
-    id: "familia",
-    titulo: "Kit Família",
-    descricao: "Livros práticos que fortalecem o casamento, a parentalidade e a família cristã.",
-    temas: ["Família", "Casamento", "Filhos"],
-    descontoReais: 20,
-  },
-  {
-    id: "oracao",
-    titulo: "Kit Vida de Oração",
-    descricao: "Para quem quer aprofundar sua intimidade com Deus e entender o poder da oração.",
-    temas: ["Oração", "Intimidade com Deus", "Espiritualidade"],
-    descontoReais: 22,
-  },
-];
-
 export default async function CombosPage() {
   const supabase = await createClient();
+
+  type ComboRow = {
+    id: string;
+    name: string;
+    description: string | null;
+    price_original: number;
+    price_promotional: number;
+    combo_items: Array<{
+      book_id: string;
+      books: {
+        id: string;
+        title: string;
+        slug: string;
+        cover_url: string | null;
+        price: number;
+        price_promotional: number | null;
+        authors: { name: string } | null;
+      } | null;
+    }>;
+  };
+
   const { data } = await supabase
-    .from("books")
-    .select("id, title, slug, cover_url, price, price_promotional, authors(name)")
+    .from("combos")
+    .select(`
+      id,
+      name,
+      description,
+      price_original,
+      price_promotional,
+      combo_items (
+        book_id,
+        books (
+          id,
+          title,
+          slug,
+          cover_url,
+          price,
+          price_promotional,
+          authors ( name )
+        )
+      )
+    `)
     .eq("is_active", true)
-    .order("rating_avg", { ascending: false })
-    .limit(12);
+    .order("created_at", { ascending: true });
 
-  const rows = (data ?? []) as Record<string, unknown>[];
-  const allBooks = rows.map((b) => ({
-    id: b.id as string,
-    title: b.title as string,
-    slug: b.slug as string,
-    author: (b.authors as { name: string } | null)?.name ?? null,
-    coverUrl: b.cover_url as string | null,
-    price: b.price as number,
-    pricePromotional: b.price_promotional as number | null,
-  }));
-
-  // Distribui 3 livros por combo em rotação
-  const combos: ComboData[] = COMBOS_BASE.map((c, i) => ({
-    ...c,
-    livros: allBooks.slice(i * 3, i * 3 + 3),
+  const combos: ComboData[] = ((data ?? []) as unknown as ComboRow[]).map((c) => ({
+    id: c.id,
+    titulo: c.name,
+    descricao: c.description ?? "",
+    descontoReais: Math.max(0, c.price_original - c.price_promotional),
+    livros: c.combo_items
+      .map((item) => {
+        const b = item.books;
+        if (!b) return null;
+        return {
+          id: b.id,
+          title: b.title,
+          slug: b.slug,
+          coverUrl: b.cover_url,
+          price: b.price,
+          pricePromotional: b.price_promotional,
+          author: b.authors?.name ?? null,
+        };
+      })
+      .filter(Boolean) as ComboData["livros"],
   }));
 
   return (
@@ -91,34 +103,26 @@ export default async function CombosPage() {
       <section className="bg-brand text-white py-3">
         <div className="container mx-auto max-w-7xl px-4 flex items-center justify-center gap-2 text-sm">
           <Gift className="h-4 w-4 shrink-0" />
-          <span>Monte seu combo e economize até <strong>R$30</strong> em relação à compra avulsa.</span>
+          <span>Monte seu combo e economize comprando em kit.</span>
         </div>
       </section>
 
       {/* Cards */}
       <section className="py-14">
         <div className="container mx-auto max-w-7xl px-4">
-
-          {/* Aviso em breve */}
-          <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 mb-10 flex items-start gap-3">
-            <Gift className="h-5 w-5 text-brand shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-brand-700">Combos em composição</p>
-              <p className="text-sm text-brand-700/80 mt-0.5">
-                Os títulos exibidos são ilustrativos — estamos montando os kits definitivos.{" "}
-                <Link href="/editora/contato" className="underline font-medium">
-                  Fale conosco
-                </Link>{" "}
-                para montar um combo personalizado.
-              </p>
+          {combos.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Gift className="h-10 w-10 mx-auto mb-4 opacity-30" />
+              <p className="font-medium text-foreground mb-1">Nenhum combo disponível no momento</p>
+              <p className="text-sm">Em breve teremos kits temáticos com preço especial.</p>
             </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-6">
-            {combos.map((combo) => (
-              <ComboCard key={combo.id} combo={combo} />
-            ))}
-          </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-6">
+              {combos.map((combo) => (
+                <ComboCard key={combo.id} combo={combo} />
+              ))}
+            </div>
+          )}
 
           <div className="mt-14 text-center">
             <p className="text-muted-foreground mb-4 text-sm">

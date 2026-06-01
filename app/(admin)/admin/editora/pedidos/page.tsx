@@ -5,7 +5,7 @@ import { PedidosTable, type OrderRow } from "@/components/admin/pedidos-table";
 import { formatCurrency } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "Pedidos — Admin Editora Jocum" };
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 
 async function getOrders(): Promise<OrderRow[]> {

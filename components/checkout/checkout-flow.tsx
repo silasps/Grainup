@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  Check, ChevronLeft, ChevronRight, MapPin, PackageCheck, Loader2, Plus, Truck,
+  Check, ChevronLeft, ChevronRight, MapPin, PackageCheck, Loader2, Plus, Truck, BookOpen, Copy, FlaskConical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -13,12 +13,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { useCartStore } from "@/stores/cart";
-import { placeOrderAction } from "@/app/(checkout)/checkout/actions";
+import { placeOrderAction, confirmPixPaymentAction } from "@/app/(checkout)/checkout/actions";
 import { formatCurrency } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 
-type Step = "preparando" | "endereco" | "frete" | "pagamento" | "revisao" | "sucesso";
+type Step = "preparando" | "endereco" | "frete" | "pagamento" | "revisao" | "pix_simulado" | "sucesso";
 
 const STEP_ORDER: Step[] = ["preparando", "endereco", "frete", "pagamento", "revisao", "sucesso"];
 
@@ -83,13 +86,6 @@ type SavedAddress = {
   is_default: boolean;
 };
 
-function applyCpfMask(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  return d
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-}
 
 interface IdentData { name: string; email: string; cpf: string }
 interface AddrData {
@@ -110,17 +106,17 @@ export function CheckoutFlow() {
   const [cepLoading, setCepLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [placing, setPlacing] = useState(false);
+  const [orderId, setOrderId] = useState("");
+  const [confirmingPix, setConfirmingPix] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [cpfInput, setCpfInput] = useState("");
-  const [cpfError, setCpfError] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [showStickyFooter, setShowStickyFooter] = useState(false);
   const [returnToReview, setReturnToReview] = useState(false);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topConfirmRef = useRef<HTMLButtonElement>(null);
-  const cpfInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -131,7 +127,7 @@ export function CheckoutFlow() {
         return;
       }
       const [{ data: profile }, { data: addresses }] = await Promise.all([
-        supabase.from("profiles").select("full_name, cpf").eq("id", user.id).single(),
+        supabase.from("profiles").select("full_name, cpf").eq("user_id", user.id).maybeSingle(),
         supabase
           .from("addresses")
           .select("*")
@@ -183,13 +179,17 @@ export function CheckoutFlow() {
     setErrors({});
   }
 
-  const { items: storeItems, buyNowItem, clear, clearBuyNow } = useCartStore();
-  const items = mounted ? (buyNowItem ? [{ ...buyNowItem, quantity: 1 }] : storeItems) : [];
+  const { items: storeItems, buyNowItem, clear, clearSelected, clearBuyNow, selectedItems } = useCartStore();
+  const items = mounted
+    ? buyNowItem
+      ? [{ ...buyNowItem, quantity: 1 }]
+      : selectedItems()
+    : [];
   const count = items.reduce((s, i) => s + i.quantity, 0);
   const sub = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const selectedShipping = SHIPPING_OPTIONS.find((s) => s.id === shipping)!;
   const shippingPrice = sub >= 200 ? 0 : selectedShipping.price;
-  const pixDiscount = payment === "pix" ? sub * 0.05 : 0;
+  const pixDiscount = payment === "pix" ? Math.round(sub * 0.05 * 100) / 100 : 0;
   const total = sub + shippingPrice - pixDiscount;
   const selectedPayment = PAYMENT_OPTIONS.find((p) => p.id === payment);
   const originalTotal = sub + selectedShipping.price;
@@ -201,9 +201,19 @@ export function CheckoutFlow() {
       setStep("revisao");
       return;
     }
+    if (step === "revisao") {
+      setShowLeaveDialog(true);
+      return;
+    }
     const i = STEP_ORDER.indexOf(step);
     if (i > 1) setStep(STEP_ORDER[i - 1]);
     else router.back();
+  }
+
+  function confirmLeave() {
+    setShowLeaveDialog(false);
+    const i = STEP_ORDER.indexOf("revisao");
+    setStep(STEP_ORDER[i - 1]);
   }
 
   function maskCep(raw: string): string {
@@ -282,12 +292,9 @@ export function CheckoutFlow() {
   }
 
   async function placeOrder() {
-    const cpf = ident.cpf || cpfInput.replace(/\D/g, "");
+    const cpf = ident.cpf?.replace(/\D/g, "") ?? "";
     if (!cpf || cpf.length < 11) {
-      setCpfError(true);
-      toast.error("Informe seu CPF para emissão da nota fiscal.");
-      cpfInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      setTimeout(() => cpfInputRef.current?.focus(), 300);
+      toast.error("CPF não cadastrado. Acesse Minha Conta > Dados para adicionar.");
       return;
     }
     setPlacing(true);
@@ -320,9 +327,21 @@ export function CheckoutFlow() {
     }
 
     setOrderNumber(result.orderNumber!);
-    clear();
+    setOrderId(result.orderId!);
+    buyNowItem ? clear() : clearSelected();
     clearBuyNow();
     setPlacing(false);
+    setStep(payment === "pix" ? "pix_simulado" : "sucesso");
+  }
+
+  async function handleConfirmPixPayment() {
+    setConfirmingPix(true);
+    const result = await confirmPixPaymentAction(orderId);
+    setConfirmingPix(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     setStep("sucesso");
   }
 
@@ -334,6 +353,84 @@ export function CheckoutFlow() {
           Preparando tudo para<br />sua compra
         </p>
         <Loader2 className="h-8 w-8 animate-spin text-brand" />
+      </div>
+    );
+  }
+
+  // ── PIX Simulado ──
+  if (step === "pix_simulado") {
+    const pixCode = `00020126580014BR.GOV.BCB.PIX0136${orderId.replace(/-/g, "").slice(0, 32)}520400005303986540${String(Math.round(total * 100)).padStart(6, "0").replace(/(\d+)(\d{2})$/, "$1.$2")}5802BR5925EDITORA JOCUM BRASIL6009CURITIBA62${String(10 + orderNumber.length).padStart(2, "0")}05${orderNumber}6304CAFE`;
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-sm mx-auto px-6 py-8 flex flex-col gap-6">
+
+          {/* Aviso de simulação */}
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <FlaskConical className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-amber-700 mb-0.5">Ambiente de teste — MVP</p>
+              <p className="text-xs text-amber-700 leading-relaxed">
+                Em produção, o pagamento seria confirmado via webhook após o cliente realizar o Pix. Aqui você pode simular isso manualmente.
+              </p>
+            </div>
+          </div>
+
+          {/* Cabeçalho */}
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground mb-1">Pedido <strong>{orderNumber}</strong></p>
+            <p className="text-3xl font-bold text-foreground">{formatCurrency(total)}</p>
+            <p className="text-xs text-muted-foreground mt-1">Aguardando pagamento via Pix</p>
+          </div>
+
+          {/* QR Code fake */}
+          <div className="flex justify-center">
+            <div className="bg-white border-2 border-border rounded-2xl p-4 shadow-sm">
+              <FakeQRCode />
+            </div>
+          </div>
+
+          {/* Copia e Cola */}
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pix Copia e Cola</p>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={pixCode}
+                className="flex-1 min-w-0 text-xs font-mono bg-secondary border border-border rounded-lg px-3 py-2 text-muted-foreground overflow-hidden"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(pixCode);
+                  toast.success("Código copiado!");
+                }}
+                className="shrink-0 p-2 rounded-lg border border-border bg-white hover:bg-secondary transition-colors"
+                aria-label="Copiar código Pix"
+              >
+                <Copy className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+
+          {/* Botão de simulação */}
+          <div className="flex flex-col gap-3 pt-2">
+            <Button
+              size="lg"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold w-full h-12"
+              onClick={handleConfirmPixPayment}
+              disabled={confirmingPix}
+            >
+              {confirmingPix
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Confirmando...</>
+                : <><Check className="h-4 w-4 mr-2" /> Simular pagamento confirmado</>
+              }
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              Este botão simula o webhook do gateway — marca o pedido como <strong>pago</strong> no banco.
+            </p>
+          </div>
+
+        </div>
       </div>
     );
   }
@@ -351,10 +448,10 @@ export function CheckoutFlow() {
             Pedido realizado!
           </h1>
           <p className="text-muted-foreground mb-1">
-            Seu pedido <strong>{orderNumber}</strong> foi recebido.
+            Seu pedido <strong>{orderNumber}</strong> foi confirmado.
           </p>
           <p className="text-sm text-muted-foreground">
-            Em breve você receberá um e-mail com a confirmação e os dados para pagamento.
+            Em breve você receberá um e-mail com a confirmação e os detalhes da entrega.
           </p>
         </div>
         <div className="w-full max-w-sm bg-secondary rounded-xl p-5 text-left">
@@ -390,6 +487,40 @@ export function CheckoutFlow() {
   }
 
   return (
+    <>
+    <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+      <DialogContent className="max-w-sm rounded-2xl text-center px-6 py-8">
+        <div className="flex justify-center mb-4">
+          <div className="w-20 h-20 rounded-full bg-brand-50 flex items-center justify-center">
+            <BookOpen className="w-10 h-10 text-brand" strokeWidth={1.5} />
+          </div>
+        </div>
+        <DialogHeader className="items-center gap-1">
+          <DialogTitle className="text-xl font-bold text-foreground leading-snug">
+            Você está quase lá!
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground mt-1">
+            Revise e confirme seu pedido — é o último passo. Você pode alterar qualquer detalhe diretamente nesta tela.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 mt-6">
+          <Button
+            className="w-full bg-brand hover:bg-brand-700 text-white font-semibold h-12 rounded-xl"
+            onClick={() => setShowLeaveDialog(false)}
+          >
+            Continuar e confirmar
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full text-muted-foreground h-12 rounded-xl"
+            onClick={confirmLeave}
+          >
+            Voltar mesmo assim
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
     <div className="flex-1 flex flex-col bg-white min-h-0">
       {/* Step header */}
       <div className="flex items-center gap-2 px-4 py-4 border-b border-border bg-white">
@@ -662,30 +793,15 @@ export function CheckoutFlow() {
                   <p className="text-sm text-muted-foreground">{ident.email}</p>
                   {ident.cpf ? (
                     <p className="text-sm text-muted-foreground">
-                      CPF {ident.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
+                      CPF {ident.cpf.replace(/\D/g, "").replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
                     </p>
                   ) : (
-                    <div className="flex flex-col gap-1">
-                      <Input
-                        ref={cpfInputRef}
-                        placeholder="CPF — 000.000.000-00"
-                        inputMode="numeric"
-                        maxLength={14}
-                        value={cpfInput}
-                        onChange={(e) => {
-                          const masked = applyCpfMask(e.target.value);
-                          setCpfInput(masked);
-                          if (masked.replace(/\D/g, "").length === 11) setCpfError(false);
-                        }}
-                        className={cn("text-sm", cpfError && "border-destructive focus-visible:ring-destructive/20")}
-                        aria-invalid={cpfError}
-                      />
-                      {cpfError ? (
-                        <p className="text-xs text-destructive">CPF obrigatório para emissão da nota fiscal</p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Necessário para emissão da nota fiscal</p>
-                      )}
-                    </div>
+                    <p className="text-xs text-destructive">
+                      CPF não cadastrado.{" "}
+                      <a href="/minha-conta/dados" className="underline">
+                        Adicionar em Minha Conta
+                      </a>
+                    </p>
                   )}
                 </div>
               </div>
@@ -769,11 +885,6 @@ export function CheckoutFlow() {
                 <div className="bg-white rounded-xl border border-border p-4">
                   <p className="font-semibold text-sm">{selectedPayment?.label}</p>
                   <p className="text-sm text-muted-foreground">{formatCurrency(total)}</p>
-                  {payment === "pix" && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Ao confirmar, você receberá o código Pix para pagamento.
-                    </p>
-                  )}
                   <button
                     type="button"
                     onClick={() => { setReturnToReview(true); setStep("pagamento"); }}
@@ -859,6 +970,39 @@ export function CheckoutFlow() {
           </div>
         </div>
       )}
+    </div>
+    </>
+  );
+}
+
+function FakeQRCode() {
+  const n = 21;
+  const cells = Array.from({ length: n * n }, (_, idx) => {
+    const r = Math.floor(idx / n);
+    const c = idx % n;
+    // Finder patterns (top-left, top-right, bottom-left) — 7x7 squares
+    function finder(row: number, col: number) {
+      if (row === 0 || row === 6 || col === 0 || col === 6) return true;
+      if (row >= 2 && row <= 4 && col >= 2 && col <= 4) return true;
+      return false;
+    }
+    if (r < 7 && c < 7) return finder(r, c);
+    if (r < 7 && c >= n - 7) return finder(r, c - (n - 7));
+    if (r >= n - 7 && c < 7) return finder(r - (n - 7), c);
+    // Separators
+    if (r === 7 || c === 7) return false;
+    // Timing patterns
+    if (r === 6) return c % 2 === 0;
+    if (c === 6) return r % 2 === 0;
+    // Data — deterministic pseudo-random
+    return (r * 23 + c * 19 + r * c % 11) % 3 !== 0;
+  });
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${n}, 7px)`, gap: 0 }}>
+      {cells.map((filled, i) => (
+        <div key={i} style={{ width: 7, height: 7, backgroundColor: filled ? "#111" : "#fff" }} />
+      ))}
     </div>
   );
 }

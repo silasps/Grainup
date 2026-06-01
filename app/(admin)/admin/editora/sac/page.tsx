@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "SAC — Admin Editora Jocum" };
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 const STATUS_LABELS: Record<string, string> = {
   novo: "Novo",

@@ -105,5 +105,20 @@ export async function placeOrderAction(input: PlaceOrderInput) {
       .is("cpf", null);
   }
 
-  return { error: null, orderNumber: order.order_number };
+  return { error: null, orderNumber: order.order_number, orderId: order.id };
+}
+
+export async function confirmPixPaymentAction(orderId: string) {
+  const userClient = await createClient();
+  const { data: { user } } = await userClient.auth.getUser();
+  if (!user) return { error: "Sessão expirada." };
+
+  const supabase = await createAdminClient();
+  const { error } = await supabase
+    .from("orders")
+    .update({ status: "pago", payment_status: "aprovado" })
+    .eq("id", orderId)
+    .eq("user_id", user.id);
+
+  return { error: error?.message ?? null };
 }

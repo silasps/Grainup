@@ -10,6 +10,9 @@
   --font-heading: var(--font-manrope);
   --font-mono: ui-monospace, monospace;
 
+  /* Custom animations */
+  --animate-bell-ring: bell-ring 0.7s ease-in-out;
+
   /* Brand colors */
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
@@ -178,6 +181,17 @@
     font-family: var(--font-manrope), sans-serif;
     font-weight: 700;
   }
+}
+
+@keyframes bell-ring {
+  0%   { transform: rotate(0); }
+  15%  { transform: rotate(15deg); }
+  30%  { transform: rotate(-13deg); }
+  45%  { transform: rotate(11deg); }
+  60%  { transform: rotate(-9deg); }
+  75%  { transform: rotate(7deg); }
+  90%  { transform: rotate(-5deg); }
+  100% { transform: rotate(0); }
 }
 
 @layer utilities {

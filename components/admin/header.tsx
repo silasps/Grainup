@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ExternalLink, User, LogOut, Menu } from "lucide-react";
+import { ExternalLink, User, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useMobileMenu } from "@/components/admin/mobile-menu-context";
+import { AdminNotificationBell } from "@/components/admin/notification-bell";
 
 interface AdminHeaderProps {
   title: string;
@@ -61,10 +62,7 @@ export function AdminHeader({ title, subtitle }: AdminHeaderProps) {
           Ver loja
         </a>
 
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-4 w-4" />
-          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
-        </Button>
+        <AdminNotificationBell />
 
         <DropdownMenu>
           <DropdownMenuTrigger

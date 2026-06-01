@@ -58,7 +58,7 @@ export function ContactInfo({ contact }: { contact: ContactSettings | null }) {
           <div>
             <p className="font-semibold text-sm text-foreground mb-1">Telefone / WhatsApp</p>
             {waUrl ? (
-              <a href={waUrl} target="_blank" rel="noopener noreferrer" className="block text-sm text-muted-foreground hover:text-brand transition-colors">
+              <a href={waUrl} target="_blank" rel="noopener noreferrer" suppressHydrationWarning className="block text-sm text-muted-foreground hover:text-brand transition-colors">
                 {phone}
               </a>
             ) : (
@@ -116,6 +116,7 @@ export function ContactInfo({ contact }: { contact: ContactSettings | null }) {
             href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
+            suppressHydrationWarning
             className="inline-flex items-center gap-2 bg-brand hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
             Abrir WhatsApp
