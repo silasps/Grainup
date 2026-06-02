@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, DollarSign, Users, TrendingUp, Share2, CheckCircle, BookOpen } from "lucide-react";
+import { ArrowRight, DollarSign, Users, TrendingUp, Share2, CheckCircle, Handshake } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { HeroHighlight } from "@/components/editora/hero-highlight";
 import { AfiliadoForm } from "./afiliado-form";
+import { EntrarButton } from "./entrar-button";
 
 export const metadata: Metadata = {
   title: "Programa de Afiliados",
@@ -70,7 +72,7 @@ export default function AfiliadosPage() {
           </Badge>
           <h1 className="font-heading text-4xl sm:text-5xl font-bold leading-tight mb-6 max-w-2xl">
             Indique livros e{" "}
-            <span className="text-brand">ganhe comissão</span>
+            <HeroHighlight>ganhe comissão</HeroHighlight>
           </h1>
           <p className="text-white/70 text-lg max-w-xl leading-relaxed mb-8">
             Faça parte do programa de afiliados da Editora Jocum. Compartilhe livros que transformam
@@ -83,11 +85,7 @@ export default function AfiliadosPage() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 hover:text-white" asChild>
-              <Link href="/auth/login">
-                Já sou afiliado — entrar
-              </Link>
-            </Button>
+            <EntrarButton />
           </div>
         </div>
       </section>
@@ -185,7 +183,7 @@ export default function AfiliadosPage() {
         <div className="container mx-auto max-w-7xl px-4">
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-10">
-              <BookOpen className="h-10 w-10 text-brand mx-auto mb-4" />
+              <Handshake className="h-10 w-10 text-brand mx-auto mb-4" />
               <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground mb-3">
                 Quero ser afiliado
               </h2>

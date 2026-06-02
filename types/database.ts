@@ -351,6 +351,35 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["reviews"]["Insert"]>;
         Relationships: never[];
       };
+      book_events: {
+        Row: {
+          id: string;
+          book_id: string;
+          event_type: string;
+          session_id: string | null;
+          user_id: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["book_events"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["book_events"]["Insert"]>;
+        Relationships: never[];
+      };
+      campaigns: {
+        Row: {
+          id: string;
+          title: string;
+          subject: string;
+          body: string;
+          segment: string;
+          status: string;
+          sent_count: number;
+          sent_at: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["campaigns"]["Row"], "id" | "created_at" | "sent_count" | "sent_at"> & { status?: string };
+        Update: Partial<Database["public"]["Tables"]["campaigns"]["Row"]>;
+        Relationships: never[];
+      };
       leads: {
         Row: {
           id: string;
@@ -500,9 +529,14 @@ export type Database = {
           leader_phone: string | null;
           serving_location: string | null;
           last_confirmed_at: string | null;
+          requires_review: boolean;
+          next_review_at: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["affiliates"]["Row"], "id" | "balance" | "balance_pending" | "created_at">;
+        Insert: Omit<Database["public"]["Tables"]["affiliates"]["Row"], "id" | "balance" | "balance_pending" | "created_at" | "requires_review" | "next_review_at"> & {
+          requires_review?: boolean;
+          next_review_at?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["affiliates"]["Insert"]>;
         Relationships: never[];
       };

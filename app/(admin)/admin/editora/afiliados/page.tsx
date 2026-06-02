@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { AdminHeader } from "@/components/admin/header";
 import { AffiliatosTable } from "./affiliates-table";
 
 export const metadata: Metadata = { title: "Afiliados — Admin Editora Jocum" };
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 interface Affiliate {
   id: string;
@@ -19,17 +19,20 @@ interface Affiliate {
   balance: number;
   balance_pending: number;
   leader_name: string | null;
+  leader_email: string | null;
   serving_location: string | null;
   last_confirmed_at: string | null;
+  requires_review?: boolean;
+  next_review_at?: string | null;
   created_at: string;
 }
 
 async function getData() {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
   const [affiliatesRes, salesRes] = await Promise.all([
     supabase
       .from("affiliates")
-      .select("id, user_id, type, name, email, cpf, phone, status, commission_rate, balance, balance_pending, leader_name, serving_location, last_confirmed_at, created_at")
+      .select("id, user_id, type, name, email, cpf, phone, status, commission_rate, balance, balance_pending, leader_name, leader_email, serving_location, last_confirmed_at, created_at")
       .order("created_at", { ascending: false }),
     supabase
       .from("affiliate_sales")

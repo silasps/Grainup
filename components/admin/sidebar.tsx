@@ -34,17 +34,17 @@ const NAV_ITEMS = [
     exact: true,
   },
   { label: "Livros", href: "/admin/editora/livros", icon: BookOpen },
+  { label: "Combos", href: "/admin/editora/combos", icon: BookOpen },
+  { label: "Ofertas", href: "/admin/editora/ofertas", icon: Tag },
+  { label: "Novidades", href: "/admin/editora/novidades", icon: Newspaper },
+  { label: "Anúncios", href: "/admin/editora/anuncios", icon: Megaphone },
   { label: "Pedidos", href: "/admin/editora/pedidos", icon: ShoppingBag },
   { label: "Avaliações", href: "/admin/editora/avaliacoes", icon: Star },
   { label: "SAC", href: "/admin/editora/sac", icon: MessageSquare },
   { label: "Usuários", href: "/admin/editora/usuarios", icon: Users },
   { label: "Leads", href: "/admin/editora/leads", icon: Users },
   { label: "Afiliados", href: "/admin/editora/afiliados", icon: Users },
-  { label: "Ofertas", href: "/admin/editora/ofertas", icon: Tag },
-  { label: "Combos", href: "/admin/editora/combos", icon: BookOpen },
   { label: "FAQ", href: "/admin/editora/faq", icon: HelpCircle },
-  { label: "Novidades", href: "/admin/editora/novidades", icon: Newspaper },
-  { label: "Anúncios", href: "/admin/editora/anuncios", icon: Megaphone },
   { label: "Financeiro", href: "/admin/editora/financeiro", icon: TrendingUp },
   { label: "Fiscal", href: "/admin/editora/fiscal", icon: FileText },
   { label: "Config.", href: "/admin/editora/configuracoes", icon: Settings },
@@ -128,7 +128,7 @@ export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
         href="/editora"
         target="_blank"
         rel="noopener noreferrer"
-        title={collapsed ? "Ver loja" : undefined}
+        title="Ver loja"
         className={cn(
           "flex items-center gap-2.5 mx-2 mb-2 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors border border-white/20 text-white/80 hover:bg-white/10 hover:text-white hover:border-white/30",
           collapsed && "justify-center"
