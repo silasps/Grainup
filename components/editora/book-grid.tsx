@@ -20,7 +20,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { BookCard, type BookCardData } from "./book-card";
@@ -107,6 +106,12 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
   const [selectedPriceRange, setSelectedPriceRange] = useState((searchParams.preco as string) ?? "");
   const [showOnlyPromo, setShowOnlyPromo] = useState(searchParams.promocao === "1");
   const [showOnlyNew, setShowOnlyNew] = useState(searchParams.novidades === "1");
+  const [selectedAuthors, setSelectedAuthors] = useState<Set<string>>(() => {
+    const authors = searchParams.autor;
+    if (!authors) return new Set<string>();
+    if (typeof authors === "string") return new Set([authors]);
+    return new Set(authors as string[]);
+  });
 
   function updateParam(key: string, value: string | null) {
     if (key === "preco") setSelectedPriceRange(value ?? "");
@@ -139,8 +144,27 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
     router.push(`${pathname}?${next.toString()}`);
   }
 
+  function toggleAuthor(name: string) {
+    setSelectedAuthors((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+    const next = new URLSearchParams(params.toString());
+    const existing = next.getAll("autor");
+    if (existing.includes(name)) {
+      next.delete("autor");
+      existing.filter((a) => a !== name).forEach((a) => next.append("autor", a));
+    } else {
+      next.append("autor", name);
+    }
+    router.push(`${pathname}?${next.toString()}`);
+  }
+
   function clearFilters() {
     setSelectedCategories(new Set());
+    setSelectedAuthors(new Set());
     setSelectedPriceRange("");
     setShowOnlyPromo(false);
     setShowOnlyNew(false);
@@ -168,6 +192,11 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
         categories.filter((c) => selectedCategories.has(c.slug)).map((c) => c.id)
       );
       result = result.filter((b) => b.category_id && selectedIds.has(b.category_id));
+    }
+
+    // Authors
+    if (selectedAuthors.size > 0) {
+      result = result.filter((b) => b.authors?.name && selectedAuthors.has(b.authors.name));
     }
 
     // Price range
@@ -224,10 +253,11 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
     }
 
     return result;
-  }, [books, search, selectedCategories, selectedPriceRange, showOnlyPromo, showOnlyNew, currentSort]);
+  }, [books, search, selectedCategories, selectedAuthors, selectedPriceRange, showOnlyPromo, showOnlyNew, currentSort]);
 
   const activeFilterCount =
     selectedCategories.size +
+    selectedAuthors.size +
     (selectedPriceRange ? 1 : 0) +
     (showOnlyPromo ? 1 : 0) +
     (showOnlyNew ? 1 : 0);
@@ -236,6 +266,57 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
     () => new Set(books.map((b) => b.category_id).filter(Boolean)),
     [books]
   );
+
+  const allAuthors = useMemo(() => {
+    const names = new Set<string>();
+    books.forEach((b) => { if (b.authors?.name) names.add(b.authors.name); });
+    return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [books]);
+
+  const [openSections, setOpenSections] = useState<Set<string>>(
+    () => new Set(["categoria", "autor", "preco", "rapidos"])
+  );
+
+  function toggleSection(id: string) {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function FilterSection({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+    const isOpen = openSections.has(id);
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => toggleSection(id)}
+          className="flex items-center justify-between w-full px-3 py-2.5 text-left hover:bg-secondary/50 transition-colors rounded-lg"
+        >
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            {label}
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+              isOpen && "rotate-180"
+            )}
+          />
+        </button>
+        <div
+          className={cn(
+            "grid transition-all duration-200 ease-in-out",
+            isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+          )}
+        >
+          <div className="overflow-hidden">
+            <div className="pb-1">{children}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const FilterRow = ({
     id,
@@ -273,36 +354,9 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
   );
 
   const FiltersContent = () => (
-    <div className="flex flex-col gap-1">
-      {/* Categoria */}
-      <div className="px-1 pt-2 pb-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 px-2">
-          Categoria
-        </p>
-        <div className="flex flex-col gap-0.5">
-          {categories.map((cat) => (
-            <FilterRow
-              key={cat.id}
-              id={`cat-${cat.slug}`}
-              checked={selectedCategories.has(cat.slug)}
-              onCheckedChange={() => toggleCategory(cat.slug)}
-              label={cat.name}
-              disabled={!categoryIdsWithBooks.has(cat.id)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="mx-3">
-        <Separator />
-      </div>
-
-      {/* Faixa de preço */}
-      <div className="px-1 pt-3 pb-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 px-2">
-          Faixa de preço
-        </p>
-        <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5 py-1">
+      <FilterSection id="preco" label="Faixa de preço">
+        <div className="flex flex-col gap-0.5 px-1">
           {PRICE_RANGES.map((range) => {
             const key = `${range.min}-${range.max}`;
             return (
@@ -316,18 +370,10 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
             );
           })}
         </div>
-      </div>
+      </FilterSection>
 
-      <div className="mx-3">
-        <Separator />
-      </div>
-
-      {/* Filtros rápidos */}
-      <div className="px-1 pt-3 pb-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 px-2">
-          Filtros rápidos
-        </p>
-        <div className="flex flex-col gap-0.5">
+      <FilterSection id="rapidos" label="Filtros rápidos">
+        <div className="flex flex-col gap-0.5 px-1">
           <FilterRow
             id="filter-promo"
             checked={showOnlyPromo}
@@ -341,25 +387,51 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
             label="Lançamentos"
           />
         </div>
-      </div>
+      </FilterSection>
+
+      <FilterSection id="categoria" label="Categoria">
+        <div className="flex flex-col gap-0.5 px-1">
+          {categories.map((cat) => (
+            <FilterRow
+              key={cat.id}
+              id={`cat-${cat.slug}`}
+              checked={selectedCategories.has(cat.slug)}
+              onCheckedChange={() => toggleCategory(cat.slug)}
+              label={cat.name}
+              disabled={!categoryIdsWithBooks.has(cat.id)}
+            />
+          ))}
+        </div>
+      </FilterSection>
+
+      {allAuthors.length > 0 && (
+        <FilterSection id="autor" label="Autor">
+          <div className="flex flex-col gap-0.5 px-1">
+            {allAuthors.map((name) => (
+              <FilterRow
+                key={name}
+                id={`autor-${name}`}
+                checked={selectedAuthors.has(name)}
+                onCheckedChange={() => toggleAuthor(name)}
+                label={name}
+              />
+            ))}
+          </div>
+        </FilterSection>
+      )}
 
       {activeFilterCount > 0 && (
-        <>
-          <div className="mx-3">
-            <Separator />
-          </div>
-          <div className="px-2 pt-2 pb-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-              className="w-full text-destructive hover:text-destructive hover:bg-destructive/5 border border-dashed border-destructive/30"
-            >
-              <X className="h-3.5 w-3.5 mr-1.5" />
-              Limpar filtros ({activeFilterCount})
-            </Button>
-          </div>
-        </>
+        <div className="px-2 pt-2 pb-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="w-full text-destructive hover:text-destructive hover:bg-destructive/5 border border-dashed border-destructive/30"
+          >
+            <X className="h-3.5 w-3.5 mr-1.5" />
+            Limpar filtros ({activeFilterCount})
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -465,6 +537,17 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
               </Badge>
             );
           })}
+          {[...selectedAuthors].map((name) => (
+            <Badge
+              key={name}
+              variant="secondary"
+              className="gap-1 cursor-pointer"
+              onClick={() => toggleAuthor(name)}
+            >
+              {name}
+              <X className="h-3 w-3" />
+            </Badge>
+          ))}
           {showOnlyPromo && (
             <Badge
               variant="secondary"

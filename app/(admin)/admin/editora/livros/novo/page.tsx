@@ -5,13 +5,13 @@ import { BookForm } from "@/components/admin/book-form";
 
 export const metadata: Metadata = { title: "Novo Livro — Admin" };
 
-interface Author { id: string; name: string }
+interface Author { id: string; name: string; bio: string | null; photo_url: string | null }
 interface Category { id: string; name: string }
 
 async function getData() {
   const supabase = await createClient();
   const [authorsResult, catsResult] = await Promise.all([
-    supabase.from("authors").select("id, name").order("name").limit(200),
+    supabase.from("authors").select("id, name, bio, photo_url").order("name").limit(200),
     supabase.from("categories").select("id, name").order("name"),
   ]);
   return {
