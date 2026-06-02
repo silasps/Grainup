@@ -530,16 +530,16 @@ export function CheckoutFlow() {
 
     const newOrderId = result.orderId!;
     const newOrderNumber = result.orderNumber!;
+    // Captura total antes de qualquer limpeza para garantir valor correto
+    const capturedTotal = total;
     setOrderNumber(newOrderNumber);
     setOrderId(newOrderId);
-    buyNowItem ? clear() : clearSelected();
-    clearBuyNow();
 
     if (payment === "pix") {
       const pixResult = await createMpPixPaymentAction({
         orderId: newOrderId,
         orderNumber: newOrderNumber,
-        amount: total,
+        amount: capturedTotal,
         customerEmail: ident.email,
         customerCpf: onlyDigits(ident.cpf),
         customerName: ident.name,
@@ -549,11 +549,17 @@ export function CheckoutFlow() {
         toast.error(pixResult.error);
         return;
       }
+      // Só limpa o carrinho após PIX gerado com sucesso
+      buyNowItem ? clear() : clearSelected();
+      clearBuyNow();
       setPixQrCode(pixResult.qrCode ?? "");
       setPixQrCodeBase64(pixResult.qrCodeBase64 ?? "");
       setPixSecondsLeft(600);
       setStep("pix_real");
     } else {
+      // Para cartão, limpa antes de mostrar o formulário
+      buyNowItem ? clear() : clearSelected();
+      clearBuyNow();
       setPlacing(false);
       setStep("cartao_form");
     }
