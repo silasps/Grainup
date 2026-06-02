@@ -4,7 +4,9 @@ import { ArrowRight, Truck, ShieldCheck, Star, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HeroBookCarousel } from "@/components/editora/hero-book-carousel";
+import { HeroHighlight } from "@/components/editora/hero-highlight";
 import { BookShelf } from "@/components/editora/book-shelf";
+import { NewsletterForm } from "@/components/editora/newsletter-form";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -102,8 +104,8 @@ export default async function EditoraHomePage() {
                 Editora Jocum Brasil
               </Badge>
               <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight text-balance mb-6">
-                Livros que transformam
-                <span className="bg-gradient-to-r from-white to-brand-50 bg-clip-text text-transparent"> vidas</span>
+                Livros que transformam{" "}
+                <HeroHighlight>vidas</HeroHighlight>
               </h1>
               <p className="text-lg text-white/70 leading-relaxed mb-8 max-w-xl">
                 Conhecer a Deus e fazê-lo conhecido. Explore nosso catálogo com mais de 200 títulos
@@ -301,6 +303,13 @@ export default async function EditoraHomePage() {
           </div>
         </section>
       )}
+
+      {/* NEWSLETTER */}
+      <section className="py-14 bg-brand/5 border-y border-brand/10">
+        <div className="container mx-auto max-w-xl px-4">
+          <NewsletterForm origin="home" />
+        </div>
+      </section>
 
       {/* CTA FINAL */}
       <section className="py-16 bg-foreground text-white">

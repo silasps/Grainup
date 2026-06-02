@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { BookGrid } from "@/components/editora/book-grid";
+import { NewsletterForm } from "@/components/editora/newsletter-form";
 
 export const metadata: Metadata = {
   title: "Catálogo de Livros — Editora Jocum",
@@ -51,6 +52,11 @@ export default async function LivrosPage({ searchParams }: PageProps) {
         categories={categories}
         searchParams={params}
       />
+      <section className="py-14 bg-brand/5 border-t border-brand/10">
+        <div className="container mx-auto max-w-xl px-4">
+          <NewsletterForm origin="livros" />
+        </div>
+      </section>
     </div>
   );
 }

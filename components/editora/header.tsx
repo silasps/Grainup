@@ -3,11 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Search, User, ShieldCheck } from "lucide-react";
+import { Menu, X, Search, User, ShieldCheck, Mail } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { CartBadge } from "@/components/editora/cart-badge";
 import { LogoutButton } from "@/components/shared/logout-button";
+import { NewsletterForm } from "@/components/editora/newsletter-form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -23,6 +25,7 @@ type AdminArea = { href: string; label: string };
 export function EditoraHeader({ adminArea, isLoggedIn }: { adminArea?: AdminArea | null; isLoggedIn?: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [newsletterOpen, setNewsletterOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(64);
   const headerRef = useRef<HTMLElement>(null);
@@ -78,6 +81,13 @@ export function EditoraHeader({ adminArea, isLoggedIn }: { adminArea?: AdminArea
                   {link.label}
                 </Link>
               ))}
+              <button
+                onClick={() => setNewsletterOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Newsletter
+              </button>
               {adminArea && (
                 <Link
                   href={adminArea.href}
@@ -123,6 +133,20 @@ export function EditoraHeader({ adminArea, isLoggedIn }: { adminArea?: AdminArea
       {/* Spacer dinâmico — sempre igual à altura real do header */}
       <div style={{ height: headerHeight }} />
 
+      {/* Modal de newsletter */}
+      <Dialog open={newsletterOpen} onOpenChange={setNewsletterOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Newsletter</DialogTitle>
+          </DialogHeader>
+          <NewsletterForm
+            origin="newsletter"
+            title="Receba novidades e promoções"
+            description="Cadastre-se e fique por dentro dos lançamentos e ofertas exclusivas da Editora Jocum."
+          />
+        </DialogContent>
+      </Dialog>
+
       {/* Menu mobile */}
       {menuOpen && (
         <div
@@ -150,6 +174,12 @@ export function EditoraHeader({ adminArea, isLoggedIn }: { adminArea?: AdminArea
                 </Link>
               ))}
               <div className="border-t border-border mt-2 pt-2 flex flex-col gap-1">
+                <button
+                  onClick={() => { setMenuOpen(false); setNewsletterOpen(true); }}
+                  className="flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary text-left"
+                >
+                  <Mail className="h-4 w-4" /> Newsletter
+                </button>
                 <Link
                   href={isLoggedIn ? "/minha-conta" : "/auth/login"}
                   className="flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary"

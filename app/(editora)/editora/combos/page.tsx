@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Gift, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ComboCard, type ComboData } from "@/components/editora/combo-card";
+import { HeroEyebrow } from "@/components/editora/hero-highlight";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -86,10 +87,7 @@ export default async function CombosPage() {
       {/* Hero */}
       <section className="bg-gradient-to-br from-foreground via-foreground/95 to-brand-800 text-white py-14">
         <div className="container mx-auto max-w-7xl px-4">
-          <div className="flex items-center gap-3 mb-4">
-            <Gift className="h-5 w-5 text-brand" />
-            <span className="text-white/70 text-sm font-medium uppercase tracking-wider">Kits e Combos</span>
-          </div>
+          <HeroEyebrow icon={Gift}>Kits e Combos</HeroEyebrow>
           <h1 className="font-heading text-3xl sm:text-4xl font-bold mb-3">
             Combos especiais
           </h1>

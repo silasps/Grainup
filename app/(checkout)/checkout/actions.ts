@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { trackBookEvent } from "@/lib/actions/track-event";
 
 interface OrderItem {
   id: string;
@@ -165,6 +166,12 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     await supabase.from("orders").delete().eq("id", order.id);
     return { error: itemsError.message ?? "Erro ao salvar itens do pedido." };
   }
+
+  // Registra evento de purchase para livros (fire-and-forget)
+  const bookItems = input.items.filter((i) => i.type === "book");
+  await Promise.allSettled(
+    bookItems.map((item) => trackBookEvent(item.id, "purchase"))
+  );
 
   return { error: null, orderNumber: order.order_number, orderId: order.id };
 }

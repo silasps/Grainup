@@ -30,8 +30,9 @@ export function BetaFeedbackButton() {
         toast.success("Sugestão enviada! Obrigado pelo feedback.");
         setMessage("");
         setOpen(false);
-      } catch {
-        toast.error("Não foi possível enviar. Tente novamente.");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro desconhecido";
+        toast.error(`Não foi possível enviar: ${msg}`);
       }
     });
   }

@@ -154,14 +154,6 @@ export function EditoraFooter({ contact }: { contact?: ContactInfo | null }) {
                   Seja um afiliado
                 </Link>
               </li>
-              <li>
-                <Link
-                  href="/editora/afiliados/painel"
-                  className="text-sm text-white/60 hover:text-white transition-colors"
-                >
-                  Painel do afiliado
-                </Link>
-              </li>
             </ul>
 
             <div className="mt-6">

@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Badge } from "@/components/ui/badge";
+import { HeroHighlight } from "@/components/editora/hero-highlight";
 
 export interface LegalPageConfig {
   badge: string;
@@ -36,7 +37,7 @@ export function LegalPageLayout({ config, page }: Props) {
           </Badge>
           <h1 className="font-heading text-4xl sm:text-5xl font-bold leading-tight mb-6 max-w-2xl">
             {config.title}{" "}
-            <span className="text-brand">{config.titleAccent}</span>
+            <HeroHighlight>{config.titleAccent}</HeroHighlight>
           </h1>
           <p className="text-white/70 text-lg max-w-xl leading-relaxed">
             {config.description}

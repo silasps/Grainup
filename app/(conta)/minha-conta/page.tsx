@@ -76,7 +76,7 @@ export default async function MinhaConta() {
     if (role === "super_admin" || role === "admin_editora") return { href: "/admin/editora", label: "Painel Admin", desc: "Gerencie livros, pedidos e muito mais." };
     if (role === "admin_ead") return { href: "/admin/ead", label: "Painel EAD", desc: "Acesse o painel do EAD." };
     if (role === "admin_eifol") return { href: "/admin/eifol", label: "Painel EIFOL", desc: "Acesse o painel EIFOL." };
-    if (role === "afiliado_jocum" || role === "afiliado_diretor" || role === "lider_jocum") return { href: "/editora/afiliados", label: "Área de Afiliado", desc: "Veja seus links e comissões." };
+    if (role === "afiliado_jocum" || role === "afiliado_diretor" || role === "lider_jocum") return { href: "/afiliados/painel", label: "Área de Afiliado", desc: "Veja seus links e comissões." };
     return null;
   })();
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Tag } from "lucide-react";
 import { BookCard } from "@/components/editora/book-card";
+import { HeroEyebrow } from "@/components/editora/hero-highlight";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -41,10 +42,7 @@ export default async function OfertasPage() {
       {/* Hero — mesmo padrão da home */}
       <section className="bg-gradient-to-br from-foreground via-foreground/95 to-brand-800 text-white py-14">
         <div className="container mx-auto max-w-7xl px-4">
-          <div className="flex items-center gap-3 mb-4">
-            <Tag className="h-5 w-5 text-brand" />
-            <span className="text-white/70 text-sm font-medium uppercase tracking-wider">Promoções</span>
-          </div>
+          <HeroEyebrow icon={Tag}>Promoções</HeroEyebrow>
           <h1 className="font-heading text-3xl sm:text-4xl font-bold mb-3">
             Ofertas especiais
           </h1>

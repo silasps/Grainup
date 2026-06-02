@@ -4,9 +4,10 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Search, X, Mail, Phone, User, ShieldCheck, ShieldPlus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { CreateUserDialog } from "./create-user-dialog";
 import { EditUserDialog } from "./edit-user-dialog";
+import { ROLE_LABELS, canEditRole, isKnownRole } from "./role-access";
+import type { UserRole } from "@/types/database";
 
 export interface UserRow {
   id: string;
@@ -15,20 +16,9 @@ export interface UserRow {
   email: string | null;
   phone: string | null;
   created_at: string;
-  role: string | null;
+  role: UserRole | null;
   created_by_admin?: string | null;
 }
-
-const ROLE_LABELS: Record<string, string> = {
-  super_admin: "Super Admin",
-  admin_editora: "Admin Editora",
-  admin_ead: "Admin EAD",
-  admin_eifol: "Admin EIFOL",
-  afiliado_jocum: "Afiliado JOCUM",
-  afiliado_diretor: "Afiliado Diretor",
-  lider_jocum: "Líder JOCUM",
-  cliente: "Cliente",
-};
 
 const ROLE_COLORS: Record<string, string> = {
   super_admin: "bg-purple-100 text-purple-700",
@@ -41,37 +31,9 @@ const ROLE_COLORS: Record<string, string> = {
   cliente: "bg-secondary text-muted-foreground",
 };
 
-const EDITABLE_ROLES = [
-  { value: "cliente", label: "Cliente" },
-  { value: "admin_editora", label: "Admin Editora" },
-  { value: "afiliado_jocum", label: "Afiliado JOCUM" },
-  { value: "afiliado_diretor", label: "Afiliado Diretor" },
-];
-
-const SUPER_ADMIN_ROLES = [
-  { value: "cliente", label: "Cliente" },
-  { value: "super_admin", label: "Super Admin" },
-  { value: "admin_editora", label: "Admin Editora" },
-  { value: "admin_ead", label: "Admin EAD" },
-  { value: "admin_eifol", label: "Admin EIFOL" },
-  { value: "afiliado_jocum", label: "Afiliado JOCUM" },
-  { value: "afiliado_diretor", label: "Afiliado Diretor" },
-];
-
-// Hierarchy level: higher = more senior. Used to prevent editing by peers/inferiors.
-const ROLE_LEVEL: Record<string, number> = {
-  super_admin: 100,
-  admin_editora: 70,
-  admin_ead: 70,
-  admin_eifol: 70,
-  afiliado_diretor: 40,
-  afiliado_jocum: 30,
-  cliente: 10,
-};
-
 function roleLabel(role: string | null) {
   if (!role) return "Cliente";
-  return ROLE_LABELS[role] ?? role;
+  return isKnownRole(role) ? ROLE_LABELS[role] : role;
 }
 
 function roleColor(role: string | null) {
@@ -88,20 +50,16 @@ export function UsersTable({
   users: UserRow[];
   isSuperAdmin: boolean;
   currentUserId: string;
-  currentUserRole: string | null;
+  currentUserRole: UserRole | null;
 }) {
   const [query, setQuery] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const router = useRouter();
-
-  const myLevel = ROLE_LEVEL[currentUserRole ?? "cliente"] ?? 10;
 
   function canEdit(u: UserRow): boolean {
     if (u.user_id === currentUserId) return isSuperAdmin;
-    const targetLevel = ROLE_LEVEL[u.role ?? "cliente"] ?? 10;
-    return myLevel > targetLevel;
+    return canEditRole(currentUserRole, u.role);
   }
 
   function openUser(u: UserRow) {

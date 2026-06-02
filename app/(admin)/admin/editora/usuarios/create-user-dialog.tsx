@@ -17,28 +17,12 @@ import { Label } from "@/components/ui/label";
 import { UserPlus } from "lucide-react";
 import { PhoneInput, COUNTRIES } from "@/components/checkout/phone-input";
 import { createUserAction } from "./actions";
+import { getAssignableRoleOptions } from "./role-access";
 
 function buildStoredPhone(countryCode: string, localValue: string): string {
   const country = COUNTRIES.find((c) => c.code === countryCode) ?? COUNTRIES[0];
   return localValue ? `${country.ddi} ${localValue}` : "";
 }
-
-const EDITABLE_ROLES = [
-  { value: "cliente", label: "Cliente" },
-  { value: "admin_editora", label: "Admin Editora" },
-  { value: "afiliado_jocum", label: "Afiliado JOCUM" },
-  { value: "afiliado_diretor", label: "Afiliado Diretor" },
-];
-
-const SUPER_ADMIN_ROLES = [
-  { value: "cliente", label: "Cliente" },
-  { value: "super_admin", label: "Super Admin" },
-  { value: "admin_editora", label: "Admin Editora" },
-  { value: "admin_ead", label: "Admin EAD" },
-  { value: "admin_eifol", label: "Admin EIFOL" },
-  { value: "afiliado_jocum", label: "Afiliado JOCUM" },
-  { value: "afiliado_diretor", label: "Afiliado Diretor" },
-];
 
 const EMPTY_FORM = {
   full_name: "",
@@ -56,7 +40,7 @@ export function CreateUserDialog({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [phoneCountry, setPhoneCountry] = useState("BR");
   const [phoneLocal, setPhoneLocal] = useState("");
 
-  const availableRoles = isSuperAdmin ? SUPER_ADMIN_ROLES : EDITABLE_ROLES;
+  const availableRoles = getAssignableRoleOptions(isSuperAdmin);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));

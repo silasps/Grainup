@@ -27,7 +27,10 @@ export async function submitBetaFeedback(pageUrl: string, message: string) {
     status: "novo",
   });
 
-  if (error) throw new Error("Erro ao enviar feedback.");
+  if (error) {
+    console.error("[beta-feedback] insert error:", error);
+    throw new Error(error.message);
+  }
 }
 
 export async function getBetaFeedbackList() {

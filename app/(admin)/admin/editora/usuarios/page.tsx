@@ -3,11 +3,10 @@ import { redirect } from "next/navigation";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { AdminHeader } from "@/components/admin/header";
 import { UsersTable, type UserRow } from "./users-table";
+import { canAccessUsersFlow, canViewRole } from "./role-access";
 
 export const metadata: Metadata = { title: "Usuários — Admin Editora Jocum" };
 export const revalidate = 0;
-
-const BLOCKED_ROLES_FOR_EDITORA = new Set(["admin_ead", "admin_eifol", "super_admin"]);
 
 export default async function AdminUsuariosPage() {
   const supabase = await createClient();
@@ -21,7 +20,7 @@ export default async function AdminUsuariosPage() {
     .maybeSingle();
 
   const currentRole = roleData?.role;
-  if (currentRole !== "super_admin" && currentRole !== "admin_editora") {
+  if (!canAccessUsersFlow(currentRole)) {
     redirect("/admin/editora");
   }
 
@@ -67,15 +66,12 @@ export default async function AdminUsuariosPage() {
       };
     });
 
-  const users =
-    currentRole === "super_admin"
-      ? allUsers
-      : allUsers.filter((u) => !u.role || !BLOCKED_ROLES_FOR_EDITORA.has(u.role));
+  const users = allUsers.filter((u) => canViewRole(currentRole, u.role));
 
   const subtitle =
     currentRole === "super_admin"
-      ? `${users.length} usuário${users.length !== 1 ? "s" : ""} em todas as áreas`
-      : `${users.length} usuário${users.length !== 1 ? "s" : ""} da editora`;
+      ? `${users.length} usuário${users.length !== 1 ? "s" : ""} em todos os níveis`
+      : `${users.length} usuário${users.length !== 1 ? "s" : ""} no seu nível e abaixo`;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

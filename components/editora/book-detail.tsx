@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { trackBookEvent } from "@/lib/actions/track-event";
 import {
   ShoppingCart,
   Zap,
@@ -23,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookCard, type BookCardData } from "./book-card";
+import { NewsletterForm } from "./newsletter-form";
 import { useCartStore } from "@/stores/cart";
 import { formatCurrency } from "@/lib/utils/format";
 import { toast } from "sonner";
@@ -134,6 +136,10 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
   const addItem = useCartStore((s) => s.addItem);
   const router = useRouter();
 
+  useEffect(() => {
+    trackBookEvent(book.id, "view");
+  }, [book.id]);
+
   const hasDiscount = book.price_promotional && book.price_promotional < book.price;
   const discountPct = hasDiscount
     ? Math.round((1 - book.price_promotional! / book.price) * 100)
@@ -159,6 +165,7 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
         price: book.price_promotional ?? book.price,
       });
     }
+    trackBookEvent(book.id, "add_to_cart");
     toast.success(`${book.title} adicionado ao carrinho`, {
       description: `${qty} ${qty === 1 ? "unidade" : "unidades"}`,
       action: { label: "Ver carrinho", onClick: () => {} },
@@ -176,6 +183,7 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
         price: book.price_promotional ?? book.price,
       });
     }
+    trackBookEvent(book.id, "add_to_cart");
     router.push("/checkout");
   }
 
@@ -588,6 +596,16 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Newsletter inline */}
+        <section className="py-8 px-6 bg-brand/5 border border-brand/10 rounded-2xl">
+          <NewsletterForm
+            origin="livro"
+            bookId={book.id}
+            title="Fique por dentro das novidades"
+            description="Receba promoções e lançamentos da Editora Jocum direto no seu e-mail."
+          />
+        </section>
 
         {/* Related books */}
         {relatedBooks.length > 0 && (

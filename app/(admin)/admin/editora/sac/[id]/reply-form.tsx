@@ -24,6 +24,15 @@ interface ReplyFormProps {
   currentStatus: TicketStatus;
 }
 
+const STATUS_AFTER_REPLY_LABELS: Record<TicketStatus | "keep", string> = {
+  keep: "Não alterar status",
+  novo: "Novo",
+  em_atendimento: "Em atendimento",
+  aguardando_cliente: "Aguardando cliente",
+  resolvido: "Resolvido",
+  fechado: "Fechado",
+};
+
 export function ReplyForm({ ticketId, customerEmail, ticketSubject, currentStatus }: ReplyFormProps) {
   const [subject, setSubject] = useState(`Re: ${ticketSubject}`);
   const [body, setBody] = useState("");
@@ -54,11 +63,12 @@ export function ReplyForm({ ticketId, customerEmail, ticketSubject, currentStatu
   }
 
   const statusOptions = [
-    { value: "keep", label: "Manter status atual" },
-    { value: "em_atendimento", label: "Em atendimento" },
-    { value: "aguardando_cliente", label: "Aguardando cliente" },
-    { value: "resolvido", label: "Resolvido" },
+    { value: "keep", label: STATUS_AFTER_REPLY_LABELS.keep },
+    { value: "em_atendimento", label: STATUS_AFTER_REPLY_LABELS.em_atendimento },
+    { value: "aguardando_cliente", label: STATUS_AFTER_REPLY_LABELS.aguardando_cliente },
+    { value: "resolvido", label: STATUS_AFTER_REPLY_LABELS.resolvido },
   ].filter((opt) => opt.value === "keep" || opt.value !== currentStatus);
+  const selectedStatusLabel = STATUS_AFTER_REPLY_LABELS[newStatus];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -91,24 +101,36 @@ export function ReplyForm({ ticketId, customerEmail, ticketSubject, currentStatu
         />
       </div>
 
-      <div className="flex items-end gap-3">
-        <div className="flex-1 space-y-1">
-          <Label className="text-xs text-muted-foreground">Status após envio</Label>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1 space-y-1">
+          <Label htmlFor="reply-status" className="text-xs text-muted-foreground">
+            Status após envio
+          </Label>
           <Select value={newStatus} onValueChange={(value) => setNewStatus(value as TicketStatus | "keep")}>
-            <SelectTrigger className="text-sm">
-              <SelectValue />
+            <SelectTrigger id="reply-status" className="h-10 w-full text-sm">
+              <SelectValue>{selectedStatusLabel}</SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent
+              align="start"
+              alignItemWithTrigger={false}
+              className="max-w-[calc(100vw-2rem)]"
+            >
               {statusOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
+                <SelectItem key={opt.value} value={opt.value} className="min-h-10 py-2">
+                  <span className="whitespace-normal leading-snug">
+                    {opt.label}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        <Button type="submit" disabled={loading || !body.trim()} className="gap-2 shrink-0">
+        <Button
+          type="submit"
+          disabled={loading || !body.trim()}
+          className="w-full gap-2 sm:w-auto sm:shrink-0"
+        >
           <Send className="h-4 w-4" />
           {loading ? "Enviando…" : "Enviar resposta"}
         </Button>
