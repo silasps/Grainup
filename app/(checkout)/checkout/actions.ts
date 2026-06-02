@@ -1,7 +1,41 @@
 "use server";
 
+import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { trackBookEvent } from "@/lib/actions/track-event";
+import { sendOrderConfirmationEmail } from "@/lib/email";
+
+function getMpClient() {
+  return new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN! });
+}
+
+function isTestMode() {
+  return process.env.MERCADOPAGO_ACCESS_TOKEN?.startsWith("TEST-") ?? false;
+}
+
+function isPublicUrl() {
+  const url = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  return url.startsWith("https://") || (url.startsWith("http://") && !url.includes("localhost"));
+}
+
+// No sandbox do MP, o email do pagador precisa ser da conta vendedora ou um
+// usuário de teste. O MERCADOPAGO_TEST_BUYER_EMAIL pode ser configurado manualmente;
+// caso não esteja, busca o email da conta registrada no MP.
+async function getSandboxPayerEmail(): Promise<string> {
+  if (process.env.MERCADOPAGO_TEST_BUYER_EMAIL) {
+    return process.env.MERCADOPAGO_TEST_BUYER_EMAIL;
+  }
+  try {
+    const res = await fetch("https://api.mercadopago.com/users/me", {
+      headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
+    });
+    if (!res.ok) return "test@testuser.com";
+    const data = await res.json() as { email?: string };
+    return data.email ?? "test@testuser.com";
+  } catch {
+    return "test@testuser.com";
+  }
+}
 
 interface OrderItem {
   id: string;
@@ -176,17 +210,174 @@ export async function placeOrderAction(input: PlaceOrderInput) {
   return { error: null, orderNumber: order.order_number, orderId: order.id };
 }
 
-export async function confirmPixPaymentAction(orderId: string) {
+export async function createMpPixPaymentAction(input: {
+  orderId: string;
+  orderNumber: string;
+  amount: number;
+  customerEmail: string;
+  customerCpf: string;
+  customerName: string;
+}) {
+  try {
+    const paymentClient = new Payment(getMpClient());
+    const [firstName, ...rest] = input.customerName.trim().split(" ");
+
+    // No sandbox do MP, o email do pagador precisa ser um usuário de teste.
+    // Em produção, o email real do cliente é usado normalmente.
+    const payerEmail = isTestMode()
+      ? await getSandboxPayerEmail()
+      : input.customerEmail;
+
+    const result = await paymentClient.create({
+      body: {
+        transaction_amount: input.amount,
+        description: `Pedido ${input.orderNumber} - Editora JOCUM`,
+        payment_method_id: "pix",
+        payer: {
+          email: payerEmail,
+          first_name: firstName,
+          last_name: rest.join(" ") || firstName,
+          identification: { type: "CPF", number: input.customerCpf },
+        },
+        external_reference: input.orderId,
+        ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mp-webhook` }),
+      },
+    });
+
+    const qrCode = result.point_of_interaction?.transaction_data?.qr_code ?? null;
+    const qrCodeBase64 = result.point_of_interaction?.transaction_data?.qr_code_base64 ?? null;
+
+    const supabase = await createAdminClient();
+    await supabase.from("orders").update({ notes: `MP:${result.id}` }).eq("id", input.orderId);
+
+    return { error: null, qrCode, qrCodeBase64 };
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
+    console.error("createMpPixPaymentAction:", JSON.stringify(e, Object.getOwnPropertyNames(e)));
+    return { error: "Erro ao gerar o PIX. Tente novamente." };
+  }
+}
+
+export async function createMpCardPaymentAction(input: {
+  orderId: string;
+  orderNumber: string;
+  token: string;
+  installments: number;
+  paymentMethodId: string;
+  issuerId: string;
+  amount: number;
+  customerEmail: string;
+  customerCpf: string;
+  customerName: string;
+}) {
+  try {
+    const paymentClient = new Payment(getMpClient());
+    const [firstName, ...rest] = input.customerName.trim().split(" ");
+    const payerEmail = isTestMode()
+      ? await getSandboxPayerEmail()
+      : input.customerEmail;
+    const result = await paymentClient.create({
+      body: {
+        transaction_amount: input.amount,
+        token: input.token,
+        installments: input.installments,
+        payment_method_id: input.paymentMethodId,
+        issuer_id: Number(input.issuerId) || undefined,
+        description: `Pedido ${input.orderNumber} - Editora JOCUM`,
+        payer: {
+          email: payerEmail,
+          first_name: firstName,
+          last_name: rest.join(" ") || firstName,
+          identification: { type: "CPF", number: input.customerCpf },
+        },
+        external_reference: input.orderId,
+        ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mp-webhook` }),
+      },
+    });
+
+    const supabase = await createAdminClient();
+
+    if (result.status === "approved") {
+      await supabase
+        .from("orders")
+        .update({ status: "pago", payment_status: "aprovado", notes: `MP:${result.id}` })
+        .eq("id", input.orderId);
+      sendOrderConfirmationEmail(input.orderId).catch(console.error);
+      return { error: null, status: "approved" as const };
+    }
+
+    if (result.status === "in_process" || result.status === "pending") {
+      await supabase
+        .from("orders")
+        .update({ notes: `MP:${result.id}` })
+        .eq("id", input.orderId);
+      return { error: null, status: "pending" as const };
+    }
+
+    return { error: result.status_detail ?? "Pagamento recusado.", status: result.status as string };
+  } catch (err) {
+    console.error("createMpCardPaymentAction:", err);
+    return { error: "Erro ao processar o pagamento. Tente novamente.", status: "error" as const };
+  }
+}
+
+export async function checkOrderPaymentStatusAction(orderId: string) {
+  const userClient = await createClient();
+  const { data: { user } } = await userClient.auth.getUser();
+  if (!user) return { paymentStatus: null };
+
+  const supabase = await createAdminClient();
+  const { data: order } = await supabase
+    .from("orders")
+    .select("payment_status, notes")
+    .eq("id", orderId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!order) return { paymentStatus: null };
+
+  // Se já confirmado pelo webhook, retorna direto
+  if (order.payment_status === "aprovado") return { paymentStatus: "aprovado" };
+
+  // Sem webhook (localhost), consulta o MP diretamente
+  const mpId = typeof order.notes === "string" && order.notes.startsWith("MP:")
+    ? order.notes.slice(3)
+    : null;
+
+  if (mpId) {
+    const res = await fetch(`https://api.mercadopago.com/v1/payments/${mpId}`, {
+      headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
+    });
+    if (res.ok) {
+      const payment = await res.json() as { status?: string };
+      if (payment.status === "approved") {
+        await supabase
+          .from("orders")
+          .update({ status: "pago", payment_status: "aprovado" })
+          .eq("id", orderId);
+        return { paymentStatus: "aprovado" };
+      }
+    }
+  }
+
+  return { paymentStatus: order.payment_status ?? null };
+}
+
+// Apenas sandbox — força aprovação para testar o fluxo completo sem pagar de verdade
+export async function simulatePixApprovedAction(orderId: string) {
+  if (!isTestMode()) return { error: "Disponível apenas em modo teste." };
+
   const userClient = await createClient();
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) return { error: "Sessão expirada." };
 
   const supabase = await createAdminClient();
-  const { error } = await supabase
+  await supabase
     .from("orders")
     .update({ status: "pago", payment_status: "aprovado" })
     .eq("id", orderId)
     .eq("user_id", user.id);
 
-  return { error: error?.message ?? null };
+  sendOrderConfirmationEmail(orderId).catch(console.error);
+  return { error: null };
 }

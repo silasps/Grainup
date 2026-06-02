@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  Check, ChevronLeft, ChevronRight, MapPin, PackageCheck, Loader2, Plus, Truck, BookOpen, Copy, FlaskConical,
+  Check, ChevronLeft, ChevronRight, MapPin, PackageCheck, Loader2, Plus, Truck, BookOpen, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -17,11 +17,18 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { useCartStore } from "@/stores/cart";
-import { placeOrderAction, confirmPixPaymentAction } from "@/app/(checkout)/checkout/actions";
+import {
+  placeOrderAction,
+  createMpPixPaymentAction,
+  createMpCardPaymentAction,
+  checkOrderPaymentStatusAction,
+  simulatePixApprovedAction,
+} from "@/app/(checkout)/checkout/actions";
+import { MpCardForm, type CardPaymentData } from "@/components/checkout/mp-card-form";
 import { formatCurrency } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 
-type Step = "preparando" | "faturamento" | "endereco" | "frete" | "pagamento" | "revisao" | "pix_simulado" | "sucesso";
+type Step = "preparando" | "faturamento" | "endereco" | "frete" | "pagamento" | "revisao" | "pix_real" | "cartao_form" | "sucesso";
 
 const STEP_ORDER: Step[] = ["preparando", "faturamento", "endereco", "frete", "pagamento", "revisao", "sucesso"];
 
@@ -125,6 +132,11 @@ export function CheckoutFlow() {
   const [placing, setPlacing] = useState(false);
   const [orderId, setOrderId] = useState("");
   const [confirmingPix, setConfirmingPix] = useState(false);
+  const [pixQrCode, setPixQrCode] = useState("");
+  const [pixQrCodeBase64, setPixQrCodeBase64] = useState("");
+  const pixPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pixTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [pixSecondsLeft, setPixSecondsLeft] = useState(600);
   const [mounted, setMounted] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -211,6 +223,47 @@ export function CheckoutFlow() {
     check();
     return () => container.removeEventListener("scroll", check);
   }, [step]);
+
+  // Countdown timer do PIX
+  useEffect(() => {
+    if (step !== "pix_real") return;
+    pixTimerRef.current = setInterval(() => {
+      setPixSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(pixTimerRef.current!);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => {
+      if (pixTimerRef.current) clearInterval(pixTimerRef.current);
+    };
+  }, [step]);
+
+  // Polling automático de confirmação PIX
+  useEffect(() => {
+    if (step !== "pix_real" || !orderId) return;
+
+    const MAX_MS = 10 * 60 * 1000; // 10 minutos
+    const startedAt = Date.now();
+
+    pixPollRef.current = setInterval(async () => {
+      if (Date.now() - startedAt > MAX_MS) {
+        clearInterval(pixPollRef.current!);
+        return;
+      }
+      const result = await checkOrderPaymentStatusAction(orderId);
+      if (result.paymentStatus === "aprovado") {
+        clearInterval(pixPollRef.current!);
+        setStep("sucesso");
+      }
+    }, 4000);
+
+    return () => {
+      if (pixPollRef.current) clearInterval(pixPollRef.current);
+    };
+  }, [step, orderId]);
 
   function fillAddrFromSaved(a: SavedAddress) {
     setSelectedAddressId(a.id);
@@ -475,23 +528,71 @@ export function CheckoutFlow() {
       return;
     }
 
-    setOrderNumber(result.orderNumber!);
-    setOrderId(result.orderId!);
+    const newOrderId = result.orderId!;
+    const newOrderNumber = result.orderNumber!;
+    setOrderNumber(newOrderNumber);
+    setOrderId(newOrderId);
     buyNowItem ? clear() : clearSelected();
     clearBuyNow();
-    setPlacing(false);
-    setStep(payment === "pix" ? "pix_simulado" : "sucesso");
+
+    if (payment === "pix") {
+      const pixResult = await createMpPixPaymentAction({
+        orderId: newOrderId,
+        orderNumber: newOrderNumber,
+        amount: total,
+        customerEmail: ident.email,
+        customerCpf: onlyDigits(ident.cpf),
+        customerName: ident.name,
+      });
+      setPlacing(false);
+      if (pixResult.error) {
+        toast.error(pixResult.error);
+        return;
+      }
+      setPixQrCode(pixResult.qrCode ?? "");
+      setPixQrCodeBase64(pixResult.qrCodeBase64 ?? "");
+      setPixSecondsLeft(600);
+      setStep("pix_real");
+    } else {
+      setPlacing(false);
+      setStep("cartao_form");
+    }
   }
 
-  async function handleConfirmPixPayment() {
-    setConfirmingPix(true);
-    const result = await confirmPixPaymentAction(orderId);
-    setConfirmingPix(false);
+  async function handleCardPayment(data: CardPaymentData) {
+    const result = await createMpCardPaymentAction({
+      orderId,
+      orderNumber,
+      token: data.token,
+      installments: data.installments,
+      paymentMethodId: data.paymentMethodId,
+      issuerId: data.issuerId,
+      amount: total,
+      customerEmail: ident.email,
+      customerCpf: onlyDigits(ident.cpf),
+      customerName: ident.name,
+    });
+
     if (result.error) {
       toast.error(result.error);
       return;
     }
-    setStep("sucesso");
+    if (result.status === "approved" || result.status === "pending") {
+      setStep("sucesso");
+    } else {
+      toast.error("Pagamento recusado. Verifique os dados e tente novamente.");
+    }
+  }
+
+  async function handleCheckPixPayment() {
+    setConfirmingPix(true);
+    const result = await checkOrderPaymentStatusAction(orderId);
+    setConfirmingPix(false);
+    if (result.paymentStatus === "aprovado") {
+      setStep("sucesso");
+    } else {
+      toast.info("Pagamento ainda não identificado. Aguarde alguns segundos e tente novamente.");
+    }
   }
 
   // ── Preparando ──
@@ -506,78 +607,163 @@ export function CheckoutFlow() {
     );
   }
 
-  // ── PIX Simulado ──
-  if (step === "pix_simulado") {
-    const pixCode = `00020126580014BR.GOV.BCB.PIX0136${orderId.replace(/-/g, "").slice(0, 32)}520400005303986540${String(Math.round(total * 100)).padStart(6, "0").replace(/(\d+)(\d{2})$/, "$1.$2")}5802BR5925EDITORA JOCUM BRASIL6009CURITIBA62${String(10 + orderNumber.length).padStart(2, "0")}05${orderNumber}6304CAFE`;
+  // ── PIX Real ──
+  if (step === "pix_real") {
     return (
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-sm mx-auto px-6 py-8 flex flex-col gap-6">
 
-          {/* Aviso de simulação */}
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <FlaskConical className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-bold text-amber-700 mb-0.5">Ambiente de teste — MVP</p>
-              <p className="text-xs text-amber-700 leading-relaxed">
-                Em produção, o pagamento seria confirmado via webhook após o cliente realizar o Pix. Aqui você pode simular isso manualmente.
-              </p>
-            </div>
-          </div>
-
-          {/* Cabeçalho */}
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-1">Pedido <strong>{orderNumber}</strong></p>
             <p className="text-3xl font-bold text-foreground">{formatCurrency(total)}</p>
             <p className="text-xs text-muted-foreground mt-1">Aguardando pagamento via Pix</p>
           </div>
 
-          {/* QR Code fake */}
-          <div className="flex justify-center">
-            <div className="bg-white border-2 border-border rounded-2xl p-4 shadow-sm">
-              <FakeQRCode />
+          {pixQrCodeBase64 && (
+            <div className="flex justify-center">
+              <div className="bg-white border-2 border-border rounded-2xl p-4 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`data:image/png;base64,${pixQrCodeBase64}`}
+                  alt="QR Code PIX"
+                  width={180}
+                  height={180}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Copia e Cola */}
-          <div className="flex flex-col gap-1.5">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pix Copia e Cola</p>
-            <div className="flex gap-2">
-              <input
-                readOnly
-                value={pixCode}
-                className="flex-1 min-w-0 text-xs font-mono bg-secondary border border-border rounded-lg px-3 py-2 text-muted-foreground overflow-hidden"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(pixCode);
-                  toast.success("Código copiado!");
-                }}
-                className="shrink-0 p-2 rounded-lg border border-border bg-white hover:bg-secondary transition-colors"
-                aria-label="Copiar código Pix"
+          {pixQrCode && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pix Copia e Cola</p>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={pixQrCode}
+                  className="flex-1 min-w-0 text-xs font-mono bg-secondary border border-border rounded-lg px-3 py-2 text-muted-foreground overflow-hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard.writeText(pixQrCode); toast.success("Código copiado!"); }}
+                  className="shrink-0 p-2 rounded-lg border border-border bg-white hover:bg-secondary transition-colors"
+                  aria-label="Copiar código Pix"
+                >
+                  <Copy className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Countdown + polling */}
+          {(() => {
+            const mins = Math.floor(pixSecondsLeft / 60);
+            const secs = pixSecondsLeft % 60;
+            const pct = (pixSecondsLeft / 600) * 100;
+            const expired = pixSecondsLeft === 0;
+            const barColor = pixSecondsLeft > 300
+              ? "bg-emerald-500"
+              : pixSecondsLeft > 120
+              ? "bg-amber-400"
+              : "bg-red-500";
+            const timeColor = pixSecondsLeft > 300
+              ? "text-emerald-600"
+              : pixSecondsLeft > 120
+              ? "text-amber-600"
+              : "text-red-600";
+            return (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground font-medium">
+                    {expired ? "Código expirado" : "Tempo para pagar"}
+                  </span>
+                  <span className={`font-mono font-bold tabular-nums ${timeColor}`}>
+                    {expired ? "00:00" : `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`}
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-1000 ${barColor}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                {expired ? (
+                  <p className="text-xs text-center text-red-600 font-medium">
+                    O tempo expirou. Volte ao carrinho e tente novamente.
+                  </p>
+                ) : (
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground mt-1">
+                    <Loader2 className="h-3 w-3 animate-spin text-emerald-600 shrink-0" />
+                    <span>Verificando pagamento automaticamente...</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Botões de teste — apenas em sandbox */}
+          {process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY?.startsWith("TEST-") && (
+            <div className="flex flex-col gap-2 pt-1 border-t border-dashed border-amber-200">
+              <p className="text-[11px] text-center text-amber-600 font-medium uppercase tracking-wide">Ambiente de teste</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full border-amber-300 text-amber-700 hover:bg-amber-50 text-xs"
+                onClick={handleCheckPixPayment}
+                disabled={confirmingPix}
               >
-                <Copy className="h-4 w-4 text-muted-foreground" />
-              </button>
+                {confirmingPix
+                  ? <><Loader2 className="h-3 w-3 mr-2 animate-spin" /> Verificando...</>
+                  : "Verificar status no MP"
+                }
+              </Button>
+              <Button
+                size="sm"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white text-xs"
+                onClick={async () => {
+                  const r = await simulatePixApprovedAction(orderId);
+                  if (!r.error) setStep("sucesso");
+                  else toast.error(r.error);
+                }}
+              >
+                <Check className="h-3 w-3 mr-1.5" />
+                Simular pagamento aprovado
+              </Button>
             </div>
+          )}
+
+        </div>
+      </div>
+    );
+  }
+
+  // ── Cartão de Crédito/Débito ──
+  if (step === "cartao_form") {
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-sm mx-auto px-6 py-8 flex flex-col gap-6">
+
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground mb-1">Pedido <strong>{orderNumber}</strong></p>
+            <p className="text-2xl font-bold text-foreground">{formatCurrency(total)}</p>
           </div>
 
-          {/* Botão de simulação */}
-          <div className="flex flex-col gap-3 pt-2">
-            <Button
-              size="lg"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold w-full h-12"
-              onClick={handleConfirmPixPayment}
-              disabled={confirmingPix}
-            >
-              {confirmingPix
-                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Confirmando...</>
-                : <><Check className="h-4 w-4 mr-2" /> Simular pagamento confirmado</>
-              }
-            </Button>
-            <p className="text-xs text-center text-muted-foreground">
-              Este botão simula o webhook do gateway — marca o pedido como <strong>pago</strong> no banco.
-            </p>
-          </div>
+          {/* Dica de teste — só em sandbox */}
+          {process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY?.startsWith("TEST-") && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 leading-relaxed">
+              <p className="font-bold mb-1">Cartões de teste (sandbox)</p>
+              <p>Mastercard: <span className="font-mono">5031 4332 1540 6351</span></p>
+              <p>Visa: <span className="font-mono">4235 6477 2802 5682</span></p>
+              <p>CVV: <span className="font-mono">123</span> · Validade: <span className="font-mono">11/30</span></p>
+              <p className="mt-1">Nome: <span className="font-mono">APRO</span> (aprovado) ou <span className="font-mono">OTHE</span> (recusado)</p>
+            </div>
+          )}
+
+          <MpCardForm
+            publicKey={process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY!}
+            amount={total}
+            defaultEmail={ident.email}
+            onSubmit={handleCardPayment}
+          />
 
         </div>
       </div>
