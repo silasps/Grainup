@@ -21,11 +21,12 @@ import { placeOrderAction, confirmPixPaymentAction } from "@/app/(checkout)/chec
 import { formatCurrency } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 
-type Step = "preparando" | "endereco" | "frete" | "pagamento" | "revisao" | "pix_simulado" | "sucesso";
+type Step = "preparando" | "faturamento" | "endereco" | "frete" | "pagamento" | "revisao" | "pix_simulado" | "sucesso";
 
-const STEP_ORDER: Step[] = ["preparando", "endereco", "frete", "pagamento", "revisao", "sucesso"];
+const STEP_ORDER: Step[] = ["preparando", "faturamento", "endereco", "frete", "pagamento", "revisao", "sucesso"];
 
 const STEP_TITLES: Partial<Record<Step, string>> = {
+  faturamento: "Dados fiscais",
   endereco: "Escolha o endereço de entrega",
   frete: "Escolha a modalidade de entrega",
   pagamento: "Escolha como pagar",
@@ -95,6 +96,22 @@ interface AddrData {
 
 const emptyAddr: AddrData = { cep: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" };
 
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function maskCpf(value: string) {
+  const d = onlyDigits(value).slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+function metadataText(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
 export function CheckoutFlow() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("preparando");
@@ -110,7 +127,9 @@ export function CheckoutFlow() {
   const [confirmingPix, setConfirmingPix] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
   const [showStickyFooter, setShowStickyFooter] = useState(false);
   const [returnToReview, setReturnToReview] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
@@ -127,7 +146,7 @@ export function CheckoutFlow() {
         return;
       }
       const [{ data: profile }, { data: addresses }] = await Promise.all([
-        supabase.from("profiles").select("full_name, cpf").eq("user_id", user.id).maybeSingle(),
+        supabase.from("profiles").select("id, full_name, phone, cpf, avatar_url").eq("user_id", user.id).maybeSingle(),
         supabase
           .from("addresses")
           .select("*")
@@ -135,7 +154,30 @@ export function CheckoutFlow() {
           .order("is_default", { ascending: false })
           .order("created_at", { ascending: false }),
       ]);
-      setIdent({ name: profile?.full_name ?? "", email: user.email ?? "", cpf: profile?.cpf ?? "" });
+      const metadata = user.user_metadata as Record<string, unknown>;
+      const fallbackName = metadataText(metadata.full_name) || metadataText(metadata.name) || user.email?.split("@")[0] || "";
+      const fallbackCpf = onlyDigits(metadataText(metadata.cpf));
+      const nextIdent = {
+        name: profile?.full_name || fallbackName,
+        email: user.email ?? "",
+        cpf: maskCpf(profile?.cpf || fallbackCpf),
+      };
+      setIdent(nextIdent);
+
+      if (!profile || (!profile.full_name && nextIdent.name) || (!profile.cpf && fallbackCpf)) {
+        await supabase.from("profiles").upsert(
+          {
+            id: profile?.id ?? crypto.randomUUID(),
+            user_id: user.id,
+            full_name: profile?.full_name ?? nextIdent.name,
+            phone: profile?.phone ?? null,
+            cpf: profile?.cpf ?? (onlyDigits(nextIdent.cpf) || null),
+            avatar_url: profile?.avatar_url ?? null,
+          },
+          { onConflict: "user_id" }
+        );
+      }
+
       const addrs = (addresses ?? []) as SavedAddress[];
       setSavedAddresses(addrs);
       if (addrs.length > 0) {
@@ -144,7 +186,7 @@ export function CheckoutFlow() {
       } else {
         setShowAddressForm(true);
       }
-      setStep("endereco");
+      setStep(onlyDigits(nextIdent.cpf).length === 11 ? "endereco" : "faturamento");
     });
   }, [router]);
 
@@ -171,6 +213,7 @@ export function CheckoutFlow() {
   }, [step]);
 
   function fillAddrFromSaved(a: SavedAddress) {
+    setSelectedAddressId(a.id);
     setAddr({
       cep: a.zip_code, street: a.street, number: a.number,
       complement: a.complement ?? "", neighborhood: a.neighborhood,
@@ -224,8 +267,9 @@ export function CheckoutFlow() {
   function setAdF(field: keyof AddrData) {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
-      const value = field === "cep" ? maskCep(raw) : raw;
+      const value = field === "cep" ? maskCep(raw) : field === "state" ? raw.toUpperCase().slice(0, 2) : raw;
       setAddr((p) => ({ ...p, [field]: value }));
+      setSelectedAddressId(null);
       setErrors((p) => ({ ...p, [field]: "" }));
       if (field === "cep") lookupCep(value);
     };
@@ -259,6 +303,7 @@ export function CheckoutFlow() {
     if (!addr.cep.trim()) e.cep = "Obrigatório";
     if (!addr.street.trim()) e.street = "Obrigatório";
     if (!addr.number.trim()) e.number = "Obrigatório";
+    if (!addr.neighborhood.trim()) e.neighborhood = "Obrigatório";
     if (!addr.city.trim()) e.city = "Obrigatório";
     if (!addr.state.trim()) e.state = "Obrigatório";
     setErrors(e);
@@ -275,8 +320,105 @@ export function CheckoutFlow() {
     }
   }
 
-  function handleAddrFormContinue() {
+  async function handleBillingContinue() {
+    const cpf = onlyDigits(ident.cpf);
+    if (cpf.length !== 11) {
+      setErrors((prev) => ({ ...prev, cpf: "Informe um CPF válido para emitir a nota fiscal." }));
+      toast.error("Informe um CPF válido para continuar.");
+      return;
+    }
+
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      router.replace("/auth/cadastro?redirectTo=/checkout");
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, full_name, phone, cpf, avatar_url")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const { error } = await supabase.from("profiles").upsert(
+      {
+        id: profile?.id ?? crypto.randomUUID(),
+        user_id: user.id,
+        full_name: profile?.full_name ?? ident.name ?? user.email?.split("@")[0] ?? "Cliente",
+        phone: profile?.phone ?? null,
+        cpf,
+        avatar_url: profile?.avatar_url ?? null,
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      toast.error("Erro ao salvar CPF. Tente novamente.");
+      return;
+    }
+
+    setIdent((prev) => ({ ...prev, cpf: maskCpf(cpf) }));
+    setErrors((prev) => ({ ...prev, cpf: "" }));
+    setStep(returnToReview ? "revisao" : "endereco");
+    setReturnToReview(false);
+  }
+
+  async function persistCurrentAddress() {
+    if (selectedAddressId) return;
+
+    const duplicate = savedAddresses.find((a) =>
+      a.zip_code === addr.cep &&
+      a.street === addr.street &&
+      a.number === addr.number &&
+      (a.complement ?? "") === (addr.complement || "") &&
+      a.neighborhood === addr.neighborhood &&
+      a.city === addr.city &&
+      a.state === addr.state.toUpperCase()
+    );
+
+    if (duplicate) {
+      setSelectedAddressId(duplicate.id);
+      return;
+    }
+
+    setSavingAddress(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("addresses")
+        .insert({
+          user_id: user.id,
+          label: savedAddresses.length === 0 ? "Principal" : null,
+          full_name: ident.name || user.email?.split("@")[0] || "Cliente",
+          zip_code: addr.cep,
+          street: addr.street,
+          number: addr.number,
+          complement: addr.complement || null,
+          neighborhood: addr.neighborhood,
+          city: addr.city,
+          state: addr.state.toUpperCase(),
+          is_default: savedAddresses.length === 0,
+        })
+        .select("*")
+        .single();
+
+      if (!error && data) {
+        const saved = data as SavedAddress;
+        setSavedAddresses((prev) => [saved, ...prev]);
+        setSelectedAddressId(saved.id);
+      }
+    } finally {
+      setSavingAddress(false);
+    }
+  }
+
+  async function handleAddrFormContinue() {
     if (!validateAddr()) return;
+    await persistCurrentAddress();
     if (returnToReview) {
       setReturnToReview(false);
       setStep("revisao");
@@ -288,13 +430,20 @@ export function CheckoutFlow() {
   function handleSelectPayment(id: string) {
     setPayment(id);
     setReturnToReview(false);
+    if (onlyDigits(ident.cpf).length !== 11) {
+      setStep("faturamento");
+      return;
+    }
     setStep("revisao");
   }
 
   async function placeOrder() {
-    const cpf = ident.cpf?.replace(/\D/g, "") ?? "";
-    if (!cpf || cpf.length < 11) {
-      toast.error("CPF não cadastrado. Acesse Minha Conta > Dados para adicionar.");
+    const cpf = onlyDigits(ident.cpf);
+    if (cpf.length !== 11) {
+      setErrors((prev) => ({ ...prev, cpf: "Informe um CPF válido para emitir a nota fiscal." }));
+      setReturnToReview(true);
+      setStep("faturamento");
+      toast.error("Informe um CPF válido para continuar.");
       return;
     }
     setPlacing(true);
@@ -540,6 +689,36 @@ export function CheckoutFlow() {
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         <div className="max-w-lg mx-auto px-4 py-6">
 
+          {/* ── Faturamento ── */}
+          {step === "faturamento" && (
+            <div className="flex flex-col gap-4">
+              <div className="bg-white rounded-xl border border-border p-4 flex flex-col gap-2">
+                <p className="font-semibold text-sm">{ident.name || "Cliente"}</p>
+                <p className="text-sm text-muted-foreground">{ident.email}</p>
+              </div>
+              <Field label="CPF para nota fiscal" error={errors.cpf}>
+                <Input
+                  id="checkout-cpf"
+                  value={ident.cpf}
+                  onChange={(e) => {
+                    setIdent((prev) => ({ ...prev, cpf: maskCpf(e.target.value) }));
+                    setErrors((prev) => ({ ...prev, cpf: "" }));
+                  }}
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  maxLength={14}
+                />
+              </Field>
+              <Button
+                className="bg-brand hover:bg-brand-700 text-white w-full mt-1"
+                onClick={handleBillingContinue}
+              >
+                Continuar
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          )}
+
           {/* ── Endereço ── */}
           {step === "endereco" && (
             <div className="flex flex-col gap-3">
@@ -577,7 +756,7 @@ export function CheckoutFlow() {
 
                   <button
                     type="button"
-                    onClick={() => { setShowAddressForm(true); setAddr(emptyAddr); setErrors({}); }}
+                    onClick={() => { setShowAddressForm(true); setSelectedAddressId(null); setAddr(emptyAddr); setErrors({}); }}
                     className="w-full text-left bg-white rounded-xl border border-dashed border-border p-4 flex items-center gap-3 text-brand font-medium text-sm hover:border-brand transition-colors"
                   >
                     <Plus className="h-4 w-4 flex-shrink-0" />
@@ -627,9 +806,11 @@ export function CheckoutFlow() {
                   <Button
                     className="bg-brand hover:bg-brand-700 text-white w-full mt-1"
                     onClick={handleAddrFormContinue}
+                    disabled={savingAddress}
                   >
-                    Continuar
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                    {savingAddress && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    {savingAddress ? "Salvando..." : "Continuar"}
+                    {!savingAddress && <ChevronRight className="h-4 w-4 ml-1" />}
                   </Button>
                   {savedAddresses.length > 0 && (
                     <button
@@ -791,18 +972,9 @@ export function CheckoutFlow() {
                 <div className="bg-white rounded-xl border border-border p-4 flex flex-col gap-2">
                   <p className="font-semibold text-sm">{ident.name}</p>
                   <p className="text-sm text-muted-foreground">{ident.email}</p>
-                  {ident.cpf ? (
-                    <p className="text-sm text-muted-foreground">
-                      CPF {ident.cpf.replace(/\D/g, "").replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-destructive">
-                      CPF não cadastrado.{" "}
-                      <a href="/minha-conta/dados" className="underline">
-                        Adicionar em Minha Conta
-                      </a>
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground">
+                    CPF {onlyDigits(ident.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
+                  </p>
                 </div>
               </div>
 

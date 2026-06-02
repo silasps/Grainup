@@ -38,6 +38,7 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [alert, setAlert] = useState<{ type: "error" | "success" | "info"; message: string } | null>(null);
   const [areaCard, setAreaCard] = useState<{ href: string; label: string } | null>(null);
+  const [isPending, setIsPending] = useState(false);
   const supabase = createClient();
 
   const {
@@ -48,12 +49,14 @@ function LoginForm() {
 
   async function onSubmit(data: FormData) {
     setAlert(null);
+    setIsPending(true);
     const { data: authData, error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     });
 
     if (error) {
+      setIsPending(false);
       setAlert({ type: "error", message: "E-mail ou senha incorretos. Verifique seus dados e tente novamente." });
       return;
     }
@@ -64,6 +67,7 @@ function LoginForm() {
       if (role) {
         const area = roleToAdminArea(role);
         if (area) {
+          setIsPending(false);
           setAreaCard(area);
           return;
         }
@@ -241,10 +245,10 @@ function LoginForm() {
           <Button
             type="submit"
             className="bg-brand hover:bg-brand-700 text-white w-full"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isPending}
           >
-            {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Entrar
+            {(isSubmitting || isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isPending && !isSubmitting ? "Entrando..." : "Entrar"}
           </Button>
         </form>
 

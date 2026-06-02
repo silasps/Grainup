@@ -62,6 +62,13 @@ export default async function MinhaConta() {
 
   const profile = profileData as { full_name: string; phone: string | null; cpf: string | null } | null;
   const lastOrder = lastOrderData as unknown as LastOrder | null;
+  const metadata = user.user_metadata as Record<string, unknown>;
+  const metadataName =
+    typeof metadata.full_name === "string" ? metadata.full_name :
+    typeof metadata.name === "string" ? metadata.name :
+    null;
+  const metadataPhone = typeof metadata.whatsapp === "string" ? metadata.whatsapp : null;
+  const metadataCpf = typeof metadata.cpf === "string" ? metadata.cpf : null;
 
   const adminArea = (() => {
     const role = roleData?.role;
@@ -73,10 +80,10 @@ export default async function MinhaConta() {
     return null;
   })();
 
-  const name = profile?.full_name ?? user.email?.split("@")[0] ?? "Visitante";
+  const name = profile?.full_name ?? metadataName ?? user.email?.split("@")[0] ?? "Visitante";
   const firstName = name.split(" ")[0];
   const initials = name.split(" ").filter(Boolean).map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
-  const profileIncomplete = !profile?.full_name || !profile?.phone || !profile?.cpf;
+  const profileIncomplete = !(profile?.full_name ?? metadataName) || !(profile?.phone ?? metadataPhone) || !(profile?.cpf ?? metadataCpf);
 
   const cards = [
     {

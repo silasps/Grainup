@@ -584,6 +584,21 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["announcements"]["Insert"]>;
         Relationships: never[];
       };
+      beta_feedback: {
+        Row: {
+          id: string;
+          page_url: string;
+          message: string;
+          user_id: string | null;
+          user_email: string | null;
+          user_name: string | null;
+          status: "novo" | "em_analise" | "implementado" | "descartado";
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["beta_feedback"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["beta_feedback"]["Insert"]>;
+        Relationships: never[];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

@@ -90,8 +90,9 @@ export default async function EditoraHomePage() {
   return (
     <div className="flex flex-col">
       {/* HERO */}
-      <section className="relative bg-gradient-to-br from-foreground via-foreground/95 to-brand-800 text-white overflow-hidden">
-        <div className="absolute inset-0 opacity-10 bg-[url('/grid.svg')] bg-center" />
+      <section className="relative text-white overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/textura.png')] bg-cover bg-center" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/40 to-black/10" />
         <div className="container mx-auto max-w-7xl px-4 py-16 sm:py-24 lg:py-28 relative">
           <div className="grid lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px] gap-8 lg:gap-12 items-center">
 
@@ -102,7 +103,7 @@ export default async function EditoraHomePage() {
               </Badge>
               <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight text-balance mb-6">
                 Livros que transformam
-                <span className="text-brand"> vidas</span>
+                <span className="bg-gradient-to-r from-white to-brand-50 bg-clip-text text-transparent"> vidas</span>
               </h1>
               <p className="text-lg text-white/70 leading-relaxed mb-8 max-w-xl">
                 Conhecer a Deus e fazê-lo conhecido. Explore nosso catálogo com mais de 200 títulos

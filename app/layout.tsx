@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import { Toaster } from "sonner";
+import { BetaFeedbackButton } from "@/components/shared/beta-feedback-button";
 import "./globals.css";
 
 const inter = Inter({
@@ -49,6 +50,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
+        <BetaFeedbackButton />
         <Toaster richColors position="bottom-right" />
       </body>
     </html>

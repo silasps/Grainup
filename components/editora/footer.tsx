@@ -81,15 +81,13 @@ export function EditoraFooter({ contact }: { contact?: ContactInfo | null }) {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/editora" className="inline-flex mb-4">
-              <div className="bg-white rounded-lg px-3 py-1.5">
-                <Image
-                  src="/logo-editora-jocum.jpeg"
-                  alt="Editora Jocum"
-                  width={100}
-                  height={32}
-                  className="h-8 w-auto object-contain"
-                />
-              </div>
+              <Image
+                src="/logo-editora-jocum-branca.png"
+                alt="Editora Jocum"
+                width={120}
+                height={40}
+                className="h-10 w-auto object-contain"
+              />
             </Link>
             <p className="text-sm text-white/60 leading-relaxed mb-4">
               Conhecer a Deus e fazê-lo conhecido.

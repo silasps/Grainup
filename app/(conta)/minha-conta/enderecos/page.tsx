@@ -91,6 +91,12 @@ function AddressForm({
   async function onSubmit(data: FormData) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    const { count } = initial
+      ? { count: null }
+      : await supabase
+          .from("addresses")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id);
 
     const payload = {
       user_id: user.id,
@@ -102,8 +108,8 @@ function AddressForm({
       complement: data.complement || null,
       neighborhood: data.neighborhood,
       city: data.city,
-      state: data.state,
-      is_default: false,
+      state: data.state.toUpperCase(),
+      is_default: initial?.is_default ?? count === 0,
     };
 
     let error;

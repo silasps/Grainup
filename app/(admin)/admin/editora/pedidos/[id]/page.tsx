@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -35,6 +36,10 @@ interface OrderItem {
   unit_price: number;
   total_price: number;
   title: string;
+  books: {
+    title: string;
+    cover_url: string | null;
+  } | null;
 }
 
 interface OrderDetail {
@@ -64,7 +69,7 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
        subtotal, discount, shipping_cost, total,
        customer_name, customer_email, shipping_address,
        created_at, updated_at,
-       order_items(id, quantity, unit_price, total_price, title)`
+       order_items(id, quantity, unit_price, total_price, title, books(title, cover_url))`
     )
     .eq("id", id)
     .single();
@@ -110,7 +115,17 @@ export default async function AdminOrderDetailPage({
                 ) : (
                   (order.order_items ?? []).map((item) => (
                     <div key={item.id} className="flex items-center gap-4 px-5 py-4">
-                      <div className="h-14 w-10 bg-secondary rounded border border-border flex-shrink-0" />
+                      <div className="relative h-14 w-10 overflow-hidden rounded border border-border bg-secondary flex-shrink-0">
+                        {item.books?.cover_url ? (
+                          <Image
+                            src={item.books.cover_url}
+                            alt={item.books.title || item.title}
+                            fill
+                            sizes="40px"
+                            className="object-cover"
+                          />
+                        ) : null}
+                      </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium">{item.title}</p>
                         <p className="text-xs text-muted-foreground">

@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Camera, ChevronLeft, Loader2, UserCircle } from "lucide-react";
 import Link from "next/link";
+import { applyCpfMask, isValidCpf, onlyCpfDigits } from "@/lib/utils/cpf";
 
 const COUNTRIES = [
   { code: "55", flag: "🇧🇷", name: "Brasil" },
@@ -42,14 +43,6 @@ function applyPhoneMask(value: string, ddi: string) {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
-function applyCpfMask(value: string) {
-  const d = value.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
-  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
-  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
-}
-
 function parseStoredPhone(stored: string): { ddi: string; local: string } {
   if (!stored.startsWith("+")) {
     return { ddi: "55", local: applyPhoneMask(stored, "55") };
@@ -77,6 +70,7 @@ export default function MeusDadosPage() {
   const [phone, setPhone] = useState("");
   const [ddi, setDdi] = useState("55");
   const [cpf, setCpf] = useState("");
+  const [cpfError, setCpfError] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -89,6 +83,20 @@ export default function MeusDadosPage() {
       }
       setUserId(user.id);
       setEmail(user.email ?? "");
+      const metadata = user.user_metadata as Record<string, unknown>;
+      const metadataName =
+        typeof metadata.full_name === "string" ? metadata.full_name :
+        typeof metadata.name === "string" ? metadata.name :
+        "";
+      const metadataCpf = typeof metadata.cpf === "string" ? metadata.cpf : "";
+      const metadataPhone = typeof metadata.whatsapp === "string" ? metadata.whatsapp : "";
+      setFullName(metadataName);
+      if (metadataCpf) setCpf(applyCpfMask(metadataCpf));
+      if (metadataPhone) {
+        const parsed = parseStoredPhone(metadataPhone);
+        setDdi(parsed.ddi);
+        setPhone(parsed.local);
+      }
       supabase
         .from("profiles")
         .select("id, full_name, phone, cpf, avatar_url")
@@ -107,6 +115,18 @@ export default function MeusDadosPage() {
             if (data.cpf) {
               setCpf(applyCpfMask(data.cpf));
             }
+          } else if (metadataName || metadataCpf || metadataPhone) {
+            supabase.from("profiles").upsert(
+              {
+                id: crypto.randomUUID(),
+                user_id: user.id,
+                full_name: metadataName || null,
+                phone: metadataPhone || null,
+                cpf: metadataCpf.replace(/\D/g, "") || null,
+                avatar_url: null,
+              },
+              { onConflict: "user_id" }
+            );
           }
           setLoading(false);
         });
@@ -119,6 +139,12 @@ export default function MeusDadosPage() {
     if (!file) return;
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
+  }
+
+  function handleCpfChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const digits = onlyCpfDigits(e.target.value);
+    setCpf(applyCpfMask(digits));
+    setCpfError(digits.length === 11 && !isValidCpf(digits) ? "CPF inválido" : "");
   }
 
   async function handleSave() {
@@ -144,7 +170,13 @@ export default function MeusDadosPage() {
 
     const localDigits = phone.replace(/\D/g, "");
     const phoneValue = localDigits ? `+${ddi}${localDigits}` : null;
-    const cpfDigits = cpf.replace(/\D/g, "") || null;
+    const cpfDigits = onlyCpfDigits(cpf);
+    if (!isValidCpf(cpfDigits)) {
+      setCpfError("CPF inválido");
+      toast.error("CPF inválido");
+      setSaving(false);
+      return;
+    }
 
     const { error } = await supabase
       .from("profiles")
@@ -272,10 +304,11 @@ export default function MeusDadosPage() {
           <Input
             id="cpf"
             value={cpf}
-            onChange={(e) => setCpf(applyCpfMask(e.target.value))}
+            onChange={handleCpfChange}
             placeholder="000.000.000-00"
             inputMode="numeric"
           />
+          {cpfError && <p className="text-xs text-destructive">{cpfError}</p>}
         </div>
 
         <div className="flex flex-col gap-1.5">

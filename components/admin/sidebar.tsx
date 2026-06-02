@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpRight,
+  Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/logo";
@@ -49,7 +50,7 @@ const NAV_ITEMS = [
   { label: "Config.", href: "/admin/editora/configuracoes", icon: Settings },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const { open: mobileOpen, close: mobileClose } = useMobileMenu();
@@ -100,6 +101,26 @@ export function AdminSidebar() {
             </Link>
           );
         })}
+
+        {superAdmin && (
+          <>
+            <div className={cn("my-2 border-t border-white/10", collapsed && "mx-1")} />
+            <Link
+              href="/admin/editora/desenvolvedor"
+              onClick={mobileClose}
+              title={collapsed ? "Desenvolvedor" : undefined}
+              className={cn(
+                "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5",
+                pathname.startsWith("/admin/editora/desenvolvedor")
+                  ? "bg-brand text-white"
+                  : "text-sidebar-foreground/70 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Code2 className="h-4 w-4 flex-shrink-0" />
+              {!collapsed && <span className="truncate">Desenvolvedor</span>}
+            </Link>
+          </>
+        )}
       </nav>
 
       {/* Back to store */}

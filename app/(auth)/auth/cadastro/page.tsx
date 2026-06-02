@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Logo } from "@/components/shared/logo";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { applyCpfMask, isValidCpf, onlyCpfDigits } from "@/lib/utils/cpf";
 
 // ---------------------------------------------------------------------------
 // Países + DDI + máscara  (0 = dígito obrigatório)
@@ -73,14 +74,6 @@ const schema = z
 
 type FormData = z.infer<typeof schema>;
 
-function applyCpfMask(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  return d
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-}
-
 function CadastroForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,6 +83,7 @@ function CadastroForm() {
   const [countryCode, setCountryCode] = useState<CountryCode>("BR");
   const [phoneDisplay, setPhoneDisplay] = useState("");
   const [cpfDisplay, setCpfDisplay] = useState("");
+  const [cpfError, setCpfError] = useState("");
   const supabase = createClient();
 
   const country = COUNTRIES.find((c) => c.code === countryCode) ?? COUNTRIES[0];
@@ -104,6 +98,12 @@ function CadastroForm() {
     setPhoneDisplay(applyMask(raw, country.mask));
   }
 
+  function handleCpfChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const digits = onlyCpfDigits(e.target.value);
+    setCpfDisplay(applyCpfMask(digits));
+    setCpfError(digits.length === 11 && !isValidCpf(digits) ? "CPF inválido" : "");
+  }
+
   const {
     register,
     handleSubmit,
@@ -113,8 +113,13 @@ function CadastroForm() {
   async function onSubmit(data: FormData) {
     const digits = phoneDisplay.replace(/\D/g, "");
     const whatsapp = digits ? `${country.ddi}${digits}` : undefined;
-    const cpfDigits = cpfDisplay.replace(/\D/g, "");
-    const cpf = cpfDigits.length === 11 ? cpfDigits : undefined;
+    const cpfDigits = onlyCpfDigits(cpfDisplay);
+    if (!isValidCpf(cpfDigits)) {
+      setCpfError("CPF inválido");
+      toast.error("CPF inválido");
+      return;
+    }
+    const cpf = cpfDigits;
 
     const { data: signUpData, error } = await supabase.auth.signUp({
       email: data.email,
@@ -130,8 +135,24 @@ function CadastroForm() {
       return;
     }
 
-    if (signUpData.session && signUpData.user && cpf) {
-      await supabase.from("profiles").update({ cpf }).eq("id", signUpData.user.id);
+    if (signUpData.session && signUpData.user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, full_name, phone, cpf, avatar_url")
+        .eq("user_id", signUpData.user.id)
+        .maybeSingle();
+
+      await supabase.from("profiles").upsert(
+        {
+          id: profile?.id ?? crypto.randomUUID(),
+          user_id: signUpData.user.id,
+          full_name: profile?.full_name ?? data.name,
+          phone: profile?.phone ?? whatsapp ?? null,
+          cpf: profile?.cpf ?? cpf ?? null,
+          avatar_url: profile?.avatar_url ?? null,
+        },
+        { onConflict: "user_id" }
+      );
     }
 
     if (signUpData.session) {
@@ -211,9 +232,10 @@ function CadastroForm() {
               placeholder="000.000.000-00"
               inputMode="numeric"
               value={cpfDisplay}
-              onChange={(e) => setCpfDisplay(applyCpfMask(e.target.value))}
+              onChange={handleCpfChange}
               maxLength={14}
             />
+            {cpfError && <p className="text-xs text-destructive">{cpfError}</p>}
           </div>
 
           {/* WhatsApp */}
