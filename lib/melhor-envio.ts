@@ -4,38 +4,10 @@ const BASE = process.env.MELHOR_ENVIO_SANDBOX === "true"
 
 const USER_AGENT = "GrainUp/1.0 (grainupp@gmail.com)";
 
-let cachedToken: { access_token: string; expires_at: number } | null = null;
-
-async function getToken(): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expires_at - 60_000) {
-    return cachedToken.access_token;
-  }
-
-  const res = await fetch(`${BASE}/oauth/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "User-Agent": USER_AGENT,
-    },
-    body: JSON.stringify({
-      grant_type: "client_credentials",
-      client_id: process.env.MELHOR_ENVIO_CLIENT_ID,
-      client_secret: process.env.MELHOR_ENVIO_CLIENT_SECRET,
-      scope: "shipping-calculate",
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Melhor Envio auth failed: ${res.status}`);
-  }
-
-  const data = await res.json();
-  cachedToken = {
-    access_token: data.access_token,
-    expires_at: Date.now() + data.expires_in * 1000,
-  };
-  return cachedToken.access_token;
+function getToken(): string {
+  const token = process.env.MELHOR_ENVIO_TOKEN;
+  if (!token) throw new Error("MELHOR_ENVIO_TOKEN não configurado");
+  return token;
 }
 
 export interface ShippingPackage {
@@ -58,7 +30,7 @@ export async function calculateShipping(
   toCep: string,
   pkg: ShippingPackage
 ): Promise<ShippingOption[]> {
-  const token = await getToken();
+  const token = getToken();
 
   const res = await fetch(`${BASE}/api/v2/me/shipment/calculate`, {
     method: "POST",
