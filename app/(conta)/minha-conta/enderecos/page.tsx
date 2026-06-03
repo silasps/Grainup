@@ -51,6 +51,7 @@ function AddressForm({
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } =
     useForm<FormData>({
       resolver: zodResolver(schema),
+      mode: "onTouched",
       defaultValues: {
         label: initial?.label ?? "",
         full_name: initial?.full_name ?? "",
