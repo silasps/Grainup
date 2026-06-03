@@ -40,11 +40,13 @@ const STEP_TITLES: Partial<Record<Step, string>> = {
   revisao: "Revise e confirme",
 };
 
-const SHIPPING_OPTIONS = [
-  { id: "pac",    label: "PAC — Correios",   minDays: 8,  maxDays: 15, price: 18.9, badge: null as string | null },
-  { id: "sedex",  label: "SEDEX — Correios", minDays: 2,  maxDays: 5,  price: 32.5, badge: "RÁPIDO" },
-  { id: "gratis", label: "Econômico",        minDays: 10, maxDays: 20, price: 0,    badge: "GRÁTIS", minOrder: 200 },
-];
+type ShippingOption = {
+  id: string;
+  label: string;
+  price: number;
+  minDays: number;
+  maxDays: number;
+};
 
 const WEEKDAYS_PT = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
 const MONTHS_PT   = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
@@ -122,7 +124,10 @@ function metadataText(value: unknown) {
 export function CheckoutFlow() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("preparando");
-  const [shipping, setShipping] = useState("pac");
+  const [shipping, setShipping] = useState("");
+  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
+  const [loadingShipping, setLoadingShipping] = useState(false);
+  const [shippingError, setShippingError] = useState<string | null>(null);
   const [payment, setPayment] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState("");
   const [ident, setIdent] = useState<IdentData>({ name: "", email: "", cpf: "" });
@@ -265,6 +270,45 @@ export function CheckoutFlow() {
     };
   }, [step, orderId]);
 
+  async function fetchShippingOptions(cep: string, orderItems: typeof items) {
+    const cleanCep = cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+
+    setLoadingShipping(true);
+    setShippingError(null);
+    setShipping("");
+    setShippingOptions([]);
+
+    try {
+      const res = await fetch("/api/shipping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cep: cleanCep,
+          items: orderItems.map((i) => ({ id: i.id, type: i.type, quantity: i.quantity })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setShippingError(data.error ?? "Erro ao calcular frete");
+        return;
+      }
+      const opts: ShippingOption[] = data.options ?? [];
+      setShippingOptions(opts);
+      if (opts.length > 0) setShipping(opts[0].id);
+    } catch {
+      setShippingError("Erro ao calcular frete. Verifique sua conexão.");
+    } finally {
+      setLoadingShipping(false);
+    }
+  }
+
+  useEffect(() => {
+    if (step !== "frete") return;
+    fetchShippingOptions(addr.cep, items);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, addr.cep]);
+
   function fillAddrFromSaved(a: SavedAddress) {
     setSelectedAddressId(a.id);
     setAddr({
@@ -283,12 +327,12 @@ export function CheckoutFlow() {
     : [];
   const count = items.reduce((s, i) => s + i.quantity, 0);
   const sub = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const selectedShipping = SHIPPING_OPTIONS.find((s) => s.id === shipping)!;
-  const shippingPrice = sub >= 200 ? 0 : selectedShipping.price;
+  const selectedShipping = shippingOptions.find((s) => s.id === shipping) ?? null;
+  const shippingPrice = selectedShipping?.price ?? 0;
   const pixDiscount = payment === "pix" ? Math.round(sub * 0.05 * 100) / 100 : 0;
   const total = sub + shippingPrice - pixDiscount;
   const selectedPayment = PAYMENT_OPTIONS.find((p) => p.id === payment);
-  const originalTotal = sub + selectedShipping.price;
+  const originalTotal = sub + shippingPrice;
   const savings = originalTotal - total;
 
   function goBack() {
@@ -806,7 +850,7 @@ export function CheckoutFlow() {
           </div>
           <div className="flex justify-between text-sm mb-2">
             <span className="text-muted-foreground">Entrega</span>
-            <span className="font-medium">{selectedShipping.label}</span>
+            <span className="font-medium">{selectedShipping?.label ?? "—"}</span>
           </div>
           <Separator className="my-3" />
           <div className="flex justify-between font-bold">
@@ -984,7 +1028,7 @@ export function CheckoutFlow() {
                       <Input placeholder="Apto, Bloco..." value={addr.complement} onChange={setAdF("complement")} />
                     </Field>
                   </div>
-                  <Field label="Bairro">
+                  <Field label="Bairro" error={errors.neighborhood}>
                     <Input placeholder="Seu bairro" value={addr.neighborhood} onChange={setAdF("neighborhood")} />
                   </Field>
                   <div className="grid grid-cols-2 gap-4">
@@ -1028,45 +1072,57 @@ export function CheckoutFlow() {
                 </p>
               )}
 
-              <div className="flex flex-col gap-3">
-                {SHIPPING_OPTIONS.filter((s) => !("minOrder" in s) || sub >= (s.minOrder ?? 0)).map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setShipping(opt.id)}
-                    className={cn(
-                      "w-full text-left rounded-xl border-2 p-4 flex items-center justify-between gap-3 transition-colors",
-                      shipping === opt.id ? "border-brand bg-brand/5" : "border-border bg-white"
-                    )}
+              {loadingShipping && (
+                <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin text-brand" />
+                  <p className="text-sm">Calculando opções de frete...</p>
+                </div>
+              )}
+
+              {!loadingShipping && shippingError && (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-destructive text-center py-4">{shippingError}</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => fetchShippingOptions(addr.cep, items)}
+                    className="w-full"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
-                        shipping === opt.id ? "border-brand bg-brand" : "border-muted-foreground/40"
-                      )}>
-                        {shipping === opt.id && <Check className="h-3 w-3 text-white" />}
-                      </div>
-                      <div className="text-left">
-                        <p className="font-medium text-sm">{opt.label}</p>
-                        <p className="text-xs text-muted-foreground">{formatDeliveryRange(opt.minDays, opt.maxDays)}</p>
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      {opt.badge && (
-                        <span className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-full block mb-0.5",
-                          opt.badge === "GRÁTIS" ? "bg-emerald-100 text-emerald-700" : "bg-brand/10 text-brand"
-                        )}>
-                          {opt.badge}
-                        </span>
+                    Tentar novamente
+                  </Button>
+                </div>
+              )}
+
+              {!loadingShipping && !shippingError && (
+                <div className="flex flex-col gap-3">
+                  {shippingOptions.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setShipping(opt.id)}
+                      className={cn(
+                        "w-full text-left rounded-xl border-2 p-4 flex items-center justify-between gap-3 transition-colors",
+                        shipping === opt.id ? "border-brand bg-brand/5" : "border-border bg-white"
                       )}
-                      <p className={cn("font-bold text-sm", opt.price === 0 ? "text-emerald-600" : "text-foreground")}>
-                        {opt.price === 0 ? "Grátis" : formatCurrency(opt.price)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
+                          shipping === opt.id ? "border-brand bg-brand" : "border-muted-foreground/40"
+                        )}>
+                          {shipping === opt.id && <Check className="h-3 w-3 text-white" />}
+                        </div>
+                        <div className="text-left">
+                          <p className="font-medium text-sm">{opt.label}</p>
+                          <p className="text-xs text-muted-foreground">{formatDeliveryRange(opt.minDays, opt.maxDays)}</p>
+                        </div>
+                      </div>
+                      <p className="font-bold text-sm text-foreground flex-shrink-0">
+                        {formatCurrency(opt.price)}
                       </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1196,18 +1252,12 @@ export function CheckoutFlow() {
                   <div className="p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <Truck className="h-3.5 w-3.5 text-brand" />
-                      <span className="text-xs font-semibold text-brand">{selectedShipping.label}</span>
-                      {selectedShipping.badge && (
-                        <span className={cn(
-                          "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-                          selectedShipping.badge === "GRÁTIS" ? "bg-emerald-100 text-emerald-700" : "bg-brand/10 text-brand"
-                        )}>
-                          {selectedShipping.badge}
-                        </span>
-                      )}
+                      <span className="text-xs font-semibold text-brand">{selectedShipping?.label ?? "—"}</span>
                     </div>
                     <p className="font-semibold text-sm mb-3">
-                      Chegará no seu endereço {formatDeliveryRange(selectedShipping.minDays, selectedShipping.maxDays).toLowerCase()}
+                      {selectedShipping
+                        ? `Chegará no seu endereço ${formatDeliveryRange(selectedShipping.minDays, selectedShipping.maxDays).toLowerCase()}`
+                        : "Prazo a confirmar"}
                     </p>
                     {items.map((item) => (
                       <div key={item.id} className="flex gap-3 py-1">
@@ -1281,13 +1331,14 @@ export function CheckoutFlow() {
           <div className="flex items-center justify-between px-4 py-2">
             <span className="text-sm text-muted-foreground">Frete</span>
             <span className="font-bold text-foreground">
-              {shippingPrice === 0 ? "Grátis" : formatCurrency(shippingPrice)}
+              {loadingShipping ? "—" : shippingPrice === 0 ? "Grátis" : formatCurrency(shippingPrice)}
             </span>
           </div>
           <div className="px-4 pb-4">
             <Button
               size="lg"
               className="bg-brand hover:bg-brand-700 text-white font-semibold w-full"
+              disabled={loadingShipping || !selectedShipping}
               onClick={() => {
                 if (returnToReview) {
                   setReturnToReview(false);
@@ -1297,7 +1348,7 @@ export function CheckoutFlow() {
                 }
               }}
             >
-              Continuar
+              {loadingShipping ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Calculando...</> : "Continuar"}
             </Button>
           </div>
         </div>
