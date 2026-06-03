@@ -270,9 +270,20 @@ export function CheckoutFlow() {
     };
   }, [step, orderId]);
 
-  async function fetchShippingOptions(cep: string, orderItems: typeof items) {
+  async function fetchShippingOptions(cep: string) {
     const cleanCep = cep.replace(/\D/g, "");
     if (cleanCep.length !== 8) return;
+
+    // Lê o estado atual do store diretamente para evitar closure stale do useEffect
+    const storeState = useCartStore.getState();
+    const currentItems = storeState.buyNowItem
+      ? [{ ...storeState.buyNowItem, quantity: 1 }]
+      : storeState.items.filter((i) => !storeState.deselectedIds.includes(i.id));
+
+    if (!currentItems.length) {
+      setShippingError("Nenhum item no carrinho.");
+      return;
+    }
 
     setLoadingShipping(true);
     setShippingError(null);
@@ -285,7 +296,7 @@ export function CheckoutFlow() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cep: cleanCep,
-          items: orderItems.map((i) => ({ id: i.id, type: i.type, quantity: i.quantity })),
+          items: currentItems.map((i) => ({ id: i.id, type: i.type, quantity: i.quantity })),
         }),
       });
       const data = await res.json();
@@ -305,7 +316,7 @@ export function CheckoutFlow() {
 
   useEffect(() => {
     if (step !== "frete") return;
-    fetchShippingOptions(addr.cep, items);
+    fetchShippingOptions(addr.cep);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, addr.cep]);
 
@@ -1084,7 +1095,7 @@ export function CheckoutFlow() {
                   <p className="text-sm text-destructive text-center py-4">{shippingError}</p>
                   <Button
                     variant="outline"
-                    onClick={() => fetchShippingOptions(addr.cep, items)}
+                    onClick={() => fetchShippingOptions(addr.cep)}
                     className="w-full"
                   >
                     Tentar novamente
