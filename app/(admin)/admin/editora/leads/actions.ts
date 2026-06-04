@@ -164,7 +164,9 @@ export async function importLeadsAction(rows: {
 
   const existingEmails = new Set((existing ?? []).map((e) => (e.email as string).toLowerCase()));
 
-  const toInsert = rows.filter((r) => !existingEmails.has(r.email.toLowerCase()));
+  const toInsert = rows
+    .filter((r) => !existingEmails.has(r.email.toLowerCase()))
+    .map((r) => ({ ...r, book_id: null }));
 
   if (toInsert.length === 0) {
     return { error: null, imported: 0, skipped: rows.length };

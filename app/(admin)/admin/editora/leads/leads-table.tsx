@@ -154,7 +154,7 @@ function ImportLeadsDialog({ open, onOpenChange }: { open: boolean; onOpenChange
       setState("preview");
       return;
     }
-    setResult({ imported: res.imported, skipped: res.skipped });
+    setResult({ imported: res.imported ?? 0, skipped: res.skipped ?? 0 });
     setState("done");
   }
 
