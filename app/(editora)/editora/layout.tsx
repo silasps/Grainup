@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { EditoraHeader } from "@/components/editora/header";
 import { EditoraFooter } from "@/components/editora/footer";
 import { PromoOverlay } from "@/components/editora/promo-overlay";
+import { NewsletterModal } from "@/components/editora/newsletter-modal";
 import { WhatsAppButton } from "@/components/shared/whatsapp-button";
 import { CookieBanner } from "@/components/shared/cookie-banner";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
@@ -82,6 +83,7 @@ export default async function EditoraLayout({
       <WhatsAppButton phone={waPhone} enabled={waEnabled} message={waMessage} />
       <CookieBanner />
       <PromoOverlay announcement={announcement} />
+      <NewsletterModal />
     </>
   );
 }

@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookCard, type BookCardData } from "./book-card";
 import { NewsletterForm } from "./newsletter-form";
+import { ShippingCalculator } from "./shipping-calculator";
 import { useCartStore } from "@/stores/cart";
 import { formatCurrency } from "@/lib/utils/format";
 import { toast } from "sonner";
@@ -377,6 +378,10 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
                 Comprar agora
               </Button>
             </div>
+
+            {/* Shipping calculator */}
+            <Separator />
+            <ShippingCalculator bookId={book.id} />
 
             {/* Trust signals */}
             <div className="grid grid-cols-2 gap-2 pt-2">

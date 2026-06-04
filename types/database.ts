@@ -598,6 +598,26 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["legal_pages"]["Insert"]>;
         Relationships: never[];
       };
+      destaques: {
+        Row: {
+          id: string;
+          title: string;
+          subtitle: string | null;
+          image_url: string | null;
+          cta_label: string | null;
+          cta_url: string | null;
+          type: "oferta" | "novidade" | "anuncio";
+          starts_at: string | null;
+          ends_at: string | null;
+          is_active: boolean;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["destaques"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["destaques"]["Insert"]>;
+        Relationships: never[];
+      };
       announcements: {
         Row: {
           id: string;

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 export async function captureLeadAction(data: {
   name: string;
   email: string;
+  phone?: string;
   origin: string;
   bookId?: string;
   marketingConsent: boolean;
@@ -40,7 +41,7 @@ export async function captureLeadAction(data: {
   const { error } = await supabase.from("leads").insert({
     name: data.name.trim(),
     email,
-    phone: null,
+    phone: data.phone?.trim() || null,
     origin: data.origin,
     book_id: data.bookId ?? null,
     marketing_consent: data.marketingConsent,
