@@ -150,6 +150,7 @@ export function CheckoutFlow() {
   const [showStickyFooter, setShowStickyFooter] = useState(false);
   const [returnToReview, setReturnToReview] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [confirmedTotal, setConfirmedTotal] = useState(0);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topConfirmRef = useRef<HTMLButtonElement>(null);
@@ -591,6 +592,7 @@ export function CheckoutFlow() {
     const capturedTotal = total;
     setOrderNumber(newOrderNumber);
     setOrderId(newOrderId);
+    setConfirmedTotal(capturedTotal);
 
     if (payment === "pix") {
       const pixResult = await createMpPixPaymentAction({
@@ -630,7 +632,7 @@ export function CheckoutFlow() {
       installments: data.installments,
       paymentMethodId: data.paymentMethodId,
       issuerId: data.issuerId,
-      amount: total,
+      amount: confirmedTotal,
       customerEmail: ident.email,
       customerCpf: onlyDigits(ident.cpf),
       customerName: ident.name,
@@ -678,7 +680,7 @@ export function CheckoutFlow() {
 
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-1">Pedido <strong>{orderNumber}</strong></p>
-            <p className="text-3xl font-bold text-foreground">{formatCurrency(total)}</p>
+            <p className="text-3xl font-bold text-foreground">{formatCurrency(confirmedTotal)}</p>
             <p className="text-xs text-muted-foreground mt-1">Aguardando pagamento via Pix</p>
           </div>
 
@@ -807,7 +809,7 @@ export function CheckoutFlow() {
 
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-1">Pedido <strong>{orderNumber}</strong></p>
-            <p className="text-2xl font-bold text-foreground">{formatCurrency(total)}</p>
+            <p className="text-2xl font-bold text-foreground">{formatCurrency(confirmedTotal)}</p>
           </div>
 
           {/* Dica de teste — só em sandbox */}
@@ -823,7 +825,7 @@ export function CheckoutFlow() {
 
           <MpCardForm
             publicKey={process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY!}
-            amount={total}
+            amount={confirmedTotal}
             defaultEmail={ident.email}
             onSubmit={handleCardPayment}
           />
@@ -868,7 +870,7 @@ export function CheckoutFlow() {
           <Separator className="my-3" />
           <div className="flex justify-between font-bold">
             <span>Total</span>
-            <span className="text-brand">{formatCurrency(total)}</span>
+            <span className="text-brand">{formatCurrency(confirmedTotal)}</span>
           </div>
         </div>
         <div className="flex flex-col gap-2 w-full max-w-sm">
