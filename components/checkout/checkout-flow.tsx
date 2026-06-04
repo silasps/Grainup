@@ -338,8 +338,9 @@ export function CheckoutFlow() {
     : [];
   const count = items.reduce((s, i) => s + i.quantity, 0);
   const sub = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const isFreeShipping = sub >= 200;
   const selectedShipping = shippingOptions.find((s) => s.id === shipping) ?? null;
-  const shippingPrice = selectedShipping?.price ?? 0;
+  const shippingPrice = isFreeShipping ? 0 : (selectedShipping?.price ?? 0);
   const pixDiscount = payment === "pix" ? Math.round(sub * 0.05 * 100) / 100 : 0;
   const total = sub + shippingPrice - pixDiscount;
   const selectedPayment = PAYMENT_OPTIONS.find((p) => p.id === payment);
@@ -572,6 +573,7 @@ export function CheckoutFlow() {
       subtotal: sub,
       discount: pixDiscount,
       shippingCost: shippingPrice,
+      shippingLabel: selectedShipping?.label,
       total,
       paymentMethod: paymentMethodMap[payment ?? ""] ?? null,
       items: items.map((i) => ({ id: i.id, type: i.type, title: i.title, price: i.price, quantity: i.quantity })),
@@ -1103,7 +1105,22 @@ export function CheckoutFlow() {
                 </div>
               )}
 
-              {!loadingShipping && !shippingError && (
+              {!loadingShipping && !shippingError && shippingOptions.length === 0 && (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhuma transportadora disponível para este CEP.
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => fetchShippingOptions(addr.cep)}
+                    className="w-full"
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
+              )}
+
+              {!loadingShipping && !shippingError && shippingOptions.length > 0 && (
                 <div className="flex flex-col gap-3">
                   {shippingOptions.map((opt) => (
                     <button
@@ -1127,9 +1144,19 @@ export function CheckoutFlow() {
                           <p className="text-xs text-muted-foreground">{formatDeliveryRange(opt.minDays, opt.maxDays)}</p>
                         </div>
                       </div>
-                      <p className="font-bold text-sm text-foreground flex-shrink-0">
-                        {formatCurrency(opt.price)}
-                      </p>
+                      <div className="text-right flex-shrink-0">
+                        {isFreeShipping && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 block mb-0.5">
+                            GRÁTIS
+                          </span>
+                        )}
+                        <p className={cn(
+                          "font-bold text-sm",
+                          isFreeShipping ? "line-through text-muted-foreground" : "text-foreground"
+                        )}>
+                          {formatCurrency(opt.price)}
+                        </p>
+                      </div>
                     </button>
                   ))}
                 </div>

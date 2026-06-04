@@ -62,21 +62,27 @@ export async function POST(req: NextRequest) {
 
     for (const item of items) {
       const book = booksMap[item.id];
-      const qty = item.quantity ?? 1;
+      const qty = Math.min(item.quantity ?? 1, 50); // cap de segurança de quantidade
 
-      totalWeightG += (book?.weight_grams ?? DEFAULT_WEIGHT_G) * qty;
-      totalHeightCm += (book?.height_cm ?? DEFAULT_HEIGHT_CM) * qty;
-      maxWidthCm = Math.max(maxWidthCm, book?.width_cm ?? DEFAULT_WIDTH_CM);
-      maxLengthCm = Math.max(maxLengthCm, book?.length_cm ?? DEFAULT_LENGTH_CM);
+      // Limita peso por item a 2kg para lidar com dados inconsistentes no banco
+      const weightG = Math.min(book?.weight_grams ?? DEFAULT_WEIGHT_G, 2000);
+      const heightCm = Math.min(book?.height_cm ?? DEFAULT_HEIGHT_CM, 30);
+
+      totalWeightG += weightG * qty;
+      totalHeightCm += heightCm * qty;
+      maxWidthCm = Math.max(maxWidthCm, Math.min(book?.width_cm ?? DEFAULT_WIDTH_CM, 100));
+      maxLengthCm = Math.max(maxLengthCm, Math.min(book?.length_cm ?? DEFAULT_LENGTH_CM, 100));
     }
 
-    // Enforce carrier minimums
+    // Enforce carrier minimums and maximums (PAC: 30kg, SEDEX: 30kg)
     const pkg = {
-      weight: Math.max(0.1, totalWeightG / 1000),
-      height: Math.max(2, totalHeightCm),
+      weight: Math.min(28, Math.max(0.1, totalWeightG / 1000)),
+      height: Math.min(90, Math.max(2, totalHeightCm)),
       width: Math.max(11, maxWidthCm),
       length: Math.max(16, maxLengthCm),
     };
+
+    console.log("[shipping] items:", JSON.stringify(items), "pkg:", JSON.stringify(pkg));
 
     const options = await calculateShipping(FROM_CEP, cleanCep, pkg);
     return NextResponse.json({ options });

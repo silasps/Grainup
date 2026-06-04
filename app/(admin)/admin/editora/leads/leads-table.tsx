@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Search, X, Download, Mail, Phone, CheckCircle, XCircle } from "lucide-react";
+import { Search, X, Download, Upload, Mail, Phone, CheckCircle, XCircle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { importLeadsAction } from "./actions";
 
 interface Lead {
   id: string;
@@ -29,6 +32,242 @@ const ORIGIN_LABELS: Record<string, string> = {
 
 function originLabel(origin: string) {
   return ORIGIN_LABELS[origin] ?? origin;
+}
+
+type ParsedRow = {
+  name: string;
+  email: string;
+  phone: string | null;
+  origin: string;
+  marketing_consent: boolean;
+};
+
+function parseCSVText(text: string): ParsedRow[] {
+  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  if (lines.length < 2) return [];
+
+  function parseLine(line: string): string[] {
+    const fields: string[] = [];
+    let current = "";
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuote) {
+        if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+        else if (ch === '"') { inQuote = false; }
+        else { current += ch; }
+      } else {
+        if (ch === '"') { inQuote = true; }
+        else if (ch === ',') { fields.push(current); current = ""; }
+        else { current += ch; }
+      }
+    }
+    fields.push(current);
+    return fields;
+  }
+
+  const raw = lines[0].replace(/^﻿/, "");
+  const headers = parseLine(raw).map((h) => h.trim().toLowerCase());
+
+  const col = (names: string[]) => headers.findIndex((h) => names.includes(h));
+  const nameCol = col(["nome", "name"]);
+  const emailCol = col(["email"]);
+  const phoneCol = col(["telefone", "phone", "fone"]);
+  const originCol = col(["origem", "origin"]);
+  const consentCol = col(["aceita_marketing", "aceita marketing", "marketing_consent", "marketing"]);
+
+  if (nameCol === -1 || emailCol === -1) return [];
+
+  return lines
+    .slice(1)
+    .filter((l) => l.trim())
+    .map((line) => {
+      const f = parseLine(line);
+      const consentRaw = consentCol >= 0 ? (f[consentCol] ?? "").trim().toLowerCase() : "";
+      return {
+        name: (f[nameCol] ?? "").trim(),
+        email: (f[emailCol] ?? "").trim().toLowerCase(),
+        phone: phoneCol >= 0 ? (f[phoneCol] ?? "").trim() || null : null,
+        origin: originCol >= 0 ? (f[originCol] ?? "").trim() || "importação" : "importação",
+        marketing_consent: ["sim", "yes", "true", "1"].includes(consentRaw),
+      };
+    })
+    .filter((r) => r.name && r.email && r.email.includes("@"));
+}
+
+function downloadTemplate() {
+  const csv = "nome,email,telefone,origem,aceita_marketing\nJoão Silva,joao@email.com,(11) 99999-9999,importação,sim";
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "template-leads.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+type ImportState = "idle" | "preview" | "importing" | "done";
+
+function ImportLeadsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [state, setState] = useState<ImportState>("idle");
+  const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [parseError, setParseError] = useState("");
+
+  function reset() {
+    setState("idle");
+    setRows([]);
+    setResult(null);
+    setParseError("");
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  function handleClose(v: boolean) {
+    if (!v) reset();
+    onOpenChange(v);
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setParseError("");
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const parsed = parseCSVText(text);
+      if (parsed.length === 0) {
+        setParseError("Nenhum lead válido encontrado. Verifique se o arquivo tem as colunas nome e email.");
+        return;
+      }
+      setRows(parsed);
+      setState("preview");
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  async function handleImport() {
+    setState("importing");
+    const res = await importLeadsAction(rows);
+    if (res.error) {
+      toast.error(res.error);
+      setState("preview");
+      return;
+    }
+    setResult({ imported: res.imported, skipped: res.skipped });
+    setState("done");
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Importar Leads</DialogTitle>
+        </DialogHeader>
+
+        {state === "idle" && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Faça upload de um arquivo CSV com as colunas: <strong>nome</strong>, <strong>email</strong> (obrigatórias) e opcionalmente <strong>telefone</strong>, <strong>origem</strong>, <strong>aceita_marketing</strong> (sim/não).
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Leads com e-mail já cadastrado na plataforma serão ignorados.
+            </p>
+            <button
+              onClick={downloadTemplate}
+              className="inline-flex items-center gap-2 text-sm text-brand hover:underline"
+            >
+              <FileText className="h-4 w-4" />
+              Baixar template CSV
+            </button>
+            {parseError && <p className="text-sm text-destructive">{parseError}</p>}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleFile}
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-border file:text-xs file:font-medium file:bg-white file:cursor-pointer hover:file:bg-secondary/50"
+            />
+          </div>
+        )}
+
+        {(state === "preview" || state === "importing") && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              <strong>{rows.length} leads</strong> encontrados no arquivo. Prévia:
+            </p>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-secondary/30">
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Nome</th>
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground">E-mail</th>
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Telefone</th>
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Marketing</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {rows.slice(0, 5).map((r, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2 truncate max-w-[120px]">{r.name}</td>
+                      <td className="px-3 py-2 truncate max-w-[160px] text-muted-foreground">{r.email}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{r.phone ?? "—"}</td>
+                      <td className="px-3 py-2">
+                        {r.marketing_consent
+                          ? <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                          : <XCircle className="h-3.5 w-3.5 text-muted-foreground/40" />}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {rows.length > 5 && (
+                <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border bg-secondary/20">
+                  …e mais {rows.length - 5} leads
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {state === "done" && result && (
+          <div className="space-y-3">
+            <div className="flex gap-4">
+              <div className="flex-1 rounded-xl border border-border p-4 text-center">
+                <p className="text-2xl font-bold text-emerald-600">{result.imported}</p>
+                <p className="text-xs text-muted-foreground mt-1">importados</p>
+              </div>
+              <div className="flex-1 rounded-xl border border-border p-4 text-center">
+                <p className="text-2xl font-bold text-muted-foreground">{result.skipped}</p>
+                <p className="text-xs text-muted-foreground mt-1">ignorados (já existiam)</p>
+              </div>
+            </div>
+            {result.imported > 0 && (
+              <p className="text-sm text-muted-foreground">A lista de leads foi atualizada.</p>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          {state === "idle" && (
+            <Button variant="outline" onClick={() => handleClose(false)}>Cancelar</Button>
+          )}
+          {state === "preview" && (
+            <>
+              <Button variant="outline" onClick={reset}>Voltar</Button>
+              <Button onClick={handleImport}>Importar {rows.length} leads</Button>
+            </>
+          )}
+          {state === "importing" && (
+            <Button disabled>Importando…</Button>
+          )}
+          {state === "done" && (
+            <Button onClick={() => handleClose(false)}>Concluir</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function exportCSV(leads: Lead[]) {
@@ -56,6 +295,7 @@ export function LeadsTable({ leads, origins }: { leads: Lead[]; origins: string[
   const [query, setQuery] = useState("");
   const [filterOrigin, setFilterOrigin] = useState("all");
   const [filterConsent, setFilterConsent] = useState<"all" | "yes" | "no">("all");
+  const [importOpen, setImportOpen] = useState(false);
 
   const filtered = useMemo(() => {
     return leads.filter((l) => {
@@ -142,17 +382,30 @@ export function LeadsTable({ leads, origins }: { leads: Lead[]; origins: string[
           ))}
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 ml-auto cursor-pointer"
-          onClick={() => exportCSV(filtered)}
-          disabled={filtered.length === 0}
-        >
-          <Download className="h-3.5 w-3.5" />
-          Exportar CSV
-        </Button>
+        <div className="flex gap-2 ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 cursor-pointer"
+            onClick={() => setImportOpen(true)}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Importar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 cursor-pointer"
+            onClick={() => exportCSV(filtered)}
+            disabled={filtered.length === 0}
+          >
+            <Download className="h-3.5 w-3.5" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
+
+      <ImportLeadsDialog open={importOpen} onOpenChange={setImportOpen} />
 
       {(query || filterOrigin !== "all" || filterConsent !== "all") && (
         <p className="text-xs text-muted-foreground mb-3">

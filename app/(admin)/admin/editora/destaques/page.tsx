@@ -192,13 +192,13 @@ export default function DestaquesPage() {
     <div className="flex flex-col gap-6">
       <AdminHeader
         title="Destaques"
-        description="Gerencie os slides do hero da página inicial. Tipos: oferta, novidade ou anúncio."
-        action={
-          <Button onClick={openNew} className="gap-2">
-            <Plus className="h-4 w-4" /> Novo destaque
-          </Button>
-        }
+        subtitle="Slides do hero · tipos: oferta, novidade ou anúncio"
       />
+      <div className="flex justify-end">
+        <Button onClick={openNew} className="gap-2">
+          <Plus className="h-4 w-4" /> Novo destaque
+        </Button>
+      </div>
 
       {/* Formulário */}
       {showForm && (

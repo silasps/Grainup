@@ -58,6 +58,8 @@ export async function calculateShipping(
 
   const data = await res.json();
 
+  console.log("[ME raw]", JSON.stringify(data));
+
   return (data as Record<string, unknown>[])
     .filter((opt) => !opt.error && opt.price)
     .map((opt) => ({

@@ -144,3 +144,35 @@ export async function deleteCampaignAction(campaignId: string) {
   revalidatePath("/admin/editora/leads");
   return { error: null };
 }
+
+export async function importLeadsAction(rows: {
+  name: string;
+  email: string;
+  phone: string | null;
+  origin: string;
+  marketing_consent: boolean;
+}[]) {
+  if (rows.length === 0) return { error: null, imported: 0, skipped: 0 };
+
+  const supabase = await createClient();
+
+  const emails = rows.map((r) => r.email);
+  const { data: existing } = await supabase
+    .from("leads")
+    .select("email")
+    .in("email", emails);
+
+  const existingEmails = new Set((existing ?? []).map((e) => (e.email as string).toLowerCase()));
+
+  const toInsert = rows.filter((r) => !existingEmails.has(r.email.toLowerCase()));
+
+  if (toInsert.length === 0) {
+    return { error: null, imported: 0, skipped: rows.length };
+  }
+
+  const { error } = await supabase.from("leads").insert(toInsert);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/editora/leads");
+  return { error: null, imported: toInsert.length, skipped: rows.length - toInsert.length };
+}

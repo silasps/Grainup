@@ -61,6 +61,7 @@ interface PlaceOrderInput {
   subtotal: number;
   discount: number;
   shippingCost: number;
+  shippingLabel?: string;
   total: number;
   paymentMethod: "pix" | "credito" | "debito" | null;
   items: OrderItem[];
@@ -157,7 +158,7 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     customer_email: input.customerEmail,
     customer_name: customerName,
     customer_cpf: customerCpf || null,
-    shipping_address: normalizedAddress,
+    shipping_address: input.shippingLabel ? { ...normalizedAddress, method: input.shippingLabel } : normalizedAddress,
     subtotal: input.subtotal,
     discount: input.discount,
     shipping_cost: input.shippingCost,
@@ -230,7 +231,7 @@ export async function createMpPixPaymentAction(input: {
 
     const result = await paymentClient.create({
       body: {
-        transaction_amount: input.amount,
+        transaction_amount: Math.round(input.amount * 100) / 100,
         description: `Pedido ${input.orderNumber} - Editora JOCUM`,
         payment_method_id: "pix",
         payer: {
@@ -278,7 +279,7 @@ export async function createMpCardPaymentAction(input: {
       : input.customerEmail;
     const result = await paymentClient.create({
       body: {
-        transaction_amount: input.amount,
+        transaction_amount: Math.round(input.amount * 100) / 100,
         token: input.token,
         installments: input.installments,
         payment_method_id: input.paymentMethodId,

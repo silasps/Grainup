@@ -365,24 +365,26 @@ export default function EnderecosPage() {
             </p>
             <p className="text-sm text-muted-foreground">CEP {addr.zip_code}</p>
           </div>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex gap-2 shrink-0 flex-wrap justify-end">
             {!addr.is_default && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="text-xs text-muted-foreground hover:text-foreground"
+                className="text-xs gap-1.5"
                 onClick={() => handleSetDefault(addr.id)}
               >
-                Tornar padrão
+                <Star className="h-3.5 w-3.5" />
+                Definir como padrão
               </Button>
             )}
             <Button
               variant="outline"
-              size="icon"
-              className="h-8 w-8"
+              size="sm"
+              className="text-xs gap-1.5"
               onClick={() => { setEditing(addr); setShowForm(false); }}
             >
               <Pencil className="h-3.5 w-3.5" />
+              Editar
             </Button>
             <Button
               variant="outline"

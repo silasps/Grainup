@@ -101,6 +101,7 @@ export function EditoraFooter({ contact }: { contact?: ContactInfo | null }) {
                   rel="noopener noreferrer"
                   aria-label={label}
                   className="text-white/60 hover:text-white transition-colors"
+                  suppressHydrationWarning
                 >
                   <Icon className="h-5 w-5" />
                 </a>

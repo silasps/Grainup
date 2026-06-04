@@ -39,6 +39,7 @@ interface OrderItem {
   books: {
     title: string;
     cover_url: string | null;
+    sku: string | null;
   } | null;
 }
 
@@ -69,7 +70,7 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
        subtotal, discount, shipping_cost, total,
        customer_name, customer_email, shipping_address,
        created_at, updated_at,
-       order_items(id, quantity, unit_price, total_price, title, books(title, cover_url))`
+       order_items(id, quantity, unit_price, total_price, title, books(title, cover_url, sku))`
     )
     .eq("id", id)
     .single();
@@ -130,6 +131,7 @@ export default async function AdminOrderDetailPage({
                         <p className="text-sm font-medium">{item.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {item.quantity}x {formatCurrency(item.unit_price)}
+                          {item.books?.sku && <span className="ml-2 font-mono">SKU: {item.books.sku}</span>}
                         </p>
                       </div>
                       <p className="font-semibold text-sm">{formatCurrency(item.total_price)}</p>
