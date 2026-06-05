@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { revalidateBookPages } from "@/app/(admin)/admin/editora/livros/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -242,6 +243,7 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
         if (error) { toast.error(error.message); return; }
         toast.success("Livro criado!");
       }
+      await revalidateBookPages();
       router.back();
     });
   }

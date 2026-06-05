@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,6 +18,9 @@ import {
   Search,
   X as XIcon,
   BookOpen,
+  ExternalLink,
+  ImageIcon,
+  Upload,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { saveCombo, deleteCombo, toggleComboActive, toggleComboFeatured, seedDefaultCombos } from "./actions";
@@ -29,6 +34,41 @@ import { toast } from "sonner";
 import type { Database } from "@/types/database";
 
 type ComboRow = Database["public"]["Tables"]["combos"]["Row"];
+
+async function compressImage(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxW = 1600;
+      const scale = img.naturalWidth > maxW ? maxW / img.naturalWidth : 1;
+      const w = Math.round(img.naturalWidth * scale);
+      const h = Math.round(img.naturalHeight * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("canvas não suportado")); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Falha")), "image/jpeg", 0.82);
+    };
+    img.onerror = () => reject(new Error("Erro ao carregar imagem"));
+    img.src = url;
+  });
+}
+
+async function uploadImage(file: File): Promise<string> {
+  const blob = await compressImage(file);
+  const path = `combos/${Date.now()}.jpg`;
+  const fd = new FormData();
+  fd.append("file", new File([blob], path, { type: "image/jpeg" }));
+  fd.append("bucket", "images");
+  fd.append("path", path);
+  const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Falha no upload");
+  return json.url as string;
+}
 
 interface BookInCombo {
   id: string;
@@ -123,6 +163,26 @@ function ComboForm({
   );
   const [bookSearch, setBookSearch] = useState("");
   const [slugManual, setSlugManual] = useState(!!initial?.slug);
+  const [imageUrl, setImageUrl] = useState<string | null>(initial?.image_url ?? null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleImageFile(file: File) {
+    const local = URL.createObjectURL(file);
+    setImageUrl(local);
+    setUploading(true);
+    try {
+      const url = await uploadImage(file);
+      URL.revokeObjectURL(local);
+      setImageUrl(url);
+    } catch (e) {
+      toast.error("Erro ao enviar imagem", { description: (e as Error).message });
+      URL.revokeObjectURL(local);
+      setImageUrl(initial?.image_url ?? null);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const nameVal = watch("name");
   const isActive = watch("is_active");
@@ -178,7 +238,7 @@ function ComboForm({
         name: data.name,
         slug: data.slug,
         description: data.description || null,
-        image_url: null,
+        image_url: imageUrl,
         price_original: priceOriginal,
         price_promotional: pricePromotional,
         is_active: data.is_active,
@@ -231,6 +291,16 @@ function ComboForm({
           {errors.slug && (
             <p className="text-xs text-destructive">{errors.slug.message}</p>
           )}
+          {watch("slug") && (
+            <Link
+              href={`/editora/combos/${watch("slug")}`}
+              target="_blank"
+              className="text-xs text-brand hover:underline flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              /editora/combos/{watch("slug")}
+            </Link>
+          )}
         </div>
 
         <div className="sm:col-span-2 flex flex-col gap-1.5">
@@ -246,6 +316,60 @@ function ComboForm({
             placeholder="Breve descrição do combo..."
             {...register("description")}
           />
+        </div>
+
+        {/* Imagem de fundo do card */}
+        <div className="sm:col-span-2 flex flex-col gap-1.5">
+          <Label>
+            Imagem do card{" "}
+            <span className="text-muted-foreground font-normal text-xs">(opcional)</span>
+          </Label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }}
+          />
+          {imageUrl ? (
+            <div className="flex flex-col gap-2">
+              {/* preview simulando o header do card */}
+              <div className="relative w-full h-[112px] rounded-xl overflow-hidden bg-foreground">
+                <Image src={imageUrl} alt="" fill className="object-cover object-center opacity-30" sizes="600px" unoptimized />
+                <div className="relative flex items-start gap-3 p-4">
+                  <div className="bg-brand rounded-lg p-2 shrink-0">
+                    <ImageIcon className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-white text-sm font-semibold">Prévia do header</p>
+                    <p className="text-white/60 text-xs">Aparece com 30% de opacidade sobre o fundo escuro</p>
+                  </div>
+                  {uploading && <Loader2 className="h-4 w-4 text-white animate-spin ml-auto" />}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="gap-1.5">
+                  <Upload className="h-3.5 w-3.5" /> Trocar
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setImageUrl(null)} className="text-destructive gap-1.5">
+                  <XIcon className="h-3.5 w-3.5" /> Remover
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-3 rounded-xl border-2 border-dashed border-border bg-muted/40 px-4 py-5 cursor-pointer hover:border-brand/60 hover:bg-brand/5 transition-colors"
+            >
+              {uploading ? <Loader2 className="h-6 w-6 text-brand animate-spin shrink-0" /> : <ImageIcon className="h-6 w-6 text-muted-foreground/50 shrink-0" />}
+              <div>
+                <p className="text-sm font-medium text-foreground">{uploading ? "Enviando…" : "Clique para adicionar imagem de fundo"}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Ideal: <strong>800 × 240 px</strong> (proporção ~3:1). A imagem aparecerá com 30% de opacidade sobre o fundo escuro do card. JPG, PNG ou WebP.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Preço original + Desconto — sub-grid alinhado pela base */}
@@ -661,9 +785,14 @@ export default function CombosAdminPage() {
                           <p className="font-medium text-foreground line-clamp-1">
                             {combo.name}
                           </p>
-                          <p className="text-xs text-muted-foreground line-clamp-1">
-                            /{combo.slug}
-                          </p>
+                          <Link
+                            href={`/editora/combos/${combo.slug}`}
+                            target="_blank"
+                            className="text-xs text-brand hover:underline flex items-center gap-1 mt-0.5"
+                          >
+                            /editora/combos/{combo.slug}
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
                         </td>
                         <td className="px-5 py-3 hidden md:table-cell">
                           <span className="text-sm text-muted-foreground">

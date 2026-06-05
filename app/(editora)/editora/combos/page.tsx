@@ -19,7 +19,9 @@ export default async function CombosPage() {
   type ComboRow = {
     id: string;
     name: string;
+    slug: string;
     description: string | null;
+    image_url: string | null;
     price_original: number;
     price_promotional: number;
     combo_items: Array<{
@@ -41,7 +43,9 @@ export default async function CombosPage() {
     .select(`
       id,
       name,
+      slug,
       description,
+      image_url,
       price_original,
       price_promotional,
       combo_items (
@@ -62,8 +66,10 @@ export default async function CombosPage() {
 
   const combos: ComboData[] = ((data ?? []) as unknown as ComboRow[]).map((c) => ({
     id: c.id,
+    slug: c.slug,
     titulo: c.name,
     descricao: c.description ?? "",
+    imageUrl: c.image_url,
     descontoReais: Math.max(0, c.price_original - c.price_promotional),
     livros: c.combo_items
       .map((item) => {
@@ -117,7 +123,7 @@ export default async function CombosPage() {
           ) : (
             <div className="grid sm:grid-cols-2 gap-6">
               {combos.map((combo) => (
-                <ComboCard key={combo.id} combo={combo} />
+                <ComboCard key={combo.id} combo={combo} slug={combo.slug} />
               ))}
             </div>
           )}

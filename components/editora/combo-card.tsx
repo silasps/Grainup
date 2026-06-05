@@ -8,6 +8,7 @@ import { ShoppingCart, Zap, BookOpen, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCartStore } from "@/stores/cart";
+import { formatCurrency } from "@/lib/utils/format";
 import { toast } from "sonner";
 
 export interface ComboBook {
@@ -22,8 +23,10 @@ export interface ComboBook {
 
 export interface ComboData {
   id: string;
+  slug?: string;
   titulo: string;
   descricao: string;
+  imageUrl?: string | null;
   temas?: string[];
   descontoReais: number;
   livros: ComboBook[];
@@ -59,7 +62,7 @@ function Cover({
   );
 }
 
-export function ComboCard({ combo }: { combo: ComboData }) {
+export function ComboCard({ combo, slug }: { combo: ComboData; slug?: string }) {
   const addItem = useCartStore((s) => s.addItem);
   const setBuyNow = useCartStore((s) => s.setBuyNow);
   const router = useRouter();
@@ -103,12 +106,14 @@ export function ComboCard({ combo }: { combo: ComboData }) {
     router.push("/checkout");
   }
 
-  return (
-    <div className="rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-md transition-shadow flex flex-col bg-card h-full">
-
+  const inner = (
+    <>
       {/* ── Cabeçalho ─── */}
-      <div className="bg-foreground px-5 pt-5 pb-4 text-white min-h-[112px] flex flex-col justify-between">
-        <div className="flex items-start gap-3 mb-3">
+      <div className="relative bg-foreground px-5 pt-5 pb-4 text-white min-h-[112px] flex flex-col justify-between overflow-hidden">
+        {combo.imageUrl && (
+          <Image src={combo.imageUrl} alt="" fill className="object-cover object-center opacity-30" sizes="600px" />
+        )}
+        <div className="relative flex items-start gap-3 mb-3">
           <div className="bg-brand rounded-lg p-2 shrink-0 mt-0.5">
             <Gift className="h-4 w-4 text-white" />
           </div>
@@ -118,12 +123,9 @@ export function ComboCard({ combo }: { combo: ComboData }) {
           </div>
         </div>
         {combo.temas && combo.temas.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="relative flex flex-wrap gap-1.5">
             {combo.temas.map((t) => (
-              <Badge
-                key={t}
-                className="bg-brand-800/60 text-brand-100 hover:bg-brand-700/60 border-0 text-xs"
-              >
+              <Badge key={t} className="bg-brand-800/60 text-brand-100 hover:bg-brand-700/60 border-0 text-xs">
                 {t}
               </Badge>
             ))}
@@ -131,45 +133,23 @@ export function ComboCard({ combo }: { combo: ComboData }) {
         )}
       </div>
 
-      {/* ── Corpo: capas (1) + lista (2) ─── */}
+      {/* ── Corpo: capas + lista ─── */}
       <div className="p-4 flex gap-4 flex-1">
-
-        {/* Coluna 1 — pilha de capas */}
         <div className="shrink-0 flex items-center justify-center" style={{ width: 88 }}>
           {livros.length > 0 ? (
             <div className="relative" style={{ width: 80, height: 92 }}>
-              {/* Livro 3 — fundo */}
               {livros[2] && (
-                <div
-                  className="absolute shadow-sm"
-                  style={{
-                    top: 10, left: 18, zIndex: 1,
-                    transform: "rotate(8deg)",
-                    opacity: 0.75,
-                  }}
-                >
+                <div className="absolute shadow-sm" style={{ top: 10, left: 18, zIndex: 1, transform: "rotate(8deg)", opacity: 0.75 }}>
                   <Cover book={livros[2]} />
                 </div>
               )}
-              {/* Livro 2 — meio */}
               {livros[1] && (
-                <div
-                  className="absolute shadow-sm"
-                  style={{
-                    top: 5, left: 9, zIndex: 2,
-                    transform: "rotate(4deg)",
-                    opacity: 0.88,
-                  }}
-                >
+                <div className="absolute shadow-sm" style={{ top: 5, left: 9, zIndex: 2, transform: "rotate(4deg)", opacity: 0.88 }}>
                   <Cover book={livros[1]} />
                 </div>
               )}
-              {/* Livro 1 — frente */}
               {livros[0] && (
-                <div
-                  className="absolute shadow-md"
-                  style={{ top: 0, left: 0, zIndex: 3 }}
-                >
+                <div className="absolute shadow-md" style={{ top: 0, left: 0, zIndex: 3 }}>
                   <Cover book={livros[0]} />
                 </div>
               )}
@@ -181,46 +161,27 @@ export function ComboCard({ combo }: { combo: ComboData }) {
           )}
         </div>
 
-        {/* Coluna 2 — lista dos livros */}
         <div className="flex-1 min-w-0 flex flex-col gap-2">
           {livros.length > 0 ? (
             livros.map((b, i) => (
               <div key={b.id} className="flex items-start gap-2 min-w-0">
-                <span className="text-xs text-muted-foreground/50 shrink-0 mt-0.5 w-3 text-right">
-                  {i + 1}.
-                </span>
+                <span className="text-xs text-muted-foreground/50 shrink-0 mt-0.5 w-3 text-right">{i + 1}.</span>
                 <div className="min-w-0">
-                  {b.slug ? (
-                    <Link
-                      href={`/editora/livros/${b.slug}`}
-                      className="text-xs font-semibold text-foreground hover:text-brand transition-colors line-clamp-2 leading-snug"
-                    >
-                      {b.title}
-                    </Link>
-                  ) : (
-                    <p className="text-xs font-semibold text-foreground line-clamp-2 leading-snug">
-                      {b.title}
-                    </p>
-                  )}
-                  {b.author && (
-                    <p className="text-xs text-muted-foreground truncate">{b.author}</p>
-                  )}
+                  <p className="text-xs font-semibold text-foreground line-clamp-2 leading-snug">{b.title}</p>
+                  {b.author && <p className="text-xs text-muted-foreground truncate">{b.author}</p>}
                 </div>
               </div>
             ))
           ) : (
-            <p className="text-xs text-muted-foreground italic">
-              Livros em breve
-            </p>
+            <p className="text-xs text-muted-foreground italic">Livros em breve</p>
           )}
         </div>
       </div>
 
-      {/* ── Rodapé: preço + botões ─── */}
-      <div className="px-4 pb-4 border-t border-border pt-3">
-        {/* Preço */}
+      {/* ── Preço ─── */}
+      <div className="px-4 pt-3 pb-4 border-t border-border">
         {totalIndividual > 0 ? (
-          <div className="flex items-baseline gap-2 mb-3">
+          <div className="flex items-baseline gap-2">
             <span className="text-lg font-bold text-foreground">
               R$ {comboPrice.toFixed(2).replace(".", ",")}
             </span>
@@ -230,37 +191,50 @@ export function ComboCard({ combo }: { combo: ComboData }) {
                   R$ {totalIndividual.toFixed(2).replace(".", ",")}
                 </span>
                 <Badge className="bg-brand text-white border-0 text-xs">
-                  -{combo.descontoReais > 0 ? `R$${combo.descontoReais}` : ""}
+                  -{formatCurrency(combo.descontoReais)}
                 </Badge>
               </>
             )}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground mb-3">Preço sob consulta</p>
+          <p className="text-sm text-muted-foreground">Preço sob consulta</p>
         )}
+      </div>
+    </>
+  );
 
-        {/* Botões */}
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            className="flex-1 bg-brand hover:bg-brand-700 text-white text-xs h-9"
-            onClick={handleBuyNow}
-            disabled={livros.length === 0}
-          >
-            <Zap className="h-3.5 w-3.5 mr-1.5" />
-            Comprar agora
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs h-9"
-            onClick={handleAddToCart}
-            disabled={adding || livros.length === 0}
-          >
-            <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
-            {adding ? "Adicionado!" : "Carrinho"}
-          </Button>
-        </div>
+  return (
+    <div className="rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-md transition-shadow flex flex-col bg-card h-full">
+      {/* Área clicável — tudo exceto os botões */}
+      {slug ? (
+        <Link href={`/editora/combos/${slug}`} className="flex flex-col flex-1">
+          {inner}
+        </Link>
+      ) : (
+        <div className="flex flex-col flex-1">{inner}</div>
+      )}
+
+      {/* Botões de ação — fora do link */}
+      <div className="px-4 pb-4 flex gap-2">
+        <Button
+          size="sm"
+          className="flex-1 bg-brand hover:bg-brand-700 text-white text-xs h-9"
+          onClick={handleBuyNow}
+          disabled={livros.length === 0}
+        >
+          <Zap className="h-3.5 w-3.5 mr-1.5" />
+          Comprar agora
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 text-xs h-9"
+          onClick={handleAddToCart}
+          disabled={adding || livros.length === 0}
+        >
+          <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
+          {adding ? "Adicionado!" : "Carrinho"}
+        </Button>
       </div>
     </div>
   );
