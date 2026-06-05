@@ -74,7 +74,7 @@ export function AdminHeader({ title, subtitle }: AdminHeaderProps) {
           />
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Admin GrainUp</DropdownMenuLabel>
+              <DropdownMenuLabel>Admin Editora Jocum</DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>

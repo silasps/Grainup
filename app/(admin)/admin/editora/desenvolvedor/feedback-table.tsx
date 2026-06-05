@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistance } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ChevronDown, ChevronRight, ChevronLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -94,12 +94,38 @@ function StatusDropdown({
   );
 }
 
-export function FeedbackTable({ feedbacks }: { feedbacks: Feedback[] }) {
+function formatFeedbackTime(date: string, now: string) {
+  return formatDistance(new Date(date), new Date(now), { addSuffix: true, locale: ptBR });
+}
+
+export function FeedbackTable({
+  feedbacks,
+  renderedAt,
+}: {
+  feedbacks: Feedback[];
+  renderedAt: string;
+}) {
   const [items, setItems] = useState(feedbacks);
+  const [now, setNow] = useState(renderedAt);
   const [isPending, startTransition] = useTransition();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const selected = selectedIndex !== null ? items[selectedIndex] : null;
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setNow(new Date().toISOString());
+    }, 0);
+
+    const interval = window.setInterval(() => {
+      setNow(new Date().toISOString());
+    }, 60_000);
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   function changeStatus(id: string, newStatus: Feedback["status"]) {
     const prev = items.find((f) => f.id === id)?.status;
@@ -162,7 +188,9 @@ export function FeedbackTable({ feedbacks }: { feedbacks: Feedback[] }) {
                       {f.user_name ?? f.user_email ?? <span className="italic">Anônimo</span>}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {formatDistanceToNow(new Date(f.created_at), { addSuffix: true, locale: ptBR })}
+                      <time dateTime={f.created_at}>
+                        {formatFeedbackTime(f.created_at, now)}
+                      </time>
                     </td>
                     <td className="px-4 py-3">
                       <StatusDropdown
@@ -204,7 +232,9 @@ export function FeedbackTable({ feedbacks }: { feedbacks: Feedback[] }) {
             <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
               <span>
                 {selected.user_name ?? selected.user_email ?? "Anônimo"} ·{" "}
-                {formatDistanceToNow(new Date(selected.created_at), { addSuffix: true, locale: ptBR })}
+                <time dateTime={selected.created_at}>
+                  {formatFeedbackTime(selected.created_at, now)}
+                </time>
               </span>
               <StatusDropdown
                 item={selected}

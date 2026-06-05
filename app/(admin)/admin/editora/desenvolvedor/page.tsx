@@ -19,6 +19,7 @@ export default async function DesenvolvedorPage() {
   if (role !== "super_admin") redirect("/admin/editora");
 
   const feedbacks = await getBetaFeedbackList();
+  const renderedAt = new Date().toISOString();
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -27,7 +28,7 @@ export default async function DesenvolvedorPage() {
         subtitle={`${feedbacks.length} sugestões beta`}
       />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
-        <FeedbackTable feedbacks={feedbacks} />
+        <FeedbackTable feedbacks={feedbacks} renderedAt={renderedAt} />
       </main>
     </div>
   );
