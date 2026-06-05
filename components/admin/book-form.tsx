@@ -73,7 +73,8 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
   const [isNew, setIsNew] = useState(book?.is_new ?? false);
   const [isBestseller, setIsBestseller] = useState(book?.is_bestseller ?? false);
   const [coverUrl, setCoverUrl] = useState(book?.cover_url ?? "");
-  const [uploading, setUploading] = useState(false);
+  const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState("");
 
   // Author management
   const [authorsList, setAuthorsList] = useState<Author[]>(initialAuthors);
@@ -104,22 +105,10 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
     if (!book) setSlug(slugify(v));
   }
 
-  async function handleCoverUpload(file: File) {
-    setUploading(true);
-    try {
-      const supabase = createClient();
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `${slugify(title || "livro")}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("book-covers").upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data: urlData } = supabase.storage.from("book-covers").getPublicUrl(path);
-      setCoverUrl(urlData.publicUrl);
-      toast.success("Capa enviada!");
-    } catch {
-      toast.error("Erro ao enviar capa");
-    } finally {
-      setUploading(false);
-    }
+  function handleCoverSelect(file: File) {
+    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+    setLocalPreviewUrl(URL.createObjectURL(file));
+    setPendingCoverFile(file);
   }
 
   async function handleAuthorPhotoUpload(file: File, isNew: boolean) {
@@ -208,12 +197,26 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
 
     startTransition(async () => {
       const supabase = createClient();
+
+      let finalCoverUrl = coverUrl;
+      if (pendingCoverFile) {
+        const ext = pendingCoverFile.name.split(".").pop() ?? "jpg";
+        const path = `${slugify(title || "livro")}-${Date.now()}.${ext}`;
+        const { error, data } = await supabase.storage.from("book-covers").upload(path, pendingCoverFile, { upsert: true });
+        if (error) { toast.error("Erro ao enviar capa"); return; }
+        finalCoverUrl = supabase.storage.from("book-covers").getPublicUrl(data.path).data.publicUrl;
+        setCoverUrl(finalCoverUrl);
+        setPendingCoverFile(null);
+        URL.revokeObjectURL(localPreviewUrl);
+        setLocalPreviewUrl("");
+      }
+
       const payload = {
         title,
         slug,
         author_id: authorId || null,
         category_id: categoryId || null,
-        cover_url: coverUrl || null,
+        cover_url: finalCoverUrl || null,
         description_short: descShort || null,
         description_full: descFull || null,
         price: parseFloat(price),
@@ -560,9 +563,14 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
             {/* Cover upload */}
             <div className="bg-white rounded-xl border border-border p-5 space-y-3">
               <h3 className="text-sm font-semibold">Capa</h3>
-              {coverUrl ? (
+              {(localPreviewUrl || coverUrl) ? (
                 <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden border border-border">
-                  <Image src={coverUrl} alt="Capa" fill className="object-cover" />
+                  <Image src={localPreviewUrl || coverUrl} alt="Capa" fill className="object-cover" unoptimized={!!localPreviewUrl} />
+                  {localPreviewUrl && (
+                    <div className="absolute top-2 left-2 bg-yellow-400 text-yellow-900 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                      Não salvo
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="aspect-[3/4] w-full rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-secondary/30">
@@ -577,7 +585,7 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => { const file = e.target.files?.[0]; if (file) handleCoverUpload(file); }}
+                onChange={(e) => { const file = e.target.files?.[0]; if (file) handleCoverSelect(file); }}
               />
               <Button
                 type="button"
@@ -585,10 +593,9 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
                 size="sm"
                 className="w-full gap-2"
                 onClick={() => fileRef.current?.click()}
-                disabled={uploading}
               >
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                {uploading ? "Enviando..." : "Upload de capa"}
+                <Upload className="h-4 w-4" />
+                {localPreviewUrl ? "Trocar capa" : "Selecionar capa"}
               </Button>
             </div>
 

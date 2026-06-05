@@ -4,6 +4,7 @@ import { ArrowRight, Truck, ShieldCheck, Star, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BookShelf } from "@/components/editora/book-shelf";
 import { NewsletterForm } from "@/components/editora/newsletter-form";
+import { DestaqueBanner } from "@/components/editora/destaque-banner";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -17,28 +18,33 @@ export const revalidate = 60;
 async function getHomeData() {
   const supabase = await createClient();
 
-  const [bestsellers, newBooks, featuredBooks, reviewsResult] = await Promise.all([
+  const now = new Date().toISOString();
+
+  const [bestsellers, newBooks, featuredBooks, reviewsResult, destaquesResult] = await Promise.all([
     supabase
       .from("books")
-      .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_bestseller, is_new, authors(name)")
+      .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_bestseller, is_new, bestseller_position, authors(name)")
       .eq("is_active", true)
       .eq("is_bestseller", true)
+      .order("bestseller_position", { ascending: true, nullsFirst: false })
       .order("sales_count", { ascending: false })
       .limit(10),
 
     supabase
       .from("books")
-      .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_new, authors(name)")
+      .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_new, new_position, authors(name)")
       .eq("is_active", true)
       .eq("is_new", true)
+      .order("new_position", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(10),
 
     supabase
       .from("books")
-      .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_featured, authors(name)")
+      .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_featured, featured_position, authors(name)")
       .eq("is_active", true)
       .eq("is_featured", true)
+      .order("featured_position", { ascending: true, nullsFirst: false })
       .order("rating_avg", { ascending: false })
       .limit(8),
 
@@ -48,6 +54,15 @@ async function getHomeData() {
       .eq("status", "aprovada")
       .order("created_at", { ascending: false })
       .limit(6),
+
+    supabase
+      .from("destaques")
+      .select("id, title, image_url, video_url, cta_url")
+      .eq("is_active", true)
+      .or(`starts_at.is.null,starts_at.lte.${now}`)
+      .or(`ends_at.is.null,ends_at.gte.${now}`)
+      .order("position", { ascending: true })
+      .limit(10),
   ]);
 
   return {
@@ -55,6 +70,13 @@ async function getHomeData() {
     newBooks: (newBooks.data ?? []) as Record<string, unknown>[],
     featuredBooks: (featuredBooks.data ?? []) as Record<string, unknown>[],
     reviews: (reviewsResult.data ?? []) as Record<string, unknown>[],
+    destaques: (destaquesResult.data ?? []) as {
+      id: string;
+      title: string;
+      image_url: string | null;
+      video_url: string | null;
+      cta_url: string | null;
+    }[],
   };
 }
 
@@ -76,7 +98,7 @@ function normalizeBook(b: Record<string, unknown>) {
 }
 
 export default async function EditoraHomePage() {
-  const { bestsellers, newBooks, featuredBooks, reviews } = await getHomeData();
+  const { bestsellers, newBooks, featuredBooks, reviews, destaques } = await getHomeData();
 
   const featuredNorm = featuredBooks.map(normalizeBook);
   const bestsellersNorm = bestsellers.map(normalizeBook);
@@ -147,6 +169,9 @@ export default async function EditoraHomePage() {
           </div>
         </div>
       </section>
+
+      {/* BANNER DESTAQUES */}
+      {destaques.length > 0 && <DestaqueBanner destaques={destaques} />}
 
       {/* DESTAQUES — prateleira horizontal */}
       {featuredNorm.length > 0 && (

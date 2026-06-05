@@ -55,7 +55,7 @@ export default async function PainelAfiliadoPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const [{ data: affiliate }, { data: roleData }] = await Promise.all([
+  const [{ data: affiliate }, { data: roleData }, { data: contactData }] = await Promise.all([
     supabase
       .from("affiliates")
       .select("id, name, email, status, commission_rate, balance, balance_pending, type, created_at, requires_review, next_review_at, leader_name, leader_email, leader_phone")
@@ -67,7 +67,9 @@ export default async function PainelAfiliadoPage() {
       .eq("user_id", user.id)
       .in("role", ["afiliado_jocum", "afiliado_diretor", "lider_jocum"])
       .single(),
+    supabase.from("contact_settings").select("email").single(),
   ]);
+  const contactEmail = contactData?.email ?? "";
 
   const hasAffiliateRole = !!roleData;
 
@@ -82,7 +84,7 @@ export default async function PainelAfiliadoPage() {
             Entre em contato com a editora para concluir a ativação.
           </p>
           <a
-            href="mailto:contato@editorajocum.com.br"
+            href={contactEmail ? `mailto:${contactEmail}` : undefined}
             className="inline-flex items-center gap-2 bg-brand hover:bg-brand-700 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors"
           >
             Falar com a editora

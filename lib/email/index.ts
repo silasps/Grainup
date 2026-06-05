@@ -162,7 +162,7 @@ export async function sendOrderConfirmationEmail(orderId: string) {
     }));
 
     await resend.emails.send({
-      from: "Editora JOCUM <noreply@editorajocum.com.br>",
+      from: `Editora JOCUM <${process.env.EMAIL_FROM ?? "noreply@editorajocum.com.br"}>`,
       to: order.customer_email,
       subject: `Pedido ${order.order_number} confirmado ✓`,
       html: buildOrderEmailHtml({

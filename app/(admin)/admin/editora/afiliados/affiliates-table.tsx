@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { CreateAffiliateDialog } from "./create-affiliate-dialog";
+import { approveAndCreateLinkAction } from "./actions";
 
 type AffiliateStatus = "pendente" | "ativo" | "suspenso" | "rejeitado";
 
@@ -134,6 +135,9 @@ export function AffiliatosTable({
 
     setApproving(false);
     if (error) { toast.error(error.message); return; }
+
+    // Create default affiliate link if none exists
+    approveAndCreateLinkAction(approveTarget.id).catch(() => {});
 
     setAffiliates((prev) =>
       prev.map((a) =>
@@ -375,7 +379,7 @@ export function AffiliatosTable({
                             )}
                           </td>
                           <td className="px-5 py-3 hidden lg:table-cell text-sm font-medium">
-                            {(a.commission_rate * 100).toFixed(0)}%
+                            {a.commission_rate}%
                           </td>
                           <td className="px-5 py-3 hidden lg:table-cell text-muted-foreground text-sm">
                             {salesData?.total ?? 0}

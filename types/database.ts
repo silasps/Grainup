@@ -534,6 +534,8 @@ export type Database = {
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["affiliates"]["Row"], "id" | "balance" | "balance_pending" | "created_at" | "requires_review" | "next_review_at"> & {
+          balance?: number;
+          balance_pending?: number;
           requires_review?: boolean;
           next_review_at?: string | null;
         };
@@ -549,7 +551,9 @@ export type Database = {
           clicks: number;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["affiliate_links"]["Row"], "id" | "clicks" | "created_at">;
+        Insert: Omit<Database["public"]["Tables"]["affiliate_links"]["Row"], "id" | "clicks" | "created_at"> & {
+          clicks?: number;
+        };
         Update: Partial<Database["public"]["Tables"]["affiliate_links"]["Insert"]>;
         Relationships: never[];
       };
@@ -604,6 +608,7 @@ export type Database = {
           title: string;
           subtitle: string | null;
           image_url: string | null;
+          video_url: string | null;
           cta_label: string | null;
           cta_url: string | null;
           type: "oferta" | "novidade" | "anuncio";

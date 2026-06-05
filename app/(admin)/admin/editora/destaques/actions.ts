@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
-type DestaquesInsert = Database["public"]["Tables"]["destaques"]["Insert"];
+type DestaquesInsert = Database["public"]["Tables"]["destaques"]["Insert"] & { video_url?: string | null };
 
 export async function saveDestaque(data: DestaquesInsert & { id?: string }) {
   const supabase = await createAdminClient();

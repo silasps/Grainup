@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-
-function addMonths(d: Date, m: number) { const r = new Date(d); r.setMonth(r.getMonth() + m); return r; }
+import { createAffiliateAction } from "./actions";
 
 export function CreateAffiliateDialog({
   open, onOpenChange, onCreated,
@@ -27,37 +25,27 @@ export function CreateAffiliateDialog({
     const get = (k: string) => (fd.get(k) as string).trim();
 
     setSaving(true);
-    const supabase = createClient();
-    const now = new Date();
-    const { data: { users } } = await (supabase as any).auth.admin.listUsers();
-    // Find user by email to link user_id (optional — may not exist yet)
-    const email = get("email");
-    const existingUser = (users as { id: string; email: string }[] | undefined)?.find(u => u.email === email);
-
-    const payload = {
-      user_id: existingUser?.id ?? crypto.randomUUID(), // placeholder if no user yet
-      type,
-      name: get("name"),
-      email,
-      cpf: get("cpf").replace(/\D/g, ""),
-      phone: get("phone").replace(/\D/g, ""),
-      status: "ativo" as const,
-      commission_rate: parseFloat(get("commission_rate")) / 100,
-      serving_location: get("serving_location") || null,
-      leader_name: get("leader_name") || null,
-      leader_email: get("leader_email") || null,
-      leader_phone: null,
-      last_confirmed_at: now.toISOString(),
-      requires_review: requiresReview,
-      next_review_at: requiresReview ? addMonths(now, 6).toISOString() : null,
-    };
-
-    const { data, error } = await supabase.from("affiliates").insert(payload).select().single();
-    setSaving(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Afiliado criado com sucesso");
-    onCreated(data);
-    onOpenChange(false);
+    try {
+      const affiliate = await createAffiliateAction({
+        name: get("name"),
+        email: get("email"),
+        phone: get("phone"),
+        cpf: get("cpf"),
+        type,
+        commission_rate: parseFloat(get("commission_rate")),
+        serving_location: get("serving_location") || null,
+        leader_name: get("leader_name") || null,
+        leader_email: get("leader_email") || null,
+        requires_review: requiresReview,
+      });
+      toast.success("Afiliado criado com sucesso");
+      onCreated(affiliate);
+      onOpenChange(false);
+    } catch (err: unknown) {
+      toast.error((err as Error).message ?? "Erro ao criar afiliado");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

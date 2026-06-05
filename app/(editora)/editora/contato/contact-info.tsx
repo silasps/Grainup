@@ -40,7 +40,7 @@ function cleanPhone(raw: string | null) {
 export function ContactInfo({ contact }: { contact: ContactSettings | null }) {
   const phone = contact?.whatsapp || contact?.phone || null;
   const phoneDigits = cleanPhone(phone);
-  const email = contact?.email || "contato@editorajocum.com.br";
+  const email = contact?.email || "";
   const address = contact?.address || null;
   const hours = formatHours(contact?.business_hours ?? null);
   const waMessage = contact?.whatsapp_message || "Olá! Gostaria de saber mais sobre os livros da Editora Jocum.";
@@ -68,17 +68,19 @@ export function ContactInfo({ contact }: { contact: ContactSettings | null }) {
         </div>
       )}
 
-      <div className="flex gap-4">
-        <div className="bg-brand-50 rounded-xl p-3 h-fit">
-          <Mail className="h-5 w-5 text-brand" />
+      {email && (
+        <div className="flex gap-4">
+          <div className="bg-brand-50 rounded-xl p-3 h-fit">
+            <Mail className="h-5 w-5 text-brand" />
+          </div>
+          <div>
+            <p className="font-semibold text-sm text-foreground mb-1">E-mail</p>
+            <a href={`mailto:${email}`} className="block text-sm text-muted-foreground hover:text-brand transition-colors">
+              {email}
+            </a>
+          </div>
         </div>
-        <div>
-          <p className="font-semibold text-sm text-foreground mb-1">E-mail</p>
-          <a href={`mailto:${email}`} className="block text-sm text-muted-foreground hover:text-brand transition-colors">
-            {email}
-          </a>
-        </div>
-      </div>
+      )}
 
       {address && (
         <div className="flex gap-4">

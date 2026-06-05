@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { trackBookEvent } from "@/lib/actions/track-event";
@@ -85,6 +86,22 @@ export async function placeOrderAction(input: PlaceOrderInput) {
   if (!user) return { error: "Sessão expirada. Faça login novamente." };
 
   const supabase = await createAdminClient();
+
+  // Affiliate tracking: read cookie set by /r/[code] redirect
+  const cookieStore = await cookies();
+  const affCode = cookieStore.get("aff")?.value ?? null;
+  let affiliateId: string | null = null;
+  if (affCode) {
+    const { data: affLink } = await supabase
+      .from("affiliate_links")
+      .select("affiliate_id, affiliates!inner(status)")
+      .eq("code", affCode)
+      .single();
+    const typedLink = affLink as { affiliate_id: string; affiliates: { status: string } } | null;
+    if (typedLink?.affiliates?.status === "ativo") {
+      affiliateId = typedLink.affiliate_id;
+    }
+  }
   const customerName = normalizeNullable(input.customerName) ?? user.email?.split("@")[0] ?? "Cliente";
   const customerCpf = input.customerCpf.replace(/\D/g, "");
 
@@ -167,7 +184,7 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     payment_status: "pendente",
     payment_method: input.paymentMethod,
     fiscal_status: "nao_emitida",
-    affiliate_id: null,
+    affiliate_id: affiliateId,
     coupon_code: null,
     notes: null,
     tracking_code: null,

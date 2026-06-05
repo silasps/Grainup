@@ -75,8 +75,10 @@ export function FinanceiroDashboard({ movements }: Props) {
 
   // Payment method breakdown
   const payBreakdown = ["pix", "credito", "debito"].map((method) => {
-    const count = paid.filter((m) => m.payment_method === method).length;
-    return { name: method.toUpperCase(), value: count };
+    const total = paid
+      .filter((m) => m.payment_method === method)
+      .reduce((s, m) => s + m.net_amount, 0);
+    return { name: method.toUpperCase(), value: Math.round(total) };
   });
 
   const STATUS_LABEL: Record<string, string> = {
@@ -259,9 +261,16 @@ export function FinanceiroDashboard({ movements }: Props) {
               <Legend
                 iconType="circle"
                 iconSize={8}
-                formatter={(v) => <span className="text-xs text-foreground">{v}</span>}
+                formatter={(v, entry) => (
+                  <span className="text-xs text-foreground">
+                    {v}
+                    <span className="ml-1 text-muted-foreground">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format((entry as any).payload?.value ?? 0)}
+                    </span>
+                  </span>
+                )}
               />
-              <Tooltip formatter={(v) => [`${v} pedidos`, ""]} />
+              <Tooltip formatter={(v) => [new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(v)), ""]} />
             </PieChart>
           </ResponsiveContainer>
         </div>

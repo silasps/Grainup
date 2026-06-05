@@ -19,6 +19,7 @@ import {
   ChevronRight,
   ArrowUpRight,
   Code2,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/logo";
@@ -32,7 +33,8 @@ const NAV_ITEMS = [
     icon: LayoutDashboard,
     exact: true,
   },
-  { label: "Livros", href: "/admin/editora/livros", icon: BookOpen },
+  { label: "Livros", href: "/admin/editora/livros", icon: BookOpen, excludes: "/admin/editora/livros/vitrine" },
+  { label: "Vitrine", href: "/admin/editora/livros/vitrine", icon: Store },
   { label: "Combos", href: "/admin/editora/combos", icon: BookOpen },
   { label: "Destaques", href: "/admin/editora/destaques", icon: Sparkles },
   { label: "Anúncios", href: "/admin/editora/anuncios", icon: Megaphone },
@@ -55,6 +57,7 @@ export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
 
   function isActive(item: (typeof NAV_ITEMS)[number]) {
     if (item.exact) return pathname === item.href;
+    if ("excludes" in item && typeof item.excludes === "string" && pathname.startsWith(item.excludes)) return false;
     return pathname.startsWith(item.href);
   }
 
