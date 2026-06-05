@@ -22,14 +22,14 @@ type Faq = Database["public"]["Tables"]["faqs"]["Row"];
 const catSchema = z.object({
   name: z.string().min(2, "Mínimo 2 caracteres"),
   slug: z.string().min(2, "Slug obrigatório").regex(/^[a-z0-9-]+$/, "Apenas letras minúsculas, números e hífens"),
-  position: z.coerce.number(),
+  position: z.number().int().min(0),
 });
 
 const faqSchema = z.object({
   category_id: z.string().nullable(),
   question: z.string().min(5, "Pergunta obrigatória"),
   answer: z.string().min(5, "Resposta obrigatória"),
-  position: z.coerce.number(),
+  position: z.number().int().min(0),
   is_active: z.boolean(),
   is_featured: z.boolean(),
 });
@@ -199,7 +199,7 @@ export function FaqAdminClient({
             </div>
             <div className="flex flex-col gap-1">
               <Label>Posição</Label>
-              <Input type="number" {...catForm.register("position")} />
+              <Input type="number" {...catForm.register("position", { valueAsNumber: true })} />
             </div>
             <div className="sm:col-span-3 flex gap-2 justify-end">
               <Button type="button" variant="ghost" onClick={() => setShowCatForm(false)}>Cancelar</Button>
@@ -231,7 +231,7 @@ export function FaqAdminClient({
               </div>
               <div className="flex flex-col gap-1">
                 <Label>Posição</Label>
-                <Input type="number" {...faqForm.register("position")} />
+                <Input type="number" {...faqForm.register("position", { valueAsNumber: true })} />
               </div>
               <div className="flex items-end gap-4 pb-1">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">

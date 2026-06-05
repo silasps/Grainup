@@ -58,7 +58,8 @@ export async function deleteFaq(id: string) {
 
 export async function toggleFaq(id: string, field: "is_active" | "is_featured", value: boolean) {
   const supabase = await createAdminClient();
-  const { error } = await supabase.from("faqs").update({ [field]: value }).eq("id", id);
+  const patch = field === "is_active" ? { is_active: value } : { is_featured: value };
+  const { error } = await supabase.from("faqs").update(patch).eq("id", id);
   if (error) return { error: error.message };
   revalidate();
   return { error: null };

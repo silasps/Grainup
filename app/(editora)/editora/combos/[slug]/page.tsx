@@ -54,9 +54,12 @@ export default async function ComboDetailPage({ params }: Props) {
 
   if (!combo) notFound();
 
-  const livros = (combo.combo_items ?? [])
-    .map((item) => {
-      const b = item.books as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const comboData = combo as any;
+  const livros = ((comboData.combo_items as unknown[]) ?? [])
+    .map((item: unknown) => {
+      const row = item as { books: unknown; book_id: unknown; quantity: unknown };
+      const b = row.books as {
         id: string; title: string; slug: string;
         cover_url: string | null; price: number; price_promotional: number | null;
         authors: { name: string } | null;
@@ -70,7 +73,7 @@ export default async function ComboDetailPage({ params }: Props) {
         price: b.price,
         pricePromotional: b.price_promotional,
         author: (b.authors as { name: string } | null)?.name ?? null,
-        quantity: item.quantity,
+        quantity: row.quantity as number,
       };
     })
     .filter(Boolean) as {
@@ -83,17 +86,17 @@ export default async function ComboDetailPage({ params }: Props) {
     (sum, b) => sum + (b.pricePromotional ?? b.price),
     0
   );
-  const pricePromo = combo.price_promotional;
-  const discount = Math.max(0, totalIndividual - pricePromo);
+  const pricePromo = comboData.price_promotional as number | null;
+  const discount = Math.max(0, totalIndividual - (pricePromo ?? 0));
   const discountPct = totalIndividual > 0 ? Math.round((discount / totalIndividual) * 100) : 0;
 
   const cartItem = {
-    id: `combo-${combo.id}`,
+    id: `combo-${comboData.id}`,
     type: "combo" as const,
-    title: combo.name,
-    slug: `combos/${combo.slug}`,
+    title: comboData.name,
+    slug: `combos/${comboData.slug}`,
     coverUrl: livros[0]?.coverUrl ?? null,
-    price: pricePromo > 0 ? pricePromo : totalIndividual,
+    price: (pricePromo ?? 0) > 0 ? pricePromo! : totalIndividual,
   };
 
   return (
@@ -106,7 +109,7 @@ export default async function ComboDetailPage({ params }: Props) {
             Combos
           </Link>
           <span>/</span>
-          <span className="text-foreground font-medium line-clamp-1">{combo.name}</span>
+          <span className="text-foreground font-medium line-clamp-1">{comboData.name}</span>
         </div>
       </div>
 
@@ -117,9 +120,9 @@ export default async function ComboDetailPage({ params }: Props) {
           <div className="flex flex-col gap-6">
             {/* Imagem ou pilha de capas */}
             <div className="bg-foreground rounded-2xl overflow-hidden flex items-center justify-center min-h-[300px]">
-              {combo.image_url ? (
+              {comboData.image_url ? (
                 <div className="relative w-full min-h-[300px]">
-                  <Image src={combo.image_url} alt={combo.name} fill className="object-cover object-center" sizes="(max-width: 768px) 100vw, 500px" />
+                  <Image src={comboData.image_url} alt={comboData.name} fill className="object-cover object-center" sizes="(max-width: 768px) 100vw, 500px" />
                 </div>
               ) : livros.length > 0 ? (
                 <div className="p-8">
@@ -200,10 +203,10 @@ export default async function ComboDetailPage({ params }: Props) {
                 <span className="text-xs font-semibold text-brand uppercase tracking-wide">Kit especial</span>
               </div>
               <h1 className="font-heading text-3xl font-bold text-foreground mb-3 leading-tight">
-                {combo.name}
+                {comboData.name}
               </h1>
-              {combo.description && (
-                <p className="text-muted-foreground leading-relaxed">{combo.description}</p>
+              {comboData.description && (
+                <p className="text-muted-foreground leading-relaxed">{comboData.description}</p>
               )}
             </div>
 
@@ -225,7 +228,7 @@ export default async function ComboDetailPage({ params }: Props) {
             <div className="bg-white border border-border rounded-xl p-5 flex flex-col gap-4">
               <div className="flex items-end gap-3">
                 <span className="text-3xl font-bold text-foreground">
-                  {formatCurrency(pricePromo > 0 ? pricePromo : totalIndividual)}
+                  {formatCurrency((pricePromo ?? 0) > 0 ? pricePromo! : totalIndividual)}
                 </span>
                 {discount > 0 && (
                   <>
@@ -244,7 +247,7 @@ export default async function ComboDetailPage({ params }: Props) {
                 </p>
               )}
 
-              <ComboDetailActions cartItem={cartItem} comboName={combo.name} />
+              <ComboDetailActions cartItem={cartItem} comboName={comboData.name} />
             </div>
 
             {/* Aviso */}
