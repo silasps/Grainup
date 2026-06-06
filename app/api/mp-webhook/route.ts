@@ -86,6 +86,38 @@ export async function POST(request: NextRequest) {
         .eq("order_id", orderId)
         .maybeSingle();
 
+      if (!existing) {
+        // Decrementar estoque — só na primeira vez (idempotência via financial_movements)
+        const { data: items } = await supabase
+          .from("order_items")
+          .select("book_id, combo_id, quantity")
+          .eq("order_id", orderId);
+
+        if (items && items.length > 0) {
+          const stockOps: Promise<unknown>[] = [];
+
+          for (const item of items) {
+            if (item.book_id) {
+              stockOps.push(
+                supabase.rpc("decrement_book_stock", { p_book_id: item.book_id, p_qty: item.quantity })
+              );
+            } else if (item.combo_id) {
+              const { data: comboBooks } = await supabase
+                .from("combo_items")
+                .select("book_id, quantity")
+                .eq("combo_id", item.combo_id);
+              for (const cb of comboBooks ?? []) {
+                stockOps.push(
+                  supabase.rpc("decrement_book_stock", { p_book_id: cb.book_id, p_qty: item.quantity * cb.quantity })
+                );
+              }
+            }
+          }
+
+          await Promise.all(stockOps);
+        }
+      }
+
       if (existing) {
         await supabase
           .from("financial_movements")
