@@ -608,7 +608,10 @@ export type Database = {
           title: string;
           subtitle: string | null;
           image_url: string | null;
+          image_mobile_url: string | null;
           video_url: string | null;
+          focal_x: number;
+          focal_y: number;
           cta_label: string | null;
           cta_url: string | null;
           type: "oferta" | "novidade" | "anuncio";

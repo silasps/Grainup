@@ -54,7 +54,7 @@ async function getHomeData() {
 
     supabase
       .from("destaques")
-      .select("id, title, image_url, video_url, cta_url")
+      .select("id, title, image_url, image_mobile_url, video_url, cta_url, focal_x, focal_y")
       .eq("is_active", true)
       .or(`starts_at.is.null,starts_at.lte.${now}`)
       .or(`ends_at.is.null,ends_at.gte.${now}`)
@@ -71,8 +71,11 @@ async function getHomeData() {
       id: string;
       title: string;
       image_url: string | null;
+      image_mobile_url: string | null;
       video_url: string | null;
       cta_url: string | null;
+      focal_x: number | null;
+      focal_y: number | null;
     }[],
   };
 }
@@ -105,30 +108,6 @@ export default async function EditoraHomePage() {
     <div className="flex flex-col">
       {/* HERO + DESTAQUES (carrossel unificado) */}
       <DestaqueBanner destaques={destaques} />
-
-      {/* BENEFÍCIOS */}
-      <section className="bg-brand text-white py-4">
-        <div className="container mx-auto max-w-7xl px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center text-sm">
-            <div className="flex items-center justify-center gap-2">
-              <Truck className="h-4 w-4 flex-shrink-0" />
-              <span>Frete grátis acima de R$200</span>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <ShieldCheck className="h-4 w-4 flex-shrink-0" />
-              <span>Compra 100% segura</span>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <Star className="h-4 w-4 flex-shrink-0" />
-              <span>+200 títulos em estoque</span>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <BookOpen className="h-4 w-4 flex-shrink-0" />
-              <span>Entregamos para todo o Brasil</span>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* DESTAQUES — prateleira horizontal */}
       {featuredNorm.length > 0 && (
@@ -262,6 +241,42 @@ export default async function EditoraHomePage() {
           </div>
         </section>
       )}
+
+      {/* BENEFÍCIOS */}
+      <section className="bg-brand text-white py-6">
+        <div className="container mx-auto max-w-7xl px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center text-sm">
+            <div className="flex flex-col items-center gap-2">
+              <Truck className="h-6 w-6 flex-shrink-0 opacity-90" />
+              <div>
+                <p className="font-semibold">Frete grátis</p>
+                <p className="text-white/70 text-xs">acima de R$200</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <ShieldCheck className="h-6 w-6 flex-shrink-0 opacity-90" />
+              <div>
+                <p className="font-semibold">Compra segura</p>
+                <p className="text-white/70 text-xs">pagamento protegido</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <Star className="h-6 w-6 flex-shrink-0 opacity-90" />
+              <div>
+                <p className="font-semibold">+200 títulos</p>
+                <p className="text-white/70 text-xs">em estoque</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <BookOpen className="h-6 w-6 flex-shrink-0 opacity-90" />
+              <div>
+                <p className="font-semibold">Todo o Brasil</p>
+                <p className="text-white/70 text-xs">entregamos para você</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* NEWSLETTER */}
       <section className="py-14 bg-brand/5 border-y border-brand/10">
