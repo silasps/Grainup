@@ -205,7 +205,7 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     input.items.map((item) => ({
       order_id: order.id,
       book_id: item.type === "book" ? item.id : null,
-      combo_id: item.type === "combo" ? item.id : null,
+      combo_id: item.type === "combo" ? item.id.replace(/^combo-/, "") : null,
       title: item.title,
       quantity: item.quantity,
       unit_price: item.price,
