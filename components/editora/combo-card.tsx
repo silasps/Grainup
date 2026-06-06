@@ -84,6 +84,7 @@ export function ComboCard({ combo, slug }: { combo: ComboData; slug?: string }) 
       title: combo.titulo,
       slug: `combos/${combo.id}`,
       coverUrl: livros[0]?.coverUrl ?? null,
+      covers: livros.map((b) => b.coverUrl).filter(Boolean) as string[],
       price: comboPrice > 0 ? comboPrice : totalIndividual,
     };
   }

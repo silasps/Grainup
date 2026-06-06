@@ -13,6 +13,7 @@ interface CartItem {
   title: string;
   slug: string;
   coverUrl: string | null;
+  covers?: string[];
   price: number;
 }
 

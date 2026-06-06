@@ -1301,15 +1301,27 @@ export function CheckoutFlow() {
                     </p>
                     {items.map((item) => (
                       <div key={item.id} className="flex gap-3 py-1">
-                        {item.coverUrl ? (
+                        {item.type === "combo" && item.covers && item.covers.length > 1 ? (
+                          <div className="relative flex-shrink-0" style={{ width: 48, height: 64 }}>
+                            {item.covers.slice(0, 3).reverse().map((src, i, arr) => (
+                              <div
+                                key={src}
+                                className="absolute rounded overflow-hidden border border-white bg-secondary"
+                                style={{
+                                  width: 36, height: 48,
+                                  left: i * 6,
+                                  top: (arr.length - 1 - i) * 4,
+                                  zIndex: i,
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                                }}
+                              >
+                                <Image src={src} alt="" width={36} height={48} className="w-full h-full object-cover" />
+                              </div>
+                            ))}
+                          </div>
+                        ) : item.coverUrl ? (
                           <div className="w-12 h-16 flex-shrink-0 rounded overflow-hidden bg-secondary">
-                            <Image
-                              src={item.coverUrl}
-                              alt={item.title}
-                              width={48}
-                              height={64}
-                              className="w-full h-full object-cover"
-                            />
+                            <Image src={item.coverUrl} alt={item.title} width={48} height={64} className="w-full h-full object-cover" />
                           </div>
                         ) : (
                           <div className="w-12 h-16 flex-shrink-0 rounded bg-secondary" />

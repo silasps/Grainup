@@ -96,6 +96,7 @@ export default async function ComboDetailPage({ params }: Props) {
     title: comboData.name,
     slug: `combos/${comboData.slug}`,
     coverUrl: livros[0]?.coverUrl ?? null,
+    covers: livros.map((b) => b.coverUrl).filter(Boolean) as string[],
     price: (pricePromo ?? 0) > 0 ? pricePromo! : totalIndividual,
   };
 
