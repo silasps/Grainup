@@ -146,7 +146,7 @@ function ComboForm({
       description: initial?.description ?? "",
       discount_type: "fixed" as const,
       discount_value: initial
-        ? Math.max(0, initial.price_original - initial.price_promotional)
+        ? Math.round(Math.max(0, initial.price_original - initial.price_promotional) * 100) / 100
         : 0,
       is_active: initial?.is_active ?? true,
       is_featured: initial?.is_featured ?? false,
@@ -410,7 +410,11 @@ function ComboForm({
               min="0"
               max={discountType === "percentage" ? 100 : undefined}
               placeholder={discountType === "percentage" ? "Ex: 15" : "Ex: 30,00"}
-              {...register("discount_value", { valueAsNumber: true })}
+              className="h-10"
+              {...register("discount_value", {
+                valueAsNumber: true,
+                setValueAs: (v) => Math.round(parseFloat(v) * 100) / 100 || 0,
+              })}
             />
           </div>
           {errors.discount_value && (
