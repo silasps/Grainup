@@ -33,7 +33,7 @@ export default async function MeusOrdensPage() {
 
   const { data: rawOrders } = await supabase
     .from("orders")
-    .select("id, order_number, status, total, created_at, order_items(id, quantity, books(title, cover_url))")
+    .select("id, order_number, status, total, created_at, order_items(id, title, quantity, books(title, cover_url))")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -45,6 +45,7 @@ export default async function MeusOrdensPage() {
     created_at: string;
     order_items: Array<{
       id: string;
+      title: string;
       quantity: number;
       books: { title: string; cover_url: string | null } | null;
     }>;
@@ -105,8 +106,8 @@ export default async function MeusOrdensPage() {
                 </div>
 
                 <div className="text-sm text-muted-foreground mb-3">
-                  {firstBook && (
-                    <p className="line-clamp-1">{firstBook.title}</p>
+                  {items[0] && (
+                    <p className="line-clamp-1">{items[0].books?.title ?? items[0].title}</p>
                   )}
                   {items.length > 1 && (
                     <p className="text-xs">+ {items.length - 1} item(ns)</p>
