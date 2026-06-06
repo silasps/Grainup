@@ -144,7 +144,7 @@ function ComboForm({
       name: initial?.name ?? "",
       slug: initial?.slug ?? "",
       description: initial?.description ?? "",
-      discount_type: "fixed" as const,
+      discount_type: (initial?.discount_type ?? "fixed") as "fixed" | "percentage",
       discount_value: initial
         ? Math.round(Math.max(0, initial.price_original - initial.price_promotional) * 100) / 100
         : 0,
@@ -241,6 +241,7 @@ function ComboForm({
         image_url: imageUrl,
         price_original: priceOriginal,
         price_promotional: pricePromotional,
+        discount_type: data.discount_type,
         is_active: data.is_active,
         is_featured: data.is_featured,
       },

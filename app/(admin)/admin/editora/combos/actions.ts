@@ -79,7 +79,7 @@ const COMBOS_SEED: ComboInsert[] = [
     image_url: null,
     price_original: 135.00,
     price_promotional: 105.00,
-    is_active: true,
+    is_active: true, discount_type: "fixed" as const,
     is_featured: true,
   },
   {
@@ -89,7 +89,7 @@ const COMBOS_SEED: ComboInsert[] = [
     image_url: null,
     price_original: 120.00,
     price_promotional: 95.00,
-    is_active: true,
+    is_active: true, discount_type: "fixed" as const,
     is_featured: false,
   },
   {
@@ -99,7 +99,7 @@ const COMBOS_SEED: ComboInsert[] = [
     image_url: null,
     price_original: 105.00,
     price_promotional: 85.00,
-    is_active: true,
+    is_active: true, discount_type: "fixed" as const,
     is_featured: false,
   },
   {
@@ -109,7 +109,7 @@ const COMBOS_SEED: ComboInsert[] = [
     image_url: null,
     price_original: 105.00,
     price_promotional: 83.00,
-    is_active: true,
+    is_active: true, discount_type: "fixed" as const,
     is_featured: false,
   },
 ];

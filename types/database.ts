@@ -217,6 +217,7 @@ export type Database = {
           image_url: string | null;
           price_original: number;
           price_promotional: number;
+          discount_type: "fixed" | "percentage";
           is_active: boolean;
           is_featured: boolean;
           created_at: string;
