@@ -146,7 +146,13 @@ function ComboForm({
       description: initial?.description ?? "",
       discount_type: (initial?.discount_type ?? "fixed") as "fixed" | "percentage",
       discount_value: initial
-        ? Math.round(Math.max(0, initial.price_original - initial.price_promotional) * 100) / 100
+        ? (() => {
+            const diff = Math.max(0, initial.price_original - initial.price_promotional);
+            if (initial.discount_type === "percentage" && initial.price_original > 0) {
+              return Math.round((diff / initial.price_original) * 10000) / 100;
+            }
+            return Math.round(diff * 100) / 100;
+          })()
         : 0,
       is_active: initial?.is_active ?? true,
       is_featured: initial?.is_featured ?? false,
