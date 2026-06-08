@@ -109,8 +109,15 @@ export function FeedbackTable({
   const [now, setNow] = useState(renderedAt);
   const [isPending, startTransition] = useTransition();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<Feedback["status"] | null>(null);
 
-  const selected = selectedIndex !== null ? items[selectedIndex] : null;
+  const displayed = statusFilter ? items.filter((f) => f.status === statusFilter) : items;
+  const selected = selectedIndex !== null ? displayed[selectedIndex] : null;
+
+  function toggleFilter(key: Feedback["status"]) {
+    setStatusFilter((prev) => (prev === key ? null : key));
+    setSelectedIndex(null);
+  }
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -144,20 +151,31 @@ export function FeedbackTable({
   return (
     <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4 md:p-6">
-        {KPI_CONFIG.map(({ key, label, color }) => (
-          <div key={key} className="bg-white rounded-xl border border-border p-4">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className={`text-2xl font-bold mt-1 ${color}`}>
-              {items.filter((f) => f.status === key).length}
-            </p>
-          </div>
-        ))}
+        {KPI_CONFIG.map(({ key, label, color }) => {
+          const isActive = statusFilter === key;
+          return (
+            <button
+              key={key}
+              onClick={() => toggleFilter(key)}
+              className={`bg-white rounded-xl border p-4 text-left transition-all ${
+                isActive ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-muted-foreground/40"
+              }`}
+            >
+              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className={`text-2xl font-bold mt-1 ${color}`}>
+                {items.filter((f) => f.status === key).length}
+              </p>
+            </button>
+          );
+        })}
       </div>
 
       <div className="bg-white rounded-xl border border-border overflow-hidden">
-        {items.length === 0 ? (
+        {displayed.length === 0 ? (
           <div className="p-12 text-center text-sm text-muted-foreground">
-            Nenhuma sugestão recebida ainda.
+            {statusFilter
+              ? `Nenhuma sugestão com status "${STATUS_LABELS[statusFilter]}".`
+              : "Nenhuma sugestão recebida ainda."}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -172,7 +190,7 @@ export function FeedbackTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {items.map((f, i) => (
+                {displayed.map((f, i) => (
                   <tr
                     key={f.id}
                     className="hover:bg-muted/20 transition-colors cursor-pointer"
@@ -220,7 +238,7 @@ export function FeedbackTable({
                   {selected.page_url}
                 </DialogTitle>
                 <span className="text-xs text-muted-foreground shrink-0">
-                  {selectedIndex! + 1} / {items.length}
+                  {selectedIndex! + 1} / {displayed.length}
                 </span>
               </div>
             </DialogHeader>
@@ -256,7 +274,7 @@ export function FeedbackTable({
               <Button
                 variant="outline"
                 size="sm"
-                disabled={selectedIndex === items.length - 1}
+                disabled={selectedIndex === displayed.length - 1}
                 onClick={() => setSelectedIndex((i) => (i ?? 0) + 1)}
               >
                 Próxima

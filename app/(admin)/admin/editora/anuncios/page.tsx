@@ -25,20 +25,13 @@ const schema = z.object({
   image_url: z.string().optional(),
   cta_label: z.string().optional(),
   cta_url: z.string().optional(),
-  type: z.enum(["promo", "info", "warning"]),
+  type: z.enum(["promo", "info", "warning"]).default("promo"),
   starts_at: z.string().optional(),
   ends_at: z.string().optional(),
   is_active: z.boolean(),
 });
 
 type FormData = z.infer<typeof schema>;
-
-const TYPE_LABELS = { promo: "Promoção", info: "Informativo", warning: "Alerta" };
-const TYPE_COLORS = {
-  promo: "bg-brand text-white",
-  info: "bg-foreground text-white",
-  warning: "bg-amber-500 text-white",
-};
 
 type UploadMode = "empty" | "adjusting" | "ready";
 
@@ -238,7 +231,7 @@ function ImageUpload({
 
         <div
           ref={clipRef}
-          className="relative w-48 aspect-[2/3] overflow-hidden rounded-xl bg-black select-none ring-2 ring-brand shadow-lg cursor-grab active:cursor-grabbing"
+          className="relative w-full aspect-[2/1] overflow-hidden rounded-xl bg-black select-none ring-2 ring-brand shadow-lg cursor-grab active:cursor-grabbing"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -278,11 +271,11 @@ function ImageUpload({
   return (
     <>
       <input ref={fileInputRef} type="file" accept="image/*" className="sr-only" onChange={handleFileChange} />
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col gap-3">
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className={`relative w-36 aspect-[2/3] rounded-xl border-2 overflow-hidden transition-all cursor-pointer
+          className={`relative w-full aspect-[2/1] rounded-xl border-2 overflow-hidden transition-all cursor-pointer
             ${value ? "border-transparent shadow-sm" : "border-dashed border-border hover:border-brand/50 hover:bg-brand/5"}`}
         >
           {value ? (
@@ -292,6 +285,7 @@ function ImageUpload({
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground">
               <ImagePlus className="h-7 w-7" />
               <span className="text-xs text-center px-2 leading-tight">Clique para selecionar</span>
+              <span className="text-[10px] text-center px-2 leading-tight opacity-70">800 × 400 px</span>
             </div>
           )}
           {value && (
@@ -301,8 +295,8 @@ function ImageUpload({
           )}
         </button>
 
-        {value && (
-          <div className="flex flex-col gap-2 mt-1">
+        {value ? (
+          <div className="flex items-center gap-4">
             <button
               type="button"
               onClick={() => { setRawSrc(value); setMode("adjusting"); }}
@@ -315,7 +309,7 @@ function ImageUpload({
               onClick={() => fileInputRef.current?.click()}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              Trocar imagem
+              Trocar
             </button>
             <button
               type="button"
@@ -325,6 +319,10 @@ function ImageUpload({
               <XIcon className="h-3.5 w-3.5" /> Remover
             </button>
           </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground leading-snug">
+            Ideal: <strong className="font-medium">800 × 400 px</strong> · Proporção 2:1 (paisagem)
+          </p>
         )}
       </div>
     </>
@@ -428,18 +426,6 @@ function AnnouncementForm({
             value={watch("image_url") ?? ""}
             onChange={(url) => setValue("image_url", url)}
           />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label>Tipo</Label>
-          <div className="flex gap-2">
-            {(["promo", "info", "warning"] as const).map((t) => (
-              <label key={t} className={`flex-1 text-center py-2 px-3 rounded-lg text-sm cursor-pointer transition-all ${typeVal === t ? `${TYPE_COLORS[t]} font-semibold` : "border border-border text-muted-foreground hover:border-brand/40"}`}>
-                <input type="radio" value={t} {...register("type")} onChange={() => setValue("type", t)} className="sr-only" />
-                {TYPE_LABELS[t]}
-              </label>
-            ))}
-          </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -561,7 +547,7 @@ export default function AnunciosPage() {
               <div key={a.id} className="bg-white border border-border rounded-xl p-5 flex flex-col sm:flex-row gap-4 sm:items-center">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge className={`text-xs ${TYPE_COLORS[a.type]}`}>{TYPE_LABELS[a.type]}</Badge>
+                    <Badge className="text-xs bg-brand text-white">Anúncio</Badge>
                     {a.is_active
                       ? <Badge className="bg-green-100 text-green-700 hover:bg-green-100 text-xs">Ativo</Badge>
                       : <Badge variant="outline" className="text-xs text-muted-foreground">Inativo</Badge>

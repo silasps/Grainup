@@ -26,6 +26,7 @@ async function getHomeData() {
       .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_bestseller, is_new, authors(name)")
       .eq("is_active", true)
       .eq("is_bestseller", true)
+      .order("bestseller_position", { ascending: true, nullsFirst: false })
       .order("sales_count", { ascending: false })
       .limit(10),
 
@@ -34,6 +35,7 @@ async function getHomeData() {
       .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_new, authors(name)")
       .eq("is_active", true)
       .eq("is_new", true)
+      .order("new_position", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(10),
 
@@ -42,6 +44,7 @@ async function getHomeData() {
       .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_featured, authors(name)")
       .eq("is_active", true)
       .eq("is_featured", true)
+      .order("featured_position", { ascending: true, nullsFirst: false })
       .order("rating_avg", { ascending: false })
       .limit(8),
 

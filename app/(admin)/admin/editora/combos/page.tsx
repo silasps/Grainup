@@ -21,6 +21,7 @@ import {
   ExternalLink,
   ImageIcon,
   Upload,
+  ChevronLeft,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { saveCombo, deleteCombo, toggleComboActive, toggleComboFeatured, seedDefaultCombos } from "./actions";
@@ -29,6 +30,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils/format";
 import { toast } from "sonner";
 import type { Database } from "@/types/database";
@@ -137,7 +146,7 @@ function ComboForm({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -195,6 +204,28 @@ function ComboForm({
   const isFeatured = watch("is_featured");
   const discountType = watch("discount_type");
   const discountValue = watch("discount_value") ?? 0;
+
+  const initialBookIds = useMemo(
+    () => (initial?.combo_items ?? []).map((i) => i.book_id).sort().join(","),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+  const initialImageUrl = initial?.image_url ?? null;
+
+  const hasChanges =
+    isDirty ||
+    selectedBooks.map((b) => b.book_id).sort().join(",") !== initialBookIds ||
+    imageUrl !== initialImageUrl;
+
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
+
+  function handleBack() {
+    if (hasChanges) {
+      setShowBackConfirm(true);
+    } else {
+      onCancel();
+    }
+  }
 
   const priceOriginal = useMemo(
     () => selectedBooks.reduce((sum, b) => sum + b.price, 0),
@@ -267,9 +298,19 @@ function ComboForm({
       onSubmit={handleSubmit(onSubmit)}
       className="bg-white border border-border rounded-xl p-6 flex flex-col gap-5"
     >
-      <h2 className="font-semibold text-foreground">
-        {initial ? "Editar combo" : "Novo combo"}
-      </h2>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Voltar
+        </button>
+        <h2 className="font-semibold text-foreground">
+          {initial ? "Editar combo" : "Novo combo"}
+        </h2>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
@@ -577,6 +618,28 @@ function ComboForm({
           Salvar
         </Button>
       </div>
+
+      <Dialog open={showBackConfirm} onOpenChange={setShowBackConfirm}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Alterações não salvas</DialogTitle>
+            <DialogDescription>
+              Você fez alterações neste combo que ainda não foram salvas. Se voltar agora, essas alterações serão perdidas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setShowBackConfirm(false)}>
+              Continuar editando
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => { setShowBackConfirm(false); onCancel(); }}
+            >
+              Descartar e voltar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }
@@ -673,21 +736,23 @@ export default function CombosAdminPage() {
 
       <main className="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-6">
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: "Total", value: combos.length },
-            { label: "Ativos", value: totalActive },
-            { label: "Destaque", value: totalFeatured },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="bg-white rounded-xl border border-border p-4"
-            >
-              <p className="text-xs text-muted-foreground">{s.label}</p>
-              <p className="text-xl font-bold text-foreground mt-1">{s.value}</p>
-            </div>
-          ))}
-        </div>
+        {!showForm && !editing && (
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Total", value: combos.length },
+              { label: "Ativos", value: totalActive },
+              { label: "Destaque", value: totalFeatured },
+            ].map((s) => (
+              <div
+                key={s.label}
+                className="bg-white rounded-xl border border-border p-4"
+              >
+                <p className="text-xs text-muted-foreground">{s.label}</p>
+                <p className="text-xl font-bold text-foreground mt-1">{s.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {!showForm && !editing && (
           <div className="flex justify-end">

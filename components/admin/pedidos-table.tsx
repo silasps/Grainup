@@ -37,7 +37,14 @@ export interface OrderRow {
   created_at: string;
   customer_name: string;
   shipping_address: Record<string, string> | null;
-  order_items: Array<{ id: string; title: string; quantity: number; books: { sku: string | null } | null }>;
+  order_items: Array<{
+    id: string;
+    title: string;
+    quantity: number;
+    combo_id: string | null;
+    books: { sku: string | null } | null;
+    combos: { combo_items: Array<{ books: { sku: string | null; title: string } | null }> } | null;
+  }>;
 }
 
 type SortEntry = { key: string; dir: "asc" | "desc" };
@@ -329,12 +336,32 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                           <span className="text-xs text-muted-foreground">—</span>
                         ) : (
                           <div>
-                            {items.slice(0, 4).map((item) => (
-                              <div key={item.id} className="flex items-baseline gap-2">
-                                <p className="text-xs text-muted-foreground whitespace-nowrap">{item.quantity}× {item.title}</p>
-                                {item.books?.sku && <p className="text-xs font-mono text-muted-foreground/70 whitespace-nowrap">{item.books.sku}</p>}
-                              </div>
-                            ))}
+                            {items.slice(0, 4).map((item) => {
+                              const isCombo = !!item.combo_id;
+                              const comboBooks = item.combos?.combo_items ?? [];
+                              return (
+                                <div key={item.id} className="mb-1">
+                                  <div className="flex items-baseline gap-1.5">
+                                    {isCombo && (
+                                      <span className="text-[9px] font-bold uppercase tracking-wide bg-violet-100 text-violet-700 rounded px-1 py-0.5 leading-none flex-shrink-0">Kit</span>
+                                    )}
+                                    <p className="text-xs text-muted-foreground whitespace-nowrap">{item.quantity}× {item.title}</p>
+                                    {!isCombo && item.books?.sku && <p className="text-xs font-mono text-muted-foreground/70 whitespace-nowrap">{item.books.sku}</p>}
+                                  </div>
+                                  {isCombo && comboBooks.length > 0 && (
+                                    <div className="ml-3 mt-0.5 space-y-0.5">
+                                      {comboBooks.map((ci, idx) => (
+                                        <div key={idx} className="flex items-baseline gap-1.5">
+                                          <span className="text-[10px] text-muted-foreground/60">└</span>
+                                          <p className="text-[11px] text-muted-foreground/80 whitespace-nowrap truncate max-w-[160px]">{ci.books?.title ?? "—"}</p>
+                                          {ci.books?.sku && <p className="text-[10px] font-mono text-muted-foreground/60 whitespace-nowrap">{ci.books.sku}</p>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                             {extraItems > 0 && <p className="text-xs text-muted-foreground">+{extraItems} mais</p>}
                           </div>
                         )}

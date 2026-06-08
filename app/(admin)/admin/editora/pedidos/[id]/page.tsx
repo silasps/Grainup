@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
+import { TrackingCodeForm } from "@/components/admin/tracking-code-form";
 
 export const metadata: Metadata = { title: "Detalhe do Pedido — Admin" };
 
@@ -30,16 +31,31 @@ const STATUS_COLORS: Record<string, string> = {
   cancelado: "bg-red-100 text-red-700 border-red-200",
 };
 
+interface ComboBookItem {
+  quantity: number;
+  books: {
+    title: string;
+    cover_url: string | null;
+    sku: string | null;
+  } | null;
+}
+
 interface OrderItem {
   id: string;
   quantity: number;
   unit_price: number;
   total_price: number;
   title: string;
+  book_id: string | null;
+  combo_id: string | null;
   books: {
     title: string;
     cover_url: string | null;
     sku: string | null;
+  } | null;
+  combos: {
+    name: string;
+    combo_items: ComboBookItem[];
   } | null;
 }
 
@@ -56,6 +72,7 @@ interface OrderDetail {
   customer_name: string;
   customer_email: string;
   shipping_address: Record<string, string> | null;
+  tracking_code: string | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItem[];
@@ -68,9 +85,9 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
     .select(
       `id, order_number, status, payment_status, payment_method,
        subtotal, discount, shipping_cost, total,
-       customer_name, customer_email, shipping_address,
+       customer_name, customer_email, shipping_address, tracking_code,
        created_at, updated_at,
-       order_items(id, quantity, unit_price, total_price, title, books(title, cover_url, sku))`
+       order_items(id, quantity, unit_price, total_price, title, book_id, combo_id, books(title, cover_url, sku), combos(name, combo_items(quantity, books(title, cover_url, sku))))`
     )
     .eq("id", id)
     .single();
@@ -114,29 +131,72 @@ export default async function AdminOrderDetailPage({
                 {(order.order_items ?? []).length === 0 ? (
                   <p className="px-5 py-4 text-sm text-muted-foreground">Sem itens registrados.</p>
                 ) : (
-                  (order.order_items ?? []).map((item) => (
-                    <div key={item.id} className="flex items-center gap-4 px-5 py-4">
-                      <div className="relative h-14 w-10 overflow-hidden rounded border border-border bg-secondary flex-shrink-0">
-                        {item.books?.cover_url ? (
-                          <Image
-                            src={item.books.cover_url}
-                            alt={item.books.title || item.title}
-                            fill
-                            sizes="40px"
-                            className="object-cover"
-                          />
-                        ) : null}
+                  (order.order_items ?? []).map((item) => {
+                    const isCombo = !!item.combo_id;
+                    const comboBooks = item.combos?.combo_items ?? [];
+                    return (
+                      <div key={item.id} className="px-5 py-4 space-y-3">
+                        {/* Linha principal do item */}
+                        <div className="flex items-center gap-4">
+                          <div className="relative h-14 w-10 overflow-hidden rounded border border-border bg-secondary flex-shrink-0">
+                            {item.books?.cover_url ? (
+                              <Image
+                                src={item.books.cover_url}
+                                alt={item.books.title || item.title}
+                                fill
+                                sizes="40px"
+                                className="object-cover"
+                              />
+                            ) : isCombo ? (
+                              <div className="flex items-center justify-center h-full text-[10px] text-muted-foreground font-medium leading-tight text-center p-1">KIT</div>
+                            ) : null}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">{item.title}</p>
+                              {isCombo && (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide bg-violet-100 text-violet-700 rounded px-1.5 py-0.5">Kit</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {item.quantity}x {formatCurrency(item.unit_price)}
+                              {item.books?.sku && <span className="ml-2 font-mono">SKU: {item.books.sku}</span>}
+                            </p>
+                          </div>
+                          <p className="font-semibold text-sm">{formatCurrency(item.total_price)}</p>
+                        </div>
+
+                        {/* Componentes do kit */}
+                        {isCombo && comboBooks.length > 0 && (
+                          <div className="ml-14 border-l-2 border-violet-200 pl-3 space-y-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Livros incluídos no kit</p>
+                            {comboBooks.map((ci, idx) => (
+                              <div key={idx} className="flex items-center gap-3">
+                                <div className="relative h-10 w-7 overflow-hidden rounded border border-border bg-secondary flex-shrink-0">
+                                  {ci.books?.cover_url && (
+                                    <Image
+                                      src={ci.books.cover_url}
+                                      alt={ci.books.title ?? ""}
+                                      fill
+                                      sizes="28px"
+                                      className="object-cover"
+                                    />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium truncate">{ci.books?.title ?? "—"}</p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Qtd: {ci.quantity * item.quantity}
+                                    {ci.books?.sku && <span className="ml-2 font-mono">SKU: {ci.books.sku}</span>}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{item.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.quantity}x {formatCurrency(item.unit_price)}
-                          {item.books?.sku && <span className="ml-2 font-mono">SKU: {item.books.sku}</span>}
-                        </p>
-                      </div>
-                      <p className="font-semibold text-sm">{formatCurrency(item.total_price)}</p>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
               {/* Totals */}
@@ -206,6 +266,9 @@ export default async function AdminOrderDetailPage({
                 </p>
               </div>
             )}
+
+            {/* Tracking code */}
+            <TrackingCodeForm orderId={order.id} initialCode={order.tracking_code} />
           </div>
         </div>
       </main>

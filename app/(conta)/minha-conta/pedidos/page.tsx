@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
-import { ShoppingBag, ChevronLeft } from "lucide-react";
+import { ShoppingBag, ChevronLeft, Truck } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = {
   aguardando_pagamento: "Aguardando pagamento",
@@ -33,7 +33,7 @@ export default async function MeusOrdensPage() {
 
   const { data: rawOrders } = await supabase
     .from("orders")
-    .select("id, order_number, status, total, created_at, order_items(id, title, quantity, books(title, cover_url))")
+    .select("id, order_number, status, total, tracking_code, created_at, order_items(id, title, quantity, books(title, cover_url))")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -42,6 +42,7 @@ export default async function MeusOrdensPage() {
     order_number: string;
     status: string;
     total: number;
+    tracking_code: string | null;
     created_at: string;
     order_items: Array<{
       id: string;
@@ -113,6 +114,14 @@ export default async function MeusOrdensPage() {
                     <p className="text-xs">+ {items.length - 1} item(ns)</p>
                   )}
                 </div>
+
+                {order.tracking_code && (
+                  <div className="flex items-center gap-1.5 mb-3 text-xs text-muted-foreground">
+                    <Truck className="h-3.5 w-3.5 shrink-0" />
+                    <span>Rastreio:</span>
+                    <span className="font-mono font-medium text-foreground">{order.tracking_code}</span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <p className="font-bold text-foreground">{formatCurrency(order.total)}</p>
