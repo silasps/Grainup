@@ -90,7 +90,7 @@ export function AfiliadoCTA({ label = "Quero participar", variant = "brand" }: P
           )}
 
           {/* Logado → formulário direto */}
-          {user && <AfiliadoForm />}
+          {user && <AfiliadoForm inline />}
         </DialogContent>
       </Dialog>
     </>

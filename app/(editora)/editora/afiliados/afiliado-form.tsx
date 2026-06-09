@@ -115,7 +115,7 @@ function applyPhoneMask(v: string) {
   return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").trim();
 }
 
-export function AfiliadoForm() {
+export function AfiliadoForm({ inline = false }: { inline?: boolean }) {
   const supabase = createClient();
   const [cpfDisplay, setCpfDisplay] = useState("");
   const [phoneDisplay, setPhoneDisplay] = useState("");
@@ -315,7 +315,7 @@ export function AfiliadoForm() {
       {!submitted && (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="bg-white rounded-2xl border border-border p-8 flex flex-col gap-5"
+      className={inline ? "flex flex-col gap-5" : "bg-white rounded-2xl border border-border p-8 flex flex-col gap-5"}
     >
       {/* Dados pessoais */}
       <div>
