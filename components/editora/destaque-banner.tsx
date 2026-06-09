@@ -23,7 +23,7 @@ function getYouTubeId(url: string): string | null {
 }
 
 // ── Slide padrão — hero claro editorial (padrão Penguin / H1 / Apple Books) ──
-function DefaultSlide() {
+function DefaultSlide({ covers }: { covers: { url: string; title: string }[] }) {
   return (
     <div className="absolute inset-0 bg-gradient-to-br from-[#F7F4EF] via-[#F2EFE9] to-brand-50 flex items-center">
       {/* Círculos decorativos de fundo */}
@@ -78,19 +78,37 @@ function DefaultSlide() {
             </div>
           </div>
 
-          {/* Grade de capas — decorativa */}
-          <div className="hidden lg:grid grid-cols-3 gap-3 py-6">
+          {/* Grade de capas reais */}
+          <div className="hidden lg:flex items-center justify-center gap-4 py-6">
             {[
-              { rotate: "-rotate-3", delay: "", top: "mt-6" },
-              { rotate: "rotate-1",  delay: "",  top: "" },
-              { rotate: "-rotate-2", delay: "",  top: "mt-10" },
-            ].map(({ rotate, top }, i) => (
-              <div key={i} className={`${top} ${rotate} transition-transform duration-500 hover:rotate-0 hover:scale-105`}>
-                <div className="aspect-[2/3] rounded-2xl bg-gradient-to-br from-brand-100 to-brand-200 shadow-[0_8px_24px_rgba(0,0,0,0.15)] overflow-hidden flex items-center justify-center">
-                  <span className="text-4xl opacity-30">📖</span>
+              { offset: "mt-8",  rotate: "-rotate-3" },
+              { offset: "",      rotate: "rotate-1"  },
+              { offset: "mt-12", rotate: "-rotate-2" },
+            ].map(({ offset, rotate }, i) => {
+              const cover = covers[i];
+              return (
+                <div
+                  key={i}
+                  className={`${offset} ${rotate} transition-all duration-500 hover:rotate-0 hover:scale-105 hover:-translate-y-2`}
+                >
+                  <div className="w-36 xl:w-44 aspect-[2/3] rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.18)] overflow-hidden bg-gradient-to-br from-brand-100 to-brand-200">
+                    {cover ? (
+                      <Image
+                        src={cover.url}
+                        alt={cover.title}
+                        fill
+                        className="object-cover"
+                        sizes="180px"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-3xl opacity-20">📖</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -152,7 +170,7 @@ function DestaqueSlide({ d, priority }: { d: Destaque; priority: boolean }) {
 }
 
 // ── Banner principal ──────────────────────────────────────────────────────────
-export function DestaqueBanner({ destaques }: { destaques: Destaque[] }) {
+export function DestaqueBanner({ destaques, heroCovers = [] }: { destaques: Destaque[]; heroCovers?: { url: string; title: string }[] }) {
   const total = destaques.length + 1; // +1 para o DefaultSlide
   const [current, setCurrent] = useState(0);
   const [dragDelta, setDragDelta] = useState(0); // px de arraste em tempo real
@@ -200,7 +218,7 @@ export function DestaqueBanner({ destaques }: { destaques: Destaque[] }) {
 
   return (
     <section
-      className="relative w-full overflow-hidden bg-black text-white touch-pan-y cursor-grab active:cursor-grabbing"
+      className="relative w-full overflow-hidden bg-[#F7F4EF] touch-pan-y cursor-grab active:cursor-grabbing"
       onMouseEnter={() => { paused.current = true; }}
       onMouseLeave={() => { paused.current = false; }}
       onPointerDown={onPointerDown}
@@ -222,7 +240,7 @@ export function DestaqueBanner({ destaques }: { destaques: Destaque[] }) {
         >
           {/* Slide 0: Default */}
           <div className="relative h-full flex-shrink-0" style={{ width: `${100 / total}%` }}>
-            <DefaultSlide />
+            <DefaultSlide covers={heroCovers} />
           </div>
 
           {/* Slides 1..n: Destaques */}

@@ -110,7 +110,13 @@ export default async function EditoraHomePage() {
   return (
     <div className="flex flex-col">
       {/* HERO + DESTAQUES (carrossel unificado) */}
-      <DestaqueBanner destaques={destaques} />
+      <DestaqueBanner
+        destaques={destaques}
+        heroCovers={[...featuredNorm, ...bestsellersNorm]
+          .filter(b => b.coverUrl)
+          .slice(0, 3)
+          .map(b => ({ url: b.coverUrl!, title: b.title }))}
+      />
 
       {/* DESTAQUES — prateleira horizontal */}
       {featuredNorm.length > 0 && (
