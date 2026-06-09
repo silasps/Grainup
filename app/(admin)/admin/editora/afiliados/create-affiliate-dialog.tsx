@@ -13,6 +13,40 @@ import { createAffiliateWithAccountAction } from "./actions";
 const TYPE_LABELS = { geral: "Parceiro Geral", jocum: "JOCUM", diretor: "Diretor Acadêmico" } as const;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://editorajocum.com.br";
 
+const DDI_OPTIONS = [
+  { flag: "🇧🇷", code: "+55" }, { flag: "🇵🇹", code: "+351" }, { flag: "🇺🇸", code: "+1" },
+  { flag: "🇦🇷", code: "+54" }, { flag: "🇲🇽", code: "+52" }, { flag: "🇨🇴", code: "+57" },
+  { flag: "🇵🇾", code: "+595" }, { flag: "🇬🇧", code: "+44" },
+];
+
+function applyPhoneMask(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 6) return `(${d.slice(0,2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+}
+function applyCpfMask(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0,3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`;
+  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
+}
+
+function PhoneField({ value, ddi, onDdiChange, onChange }: { value: string; ddi: string; onDdiChange: (d: string) => void; onChange: (v: string) => void }) {
+  return (
+    <div className="flex">
+      <select value={ddi} onChange={(e) => onDdiChange(e.target.value)}
+        className="h-10 w-24 shrink-0 rounded-l-md rounded-r-none border border-r-0 border-input bg-secondary/40 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand cursor-pointer">
+        {DDI_OPTIONS.map((o) => <option key={o.code} value={o.code}>{o.flag} {o.code}</option>)}
+      </select>
+      <Input value={value} onChange={(e) => onChange(ddi === "+55" ? applyPhoneMask(e.target.value) : e.target.value.replace(/\D/g,"").slice(0,15))}
+        placeholder="(41) 99999-9999" className="rounded-l-none flex-1" />
+    </div>
+  );
+}
+
 export function CreateAffiliateDialog({
   open, onOpenChange, onCreated,
 }: {
@@ -24,6 +58,9 @@ export function CreateAffiliateDialog({
   const [type, setType] = useState<"geral" | "jocum" | "diretor">("geral");
   const [requiresReview, setRequiresReview] = useState(false);
   const [done, setDone] = useState<{ name: string; email: string; phone: string; password: string; type: typeof type; code: string; accountCreated: boolean } | null>(null);
+  const [phoneDisplay, setPhoneDisplay] = useState("");
+  const [phoneDdi, setPhoneDdi] = useState("+55");
+  const [cpfDisplay, setCpfDisplay] = useState("");
 
   function buildWppMsg(d: typeof done) {
     if (!d) return "";
@@ -84,6 +121,7 @@ export function CreateAffiliateDialog({
     setDone(null);
     setType("geral");
     setRequiresReview(false);
+    setPhoneDisplay(""); setPhoneDdi("+55"); setCpfDisplay("");
     onOpenChange(false);
   }
 
@@ -147,11 +185,13 @@ export function CreateAffiliateDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Telefone / WhatsApp</Label>
-              <Input name="phone" required placeholder="(41) 99999-9999" />
+              <PhoneField value={phoneDisplay} ddi={phoneDdi} onDdiChange={setPhoneDdi} onChange={setPhoneDisplay} />
+              <input type="hidden" name="phone" value={`${phoneDdi} ${phoneDisplay}`} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>CPF</Label>
-              <Input name="cpf" required placeholder="000.000.000-00" />
+              <Input value={cpfDisplay} onChange={(e) => setCpfDisplay(applyCpfMask(e.target.value))} placeholder="000.000.000-00" required />
+              <input type="hidden" name="cpf" value={cpfDisplay} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Senha inicial</Label>
