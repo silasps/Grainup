@@ -28,11 +28,9 @@ interface HeroEyebrowProps {
 
 export function HeroEyebrow({ children, className, icon: Icon }: HeroEyebrowProps) {
   return (
-    <div className={cn("flex items-center gap-3 mb-4", className)}>
-      <span className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-brand-800 shadow-sm">
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="text-white/75 text-sm font-medium uppercase tracking-wider">
+    <div className={cn("mb-5", className)}>
+      <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-brand/70 bg-brand-50 border border-brand-100 px-3 py-1.5 rounded-full">
+        <Icon className="h-3.5 w-3.5 text-brand" />
         {children}
       </span>
     </div>

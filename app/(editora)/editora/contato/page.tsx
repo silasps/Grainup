@@ -18,11 +18,11 @@ export default async function ContatoPage() {
 
   return (
     <div>
-      <section className="bg-gradient-to-br from-foreground via-foreground/95 to-brand-800 text-white py-14">
+      <section className="bg-gradient-to-br from-[#F7F4EF] via-[#F2EFE9] to-brand-50 py-14">
         <div className="container mx-auto max-w-7xl px-4">
           <HeroEyebrow icon={Send}>Atendimento</HeroEyebrow>
-          <h1 className="font-heading text-3xl sm:text-4xl font-bold mb-3">Fale conosco</h1>
-          <p className="text-white/65 max-w-xl leading-relaxed">
+          <h1 className="font-heading text-3xl sm:text-4xl font-bold text-foreground mb-3">Fale conosco</h1>
+          <p className="text-muted-foreground max-w-xl leading-relaxed">
             Estamos aqui para ajudar. Envie sua mensagem e retornaremos em até 1 dia útil.
           </p>
         </div>

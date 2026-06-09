@@ -39,23 +39,23 @@ export default async function NovididadesPage() {
   return (
     <div>
       {/* Hero — mesmo padrão da home */}
-      <section className="bg-gradient-to-br from-foreground via-foreground/95 to-brand-800 text-white py-14">
+      <section className="bg-gradient-to-br from-[#F7F4EF] via-[#F2EFE9] to-brand-50 py-14">
         <div className="container mx-auto max-w-7xl px-4">
           <HeroEyebrow icon={Sparkles}>Lançamentos</HeroEyebrow>
-          <h1 className="font-heading text-3xl sm:text-4xl font-bold mb-3">
+          <h1 className="font-heading text-3xl sm:text-4xl font-bold text-foreground mb-3">
             Novidades
           </h1>
-          <p className="text-white/65 max-w-xl leading-relaxed">
+          <p className="text-muted-foreground max-w-xl leading-relaxed">
             Os títulos mais recentes da Editora Jocum. Sempre chegando novos livros para a sua jornada de fé.
           </p>
         </div>
       </section>
 
       {/* Barra de benefício */}
-      <section className="bg-brand text-white py-3">
+      <section className="bg-[#F7F4EF] border-y border-border py-3">
         <div className="container mx-auto max-w-7xl px-4 flex items-center justify-center gap-2 text-sm">
-          <Sparkles className="h-4 w-4 shrink-0" />
-          <span>Títulos recém chegados — <strong>fique por dentro dos lançamentos.</strong></span>
+          <Sparkles className="h-4 w-4 shrink-0 text-brand" />
+          <span className="text-sm text-muted-foreground">Títulos recém chegados — <strong>fique por dentro dos lançamentos.</strong></span>
         </div>
       </section>
 

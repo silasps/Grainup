@@ -91,22 +91,22 @@ export default async function CombosPage() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-br from-foreground via-foreground/95 to-brand-800 text-white py-14">
+      <section className="bg-gradient-to-br from-[#F7F4EF] via-[#F2EFE9] to-brand-50 py-14">
         <div className="container mx-auto max-w-7xl px-4">
           <HeroEyebrow icon={Gift}>Kits e Combos</HeroEyebrow>
-          <h1 className="font-heading text-3xl sm:text-4xl font-bold mb-3">
+          <h1 className="font-heading text-3xl sm:text-4xl font-bold text-foreground mb-3">
             Combos especiais
           </h1>
-          <p className="text-white/65 max-w-xl leading-relaxed">
+          <p className="text-muted-foreground max-w-xl leading-relaxed">
             Kits temáticos com preço especial para você montar sua coleção e economizar.
           </p>
         </div>
       </section>
 
       {/* Barra de benefício */}
-      <section className="bg-brand text-white py-3">
-        <div className="container mx-auto max-w-7xl px-4 flex items-center justify-center gap-2 text-sm">
-          <Gift className="h-4 w-4 shrink-0" />
+      <section className="bg-[#F7F4EF] border-y border-border py-3">
+        <div className="container mx-auto max-w-7xl px-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Gift className="h-4 w-4 shrink-0 text-brand" />
           <span>Monte seu combo e economize comprando em kit.</span>
         </div>
       </section>
