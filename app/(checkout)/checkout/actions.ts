@@ -283,21 +283,21 @@ export async function createMpPixPaymentAction(input: {
       ? (process.env.MERCADOPAGO_TEST_CPF ?? "12345678909")
       : input.customerCpf;
 
-    const result = await paymentClient.create({
-      body: {
-        transaction_amount: Math.round(input.amount * 100) / 100,
-        description: `Pedido ${input.orderNumber} - Editora JOCUM`,
-        payment_method_id: "pix",
-        payer: {
-          email: payerEmail,
-          first_name: firstName,
-          last_name: rest.join(" ") || firstName,
-          identification: { type: "CPF", number: payerCpf },
-        },
-        external_reference: input.orderId,
-        ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mp-webhook` }),
+    const pixBody = {
+      transaction_amount: Math.round(input.amount * 100) / 100,
+      description: `Pedido ${input.orderNumber} - Editora JOCUM`,
+      payment_method_id: "pix",
+      payer: {
+        email: payerEmail,
+        first_name: firstName,
+        last_name: rest.join(" ") || firstName,
+        identification: { type: "CPF", number: payerCpf },
       },
-    });
+      external_reference: input.orderId,
+      ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mp-webhook` }),
+    };
+    console.log("PIX payload:", JSON.stringify(pixBody));
+    const result = await paymentClient.create({ body: pixBody });
 
     const qrCode = result.point_of_interaction?.transaction_data?.qr_code ?? null;
     const qrCodeBase64 = result.point_of_interaction?.transaction_data?.qr_code_base64 ?? null;
