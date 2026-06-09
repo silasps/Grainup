@@ -61,7 +61,7 @@ function PhoneWithDdi({
         <select
           value={ddi}
           onChange={(e) => onDdiChange(e.target.value)}
-          className="h-10 rounded-l-md rounded-r-none border border-r-0 border-input bg-secondary/40 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand cursor-pointer"
+          className="h-10 w-24 shrink-0 rounded-l-md rounded-r-none border border-r-0 border-input bg-secondary/40 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand cursor-pointer"
           aria-label="DDI"
         >
           {DDI_OPTIONS.map((opt) => (
