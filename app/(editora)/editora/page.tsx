@@ -115,7 +115,7 @@ export default async function EditoraHomePage() {
         heroCovers={[...featuredNorm, ...bestsellersNorm]
           .filter(b => b.coverUrl)
           .slice(0, 3)
-          .map(b => ({ url: b.coverUrl!, title: b.title }))}
+          .map(b => ({ url: b.coverUrl!, title: b.title, slug: b.slug }))}
       />
 
       {/* DESTAQUES — prateleira horizontal */}
