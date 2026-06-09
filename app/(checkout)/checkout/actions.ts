@@ -278,6 +278,10 @@ export async function createMpPixPaymentAction(input: {
     const payerEmail = isTestMode()
       ? await getSandboxPayerEmail()
       : input.customerEmail;
+    // No sandbox o CPF precisa ser um valor de teste aceito pelo MP
+    const payerCpf = isTestMode()
+      ? (process.env.MERCADOPAGO_TEST_CPF ?? "12345678909")
+      : input.customerCpf;
 
     const result = await paymentClient.create({
       body: {
@@ -288,7 +292,7 @@ export async function createMpPixPaymentAction(input: {
           email: payerEmail,
           first_name: firstName,
           last_name: rest.join(" ") || firstName,
-          identification: { type: "CPF", number: input.customerCpf },
+          identification: { type: "CPF", number: payerCpf },
         },
         external_reference: input.orderId,
         ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mp-webhook` }),
@@ -331,6 +335,9 @@ export async function createMpCardPaymentAction(input: {
     const payerEmail = isTestMode()
       ? await getSandboxPayerEmail()
       : input.customerEmail;
+    const payerCpf = isTestMode()
+      ? (process.env.MERCADOPAGO_TEST_CPF ?? "12345678909")
+      : input.customerCpf;
     const result = await paymentClient.create({
       body: {
         transaction_amount: Math.round(input.amount * 100) / 100,
@@ -343,7 +350,7 @@ export async function createMpCardPaymentAction(input: {
           email: payerEmail,
           first_name: firstName,
           last_name: rest.join(" ") || firstName,
-          identification: { type: "CPF", number: input.customerCpf },
+          identification: { type: "CPF", number: payerCpf },
         },
         external_reference: input.orderId,
         ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mp-webhook` }),
