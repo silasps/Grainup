@@ -34,6 +34,7 @@ export async function proxy(request: NextRequest) {
   if (
     isPublic ||
     pathname.startsWith("/editora") ||
+    pathname.startsWith("/r/") ||
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/afiliados/inscricao") ||
     (pathname.startsWith("/afiliados") && !AFILIADO_PAINEL.test(pathname))
