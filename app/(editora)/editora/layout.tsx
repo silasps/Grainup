@@ -24,7 +24,7 @@ function roleToAdminArea(role: string): AdminArea | null {
   if (role === "super_admin" || role === "admin_editora") return { href: "/admin/editora", label: "Painel Admin" };
   if (role === "admin_ead") return { href: "/admin/ead", label: "Painel EAD" };
   if (role === "admin_eifol") return { href: "/admin/eifol", label: "Painel EIFOL" };
-  if (role === "afiliado_jocum" || role === "afiliado_diretor" || role === "lider_jocum") return { href: "/afiliados/painel", label: "Área de Afiliado" };
+  if (role === "afiliado_jocum" || role === "afiliado_diretor" || role === "afiliado_geral" || role === "lider_jocum") return { href: "/afiliados/painel", label: "Área de Afiliado" };
   return null;
 }
 
