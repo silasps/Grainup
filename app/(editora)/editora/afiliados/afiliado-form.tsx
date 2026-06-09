@@ -410,25 +410,30 @@ export function AfiliadoForm({ inline = false }: { inline?: boolean }) {
               <Label htmlFor="serving_location">Local de serviço / Base JOCUM</Label>
               <Input id="serving_location" placeholder="Ex: Base JOCUM Curitiba" {...register("serving_location")} />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="leader_name">Nome do seu líder direto</Label>
-              <Input id="leader_name" placeholder="Nome do líder" {...register("leader_name")} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="leader_email">E-mail do líder</Label>
-              <Input id="leader_email" type="email" placeholder="lider@jocum.org.br" {...register("leader_email")} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="leader_phone">Telefone do líder</Label>
-              <PhoneWithDdi
-                id="leader_phone"
-                placeholder="(00) 00000-0000"
-                display={leaderPhoneDisplay}
-                ddi={leaderPhoneDdi}
-                onDdiChange={setLeaderPhoneDdi}
-                onPhoneChange={(display, value) => { setLeaderPhoneDisplay(display); setValue("leader_phone", value); }}
-              />
-            </div>
+            {/* Campos de líder só para tipo jocum */}
+            {typeValue === "jocum" && (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="leader_name">Nome do seu líder direto</Label>
+                  <Input id="leader_name" placeholder="Nome do líder" {...register("leader_name")} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="leader_email">E-mail do líder</Label>
+                  <Input id="leader_email" type="email" placeholder="lider@jocum.org.br" {...register("leader_email")} />
+                </div>
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <Label htmlFor="leader_phone">Telefone do líder</Label>
+                  <PhoneWithDdi
+                    id="leader_phone"
+                    placeholder="(00) 00000-0000"
+                    display={leaderPhoneDisplay}
+                    ddi={leaderPhoneDdi}
+                    onDdiChange={setLeaderPhoneDdi}
+                    onPhoneChange={(display, value) => { setLeaderPhoneDisplay(display); setValue("leader_phone", value); }}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

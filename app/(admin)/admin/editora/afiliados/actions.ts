@@ -23,6 +23,69 @@ interface CreateAffiliateInput {
   requires_review: boolean;
 }
 
+export async function createAffiliateWithAccountAction(input: CreateAffiliateInput & { password: string }) {
+  const supabase = await createAdminClient();
+  const now = new Date();
+
+  // Cria ou busca usuário no auth
+  const { data: { users } } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  const existing = users.find((u) => u.email === input.email);
+  let userId: string;
+  let accountCreated = false;
+
+  if (!existing) {
+    const { data: au, error: ae } = await supabase.auth.admin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: { full_name: input.name },
+    });
+    if (ae || !au.user) throw new Error(ae?.message ?? "Erro ao criar conta");
+    userId = au.user.id;
+    accountCreated = true;
+  } else {
+    userId = existing.id;
+  }
+
+  const role = input.type === "jocum" ? "afiliado_jocum"
+             : input.type === "diretor" ? "afiliado_diretor"
+             : "afiliado_geral";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("user_roles").upsert(
+    { user_id: userId, role },
+    { onConflict: "user_id,role" }
+  );
+
+  const payload = {
+    user_id: userId,
+    type: input.type,
+    name: input.name,
+    email: input.email,
+    cpf: input.cpf.replace(/\D/g, ""),
+    phone: input.phone.replace(/\D/g, ""),
+    status: "ativo" as const,
+    commission_rate: input.type === "geral" ? 30 : input.commission_rate,
+    serving_location: input.serving_location || null,
+    leader_name: input.leader_name || null,
+    leader_email: input.leader_email || null,
+    leader_phone: null,
+    last_confirmed_at: now.toISOString(),
+    requires_review: input.requires_review,
+    next_review_at: input.requires_review ? addMonths(now, 6).toISOString() : null,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: affiliate, error } = await (supabase as any)
+    .from("affiliates").insert(payload).select().single();
+  if (error) throw new Error(error.message);
+
+  const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+  await supabase.from("affiliate_links").insert({ affiliate_id: affiliate.id, book_id: null, code });
+
+  return { affiliate, code, accountCreated };
+}
+
 export async function createAffiliateAction(input: CreateAffiliateInput) {
   const supabase = await createAdminClient();
   const now = new Date();
