@@ -418,7 +418,7 @@ export function AfiliadoForm({ inline = false }: { inline?: boolean }) {
       </div>
 
       {/* Dados JOCUM/Diretor (só para não-geral) */}
-      {typeValue && typeValue !== "geral" && (
+      {typeValue && typeValue === "jocum" && (
         <div>
           <h3 className="font-semibold text-foreground mb-4 text-sm uppercase tracking-wide text-muted-foreground">
             Contexto na JOCUM
