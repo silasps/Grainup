@@ -16,11 +16,11 @@ import { createClient } from "@/lib/supabase/client";
 import { getMyRole } from "@/lib/actions/get-my-role";
 import type { UserRole } from "@/types/database";
 
-function roleToAdminArea(role: UserRole): { href: string; label: string } | null {
+function roleToAdminArea(role: UserRole | string): { href: string; label: string } | null {
   if (role === "super_admin" || role === "admin_editora") return { href: "/admin/editora", label: "Painel Admin" };
   if (role === "admin_ead") return { href: "/admin/ead", label: "Painel EAD" };
   if (role === "admin_eifol") return { href: "/admin/eifol", label: "Painel EIFOL" };
-  if (role === "afiliado_jocum" || role === "afiliado_diretor" || role === "lider_jocum") return { href: "/afiliados/painel", label: "Área de Afiliado" };
+  if (role === "afiliado_jocum" || role === "afiliado_diretor" || role === "afiliado_geral" || role === "lider_jocum") return { href: "/afiliados/painel", label: "Área de Afiliado" };
   return null;
 }
 
@@ -62,11 +62,11 @@ function LoginForm() {
     }
 
     const userId = authData.user?.id;
-    if (userId && redirectTo === "/editora") {
+    if (userId) {
       const role = await getMyRole(userId);
       if (role) {
         const area = roleToAdminArea(role);
-        if (area) {
+        if (area && (redirectTo === "/editora" || redirectTo.includes("afiliados"))) {
           setIsPending(false);
           setAreaCard(area);
           return;
