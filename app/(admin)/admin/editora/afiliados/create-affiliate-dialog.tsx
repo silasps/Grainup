@@ -36,13 +36,14 @@ function applyCpfMask(v: string) {
 
 function PhoneField({ value, ddi, onDdiChange, onChange }: { value: string; ddi: string; onDdiChange: (d: string) => void; onChange: (v: string) => void }) {
   return (
-    <div className="flex">
+    <div className="flex h-10 rounded-md border border-input focus-within:ring-1 focus-within:ring-ring overflow-hidden">
       <select value={ddi} onChange={(e) => onDdiChange(e.target.value)}
-        className="h-10 w-24 shrink-0 rounded-l-md rounded-r-none border border-r-0 border-input bg-secondary/40 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand cursor-pointer">
+        className="shrink-0 border-0 border-r border-input bg-secondary/40 px-2 text-sm focus:outline-none cursor-pointer">
         {DDI_OPTIONS.map((o) => <option key={o.code} value={o.code}>{o.flag} {o.code}</option>)}
       </select>
-      <Input value={value} onChange={(e) => onChange(ddi === "+55" ? applyPhoneMask(e.target.value) : e.target.value.replace(/\D/g,"").slice(0,15))}
-        placeholder="(41) 99999-9999" className="rounded-l-none flex-1" />
+      <input value={value} onChange={(e) => onChange(ddi === "+55" ? applyPhoneMask(e.target.value) : e.target.value.replace(/\D/g,"").slice(0,15))}
+        placeholder="(41) 99999-9999"
+        className="flex-1 border-0 bg-transparent px-3 text-sm focus:outline-none placeholder:text-muted-foreground" />
     </div>
   );
 }
