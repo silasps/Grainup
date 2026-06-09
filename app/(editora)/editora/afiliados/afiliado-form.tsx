@@ -125,15 +125,28 @@ export function AfiliadoForm({ inline = false }: { inline?: boolean }) {
   const [submitted, setSubmitted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [isJocum, setIsJocum] = useState(false);
-  const [authUser, setAuthUser] = useState<User | null | undefined>(undefined); // undefined = carregando
+  const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
+  const [profile, setProfile] = useState<{ full_name: string | null; phone: string | null; cpf: string | null } | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      setAuthUser(user);
+      if (user) {
+        const { data: p } = await supabase.from("profiles").select("full_name, phone, cpf").eq("user_id", user.id).maybeSingle();
+        setProfile(p ?? null);
+        // Pré-preenche campos do form com dados da conta
+        setValue("name", p?.full_name || user.user_metadata?.full_name as string || "");
+        setValue("email", user.email || "");
+        if (p?.cpf) { const m = applyCpfMask(p.cpf); setCpfDisplay(m); setValue("cpf", m); }
+        if (p?.phone) { const m = applyPhoneMask(p.phone); setPhoneDisplay(m); setValue("phone", `+55 ${m}`); }
+      }
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthUser(session?.user ?? null);
     });
     return () => subscription.unsubscribe();
-  }, [supabase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } =
     useForm<FormData>({ resolver: zodResolver(schema) });
@@ -317,51 +330,56 @@ export function AfiliadoForm({ inline = false }: { inline?: boolean }) {
       onSubmit={handleSubmit(onSubmit)}
       className={inline ? "flex flex-col gap-5" : "bg-white rounded-2xl border border-border p-8 flex flex-col gap-5"}
     >
-      {/* Dados pessoais */}
+      {/* Dados pessoais — mostra apenas o que falta */}
       <div>
-        <h3 className="font-semibold text-foreground mb-4 text-sm uppercase tracking-wide text-muted-foreground">
-          Dados pessoais
-        </h3>
+        {/* Chip mostrando conta identificada */}
+        {authUser && (
+          <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-brand-50 border border-brand-100 rounded-lg text-sm text-brand-700">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>Conta: <strong>{authUser.email}</strong></span>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Nome — sempre mostra (pode precisar corrigir) */}
           <div className="sm:col-span-2 flex flex-col gap-1.5">
             <Label htmlFor="name">Nome completo</Label>
             <Input id="name" placeholder="Seu nome" {...register("name")} />
             {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
           </div>
+          {/* Email — hidden, vem do auth */}
+          <input type="hidden" {...register("email")} />
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">E-mail</Label>
-            <Input id="email" type="email" placeholder="seu@email.com" {...register("email")} />
-            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-          </div>
+          {/* Telefone — só mostra se não tiver no perfil */}
+          {!profile?.phone && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="phone">Telefone / WhatsApp</Label>
+              <PhoneWithDdi
+                id="phone"
+                placeholder="(00) 00000-0000"
+                display={phoneDisplay}
+                ddi={phoneDdi}
+                onDdiChange={setPhoneDdi}
+                onPhoneChange={(display, value) => { setPhoneDisplay(display); setValue("phone", value); }}
+                error={errors.phone?.message}
+              />
+            </div>
+          )}
+          {profile?.phone && <input type="hidden" {...register("phone")} />}
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="phone">Telefone / WhatsApp</Label>
-            <PhoneWithDdi
-              id="phone"
-              placeholder="(00) 00000-0000"
-              display={phoneDisplay}
-              ddi={phoneDdi}
-              onDdiChange={setPhoneDdi}
-              onPhoneChange={(display, value) => { setPhoneDisplay(display); setValue("phone", value); }}
-              error={errors.phone?.message}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="cpf">CPF</Label>
-            <Input
-              id="cpf"
-              value={cpfDisplay}
-              onChange={(e) => {
-                const masked = applyCpfMask(e.target.value);
-                setCpfDisplay(masked);
-                setValue("cpf", masked);
-              }}
-              placeholder="000.000.000-00"
-            />
-            {errors.cpf && <p className="text-xs text-destructive">{errors.cpf.message}</p>}
-          </div>
+          {/* CPF — só mostra se não tiver no perfil */}
+          {!profile?.cpf && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="cpf">CPF</Label>
+              <Input
+                id="cpf"
+                value={cpfDisplay}
+                onChange={(e) => { const m = applyCpfMask(e.target.value); setCpfDisplay(m); setValue("cpf", m); }}
+                placeholder="000.000.000-00"
+              />
+              {errors.cpf && <p className="text-xs text-destructive">{errors.cpf.message}</p>}
+            </div>
+          )}
+          {profile?.cpf && <input type="hidden" {...register("cpf")} />}
 
           <div className="sm:col-span-2 flex flex-col gap-1.5">
             <Label>Tipo de participação</Label>

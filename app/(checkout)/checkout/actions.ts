@@ -304,8 +304,12 @@ export async function createMpPixPaymentAction(input: {
     return { error: null, qrCode, qrCodeBase64 };
   } catch (err: unknown) {
     const e = err as Record<string, unknown>;
-    console.error("createMpPixPaymentAction:", JSON.stringify(e, Object.getOwnPropertyNames(e)));
-    return { error: "Erro ao gerar o PIX. Tente novamente." };
+    const detail = JSON.stringify(e, Object.getOwnPropertyNames(e));
+    console.error("createMpPixPaymentAction:", detail);
+    // Extrai mensagem do MP se disponível
+    const mpMsg = (e?.message as string) || (e?.cause as { message?: string })?.message || "";
+    const userMsg = mpMsg ? `PIX: ${mpMsg}` : "Erro ao gerar o PIX. Tente novamente.";
+    return { error: userMsg };
   }
 }
 
