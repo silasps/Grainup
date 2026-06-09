@@ -128,7 +128,7 @@ export function CreateAffiliateDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-lg sm:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{done ? "Afiliado criado!" : "Criar afiliado"}</DialogTitle>
         </DialogHeader>
@@ -175,11 +175,13 @@ export function CreateAffiliateDialog({
 
         /* ── Formulário ── */
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-1">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 flex flex-col gap-1.5">
-              <Label>Nome completo</Label>
-              <Input name="name" required placeholder="Nome completo" />
-            </div>
+          {/* Nome */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Nome completo</Label>
+            <Input name="name" required placeholder="Nome completo" />
+          </div>
+          {/* Email + Telefone */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>E-mail</Label>
               <Input name="email" type="email" required placeholder="email@exemplo.com" />
@@ -189,6 +191,9 @@ export function CreateAffiliateDialog({
               <PhoneField value={phoneDisplay} ddi={phoneDdi} onDdiChange={setPhoneDdi} onChange={setPhoneDisplay} />
               <input type="hidden" name="phone" value={`${phoneDdi} ${phoneDisplay}`} />
             </div>
+          </div>
+          {/* CPF + Senha */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>CPF</Label>
               <Input value={cpfDisplay} onChange={(e) => setCpfDisplay(applyCpfMask(e.target.value))} placeholder="000.000.000-00" required />

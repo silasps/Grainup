@@ -231,7 +231,7 @@ export function FeedbackTable({
         onOpenChange={(open) => { if (!open) setSelectedIndex(null); }}
       >
         {selected && (
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="w-full sm:max-w-xl">
             <DialogHeader>
               <div className="flex items-center justify-between pr-8">
                 <DialogTitle className="text-sm font-mono text-muted-foreground truncate max-w-[280px]">

@@ -160,7 +160,7 @@ function ImportLeadsDialog({ open, onOpenChange }: { open: boolean; onOpenChange
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="w-full sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Importar Leads</DialogTitle>
         </DialogHeader>

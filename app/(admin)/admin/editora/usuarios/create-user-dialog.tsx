@@ -75,7 +75,7 @@ export function CreateUserDialog({ isSuperAdmin }: { isSuperAdmin: boolean }) {
         <UserPlus className="h-4 w-4" />
         Novo usuário
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-full sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Criar novo usuário</DialogTitle>
         </DialogHeader>
@@ -92,57 +92,61 @@ export function CreateUserDialog({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               autoComplete="off"
             />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">E-mail *</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={handleChange}
-              required
-              placeholder="joao@exemplo.com"
-              autoComplete="off"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email">E-mail *</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={handleChange}
+                required
+                placeholder="joao@exemplo.com"
+                autoComplete="off"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="password">Senha *</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                value={form.password}
+                onChange={handleChange}
+                required
+                minLength={6}
+                placeholder="Mínimo 6 caracteres"
+                autoComplete="new-password"
+              />
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Senha *</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={handleChange}
-              required
-              minLength={6}
-              placeholder="Mínimo 6 caracteres"
-              autoComplete="new-password"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Telefone</Label>
-            <PhoneInput
-              value={phoneLocal}
-              countryCode={phoneCountry}
-              onChange={setPhoneLocal}
-              onCountryChange={setPhoneCountry}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="role">Papel</Label>
-            <select
-              id="role"
-              name="role"
-              value={form.role}
-              onChange={handleChange}
-              className="h-10 rounded-md border border-border bg-white pl-3 pr-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand cursor-pointer"
-            >
-              {availableRoles.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label>Telefone</Label>
+              <PhoneInput
+                value={phoneLocal}
+                countryCode={phoneCountry}
+                onChange={setPhoneLocal}
+                onCountryChange={setPhoneCountry}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="role">Papel</Label>
+              <select
+                id="role"
+                name="role"
+                value={form.role}
+                onChange={handleChange}
+                className="h-10 rounded-md border border-border bg-white pl-3 pr-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand cursor-pointer"
+              >
+                {availableRoles.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           {error && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
