@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,7 +32,6 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/editora";
   const [showPassword, setShowPassword] = useState(false);
@@ -74,8 +73,7 @@ function LoginForm() {
       }
     }
 
-    router.push(redirectTo);
-    router.refresh();
+    window.location.href = redirectTo;
   }
 
   function signInWithGoogle() {
@@ -93,7 +91,7 @@ function LoginForm() {
           </div>
           <div className="flex flex-col gap-3">
             <button
-              onClick={() => { router.push("/editora"); router.refresh(); }}
+              onClick={() => { window.location.href = "/editora"; }}
               className="flex items-center gap-4 p-4 rounded-xl border border-border hover:border-brand hover:bg-brand/5 transition-colors text-left group"
             >
               <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg bg-secondary group-hover:bg-brand/10 transition-colors">
@@ -107,7 +105,7 @@ function LoginForm() {
             </button>
 
             <button
-              onClick={() => { router.push(areaCard.href); router.refresh(); }}
+              onClick={() => { window.location.href = areaCard.href; }}
               className="flex items-center gap-4 p-4 rounded-xl border border-brand-100 bg-brand-50 hover:bg-brand-100 transition-colors text-left group"
             >
               <div className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 group-hover:bg-brand-200 transition-colors">
