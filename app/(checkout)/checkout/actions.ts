@@ -23,19 +23,9 @@ function isPublicUrl() {
 // usuário de teste. O MERCADOPAGO_TEST_BUYER_EMAIL pode ser configurado manualmente;
 // caso não esteja, busca o email da conta registrada no MP.
 async function getSandboxPayerEmail(): Promise<string> {
-  if (process.env.MERCADOPAGO_TEST_BUYER_EMAIL) {
-    return process.env.MERCADOPAGO_TEST_BUYER_EMAIL;
-  }
-  try {
-    const res = await fetch("https://api.mercadopago.com/users/me", {
-      headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
-    });
-    if (!res.ok) return "test@testuser.com";
-    const data = await res.json() as { email?: string };
-    return data.email ?? "test@testuser.com";
-  } catch {
-    return "test@testuser.com";
-  }
+  // O pagador no sandbox NÃO pode ser o mesmo email do vendedor.
+  // Use a variável MERCADOPAGO_TEST_BUYER_EMAIL com um usuário de teste comprador.
+  return process.env.MERCADOPAGO_TEST_BUYER_EMAIL ?? "test_user_123456789@testuser.com";
 }
 
 interface OrderItem {
