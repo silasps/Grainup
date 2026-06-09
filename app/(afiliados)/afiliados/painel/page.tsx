@@ -130,12 +130,13 @@ export default async function PainelAfiliadoPage() {
       .eq("affiliate_id", affiliate.id)
       .order("created_at", { ascending: false })
       .limit(20),
-    supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
       .from("affiliate_sales")
-      .select("id, commission_amount, commission_rate, status, created_at, order_id")
+      .select("id, commission_amount, commission_rate, status, created_at, order_id, orders(order_items(title, quantity, unit_price))")
       .eq("affiliate_id", affiliate.id)
       .order("created_at", { ascending: false })
-      .limit(10),
+      .limit(100) as Promise<{ data: Array<{ id: string; commission_amount: number; commission_rate: number; status: string; created_at: string; order_id: string; orders: { order_items: Array<{ title: string; quantity: number; unit_price: number }> } | null }> | null }>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("affiliate_coupons")
@@ -153,6 +154,26 @@ export default async function PainelAfiliadoPage() {
   const StatusIcon = status.icon;
   const totalClicks = links?.reduce((acc, l) => acc + l.clicks, 0) ?? 0;
   const totalSales = sales?.length ?? 0;
+
+  // Agrupa livros vendidos por título
+  type BookStat = { title: string; qty: number; commission: number; statuses: Record<string, number> };
+  const bookStats = new Map<string, BookStat>();
+  for (const sale of sales ?? []) {
+    const items = sale.orders?.order_items ?? [];
+    const commissionPerUnit = items.length > 0 ? sale.commission_amount / items.reduce((s, i) => s + i.quantity, 0) : 0;
+    for (const item of items) {
+      const existing = bookStats.get(item.title);
+      const comm = commissionPerUnit * item.quantity;
+      if (existing) {
+        existing.qty += item.quantity;
+        existing.commission += comm;
+        existing.statuses[sale.status] = (existing.statuses[sale.status] ?? 0) + 1;
+      } else {
+        bookStats.set(item.title, { title: item.title, qty: item.quantity, commission: comm, statuses: { [sale.status]: 1 } });
+      }
+    }
+  }
+  const bookList = Array.from(bookStats.values()).sort((a, b) => b.commission - a.commission);
   const isActive = affiliate.status === "ativo";
 
   const confirmedSales = (affiliate as { total_confirmed_sales?: number }).total_confirmed_sales ?? 0;
@@ -399,6 +420,54 @@ export default async function PainelAfiliadoPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Livros vendidos */}
+      {isActive && bookList.length > 0 && (
+        <Card id="livros" className="bg-white border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+              Livros vendidos
+            </CardTitle>
+          </CardHeader>
+          <Separator />
+          <CardContent className="pt-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-2 text-xs text-muted-foreground font-medium">Livro</th>
+                    <th className="text-center py-3 px-2 text-xs text-muted-foreground font-medium">Qtd</th>
+                    <th className="text-right py-3 px-2 text-xs text-muted-foreground font-medium">Comissão recebida</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bookList.map((book) => (
+                    <tr key={book.title} className="border-b border-border last:border-0 hover:bg-secondary/30 transition-colors">
+                      <td className="py-3 px-2 font-medium text-foreground">{book.title}</td>
+                      <td className="py-3 px-2 text-center text-muted-foreground">{book.qty}</td>
+                      <td className="py-3 px-2 text-right font-semibold text-brand">
+                        {formatBRL(book.commission)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-secondary/30">
+                    <td className="py-2 px-2 text-xs font-semibold text-muted-foreground">Total</td>
+                    <td className="py-2 px-2 text-center text-xs font-semibold text-muted-foreground">
+                      {bookList.reduce((s, b) => s + b.qty, 0)}
+                    </td>
+                    <td className="py-2 px-2 text-right text-xs font-semibold text-brand">
+                      {formatBRL(bookList.reduce((s, b) => s + b.commission, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tier card — afiliado geral */}
       {isActive && isGeral && tier && (

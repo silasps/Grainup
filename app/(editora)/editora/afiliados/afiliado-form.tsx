@@ -369,7 +369,7 @@ export function AfiliadoForm({ inline = false }: { inline?: boolean }) {
               {[
                 { value: "geral", label: "Parceiro Geral", desc: "Qualquer pessoa — margem de 30% a 50% conforme vendas" },
                 { value: "jocum", label: "Colaborador JOCUM", desc: "Membro ou voluntário da JOCUM — 50% fixo" },
-                { value: "diretor", label: "Diretor de Treinamento", desc: "Diretor de treinamento JOCUM — 50% fixo" },
+                { value: "diretor", label: "Diretor Acadêmico", desc: "Diretor acadêmico JOCUM — 50% fixo" },
               ].map((opt) => (
                 <label
                   key={opt.value}

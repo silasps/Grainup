@@ -84,7 +84,7 @@ export function CreateAffiliateDialog({
               {([
                 { v: "geral",   l: "Parceiro Geral" },
                 { v: "jocum",   l: "JOCUM" },
-                { v: "diretor", l: "Diretor de Treinamento" },
+                { v: "diretor", l: "Diretor Acadêmico" },
               ] as const).map(({ v, l }) => (
                 <label key={v} className={`flex-1 border rounded-lg px-3 py-2 text-sm cursor-pointer text-center transition-colors min-w-[120px] ${type === v ? "border-brand bg-brand-50 text-brand font-medium" : "border-border text-muted-foreground"}`}>
                   <input type="radio" className="sr-only" checked={type === v} onChange={() => { setType(v); setRequiresReview(v === "jocum"); }} />

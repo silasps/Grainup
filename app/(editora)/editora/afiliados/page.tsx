@@ -132,8 +132,8 @@ const TIPOS_AFILIADO = [
     destaque: true,
   },
   {
-    tipo: "Diretor de Treinamento",
-    quem: "Diretores de treinamento",
+    tipo: "Diretor Acadêmico",
+    quem: "Diretores acadêmicos",
     margem: "50% fixo",
     desc: "Margem máxima desde o início, sem progressão de tier.",
     destaque: false,

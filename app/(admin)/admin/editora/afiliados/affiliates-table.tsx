@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useTransition } from "react";
+import React, { useState, useMemo, useTransition, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { formatCurrency } from "@/lib/utils/format";
 import {
   Search, X, CheckCircle, Ban, ChevronDown, ChevronUp,
   Mail, Phone, MapPin, Plus, RefreshCw, Wallet, Clock,
-  CheckCircle2, XCircle, ArrowLeft, User, BarChart3, Tag, CreditCard,
+  CheckCircle2, XCircle, ArrowLeft, User, BarChart3, Tag, CreditCard, BookOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -43,7 +43,7 @@ const STATUS_CLASS: Record<AffiliateStatus, string> = {
   pendente: "bg-yellow-100 text-yellow-700", ativo: "bg-emerald-100 text-emerald-700",
   suspenso: "bg-red-100 text-red-700",       rejeitado: "bg-gray-100 text-gray-500",
 };
-const TYPE_LABEL: Record<AffiliateType, string> = { geral: "Parceiro Geral", jocum: "JOCUM", diretor: "Diretor" };
+const TYPE_LABEL: Record<AffiliateType, string> = { geral: "Parceiro Geral", jocum: "JOCUM", diretor: "Diretor Acadêmico" };
 const TYPE_CLASS: Record<AffiliateType, string> = {
   geral: "bg-blue-100 text-blue-700", jocum: "bg-brand-100 text-brand", diretor: "bg-purple-100 text-purple-700",
 };
@@ -95,6 +95,39 @@ function AffiliateDetail({
   const [rejectNote, setRejectNote] = useState("");
   const [wdNote, setWdNote] = useState<Record<string, string>>({});
   const [processingWd, setProcessingWd] = useState<string | null>(null);
+  type RawSale = { commission_amount: number; status: string; orders: { order_items: Array<{ title: string; quantity: number }> } | null };
+  type BookStat = { title: string; qty: number; commission: number };
+  const [rawSales, setRawSales] = useState<RawSale[] | null>(null);
+  const [bookFilter, setBookFilter] = useState<string>("all");
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (createClient() as any)
+      .from("affiliate_sales")
+      .select("commission_amount, status, orders(order_items(title, quantity))")
+      .eq("affiliate_id", affiliate.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }: { data: any[] | null }) => setRawSales(data ?? []));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [affiliate.id]);
+
+  const bookStats = useMemo<BookStat[] | null>(() => {
+    if (rawSales === null) return null;
+    const filtered = bookFilter === "all" ? rawSales : rawSales.filter((s) => s.status === bookFilter);
+    const map = new Map<string, BookStat>();
+    for (const sale of filtered) {
+      const items = sale.orders?.order_items ?? [];
+      const totalQty = items.reduce((s: number, i: { quantity: number }) => s + i.quantity, 0);
+      const commPerUnit = totalQty > 0 ? sale.commission_amount / totalQty : 0;
+      for (const item of items) {
+        const existing = map.get(item.title);
+        const comm = commPerUnit * item.quantity;
+        if (existing) { existing.qty += item.quantity; existing.commission += comm; }
+        else map.set(item.title, { title: item.title, qty: item.quantity, commission: comm });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.commission - a.commission);
+  }, [rawSales, bookFilter]);
 
   const myWithdrawals = withdrawals.filter((w) => w.affiliate_id === affiliate.id);
   const margin = getMargin(affiliate);
@@ -283,6 +316,59 @@ function AffiliateDetail({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Livros vendidos */}
+      <div className="bg-white rounded-xl border border-border p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+            <BookOpen className="h-3.5 w-3.5" /> Livros vendidos
+          </p>
+          {bookStats && bookStats.length > 0 && (
+            <div className="flex gap-1">
+              {(["all", "pendente", "confirmada", "paga"] as const).map((f) => (
+                <button key={f} onClick={() => setBookFilter(f)}
+                  className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${bookFilter === f ? "bg-brand text-white border-brand" : "border-border text-muted-foreground hover:bg-secondary"}`}>
+                  {f === "all" ? "Todos" : f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <Separator />
+        {bookStats === null ? (
+          <p className="text-sm text-muted-foreground py-3 text-center">Carregando...</p>
+        ) : bookStats.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-3 text-center">Nenhuma venda com livros registrada.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-2 px-1 text-xs text-muted-foreground font-medium">Livro</th>
+                  <th className="text-center py-2 px-1 text-xs text-muted-foreground font-medium">Qtd</th>
+                  <th className="text-right py-2 px-1 text-xs text-muted-foreground font-medium">Comissão</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookStats.map((b) => (
+                  <tr key={b.title} className="border-b border-border last:border-0 hover:bg-secondary/30">
+                    <td className="py-2 px-1 text-foreground font-medium">{b.title}</td>
+                    <td className="py-2 px-1 text-center text-muted-foreground">{b.qty}</td>
+                    <td className="py-2 px-1 text-right font-semibold text-emerald-600">{formatCurrency(b.commission)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-secondary/30">
+                  <td className="py-1.5 px-1 text-xs font-semibold text-muted-foreground">Total</td>
+                  <td className="py-1.5 px-1 text-center text-xs font-semibold text-muted-foreground">{bookStats.reduce((s, b) => s + b.qty, 0)}</td>
+                  <td className="py-1.5 px-1 text-right text-xs font-semibold text-emerald-600">{formatCurrency(bookStats.reduce((s, b) => s + b.commission, 0))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Saques */}
