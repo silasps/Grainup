@@ -164,6 +164,9 @@ export function CheckoutFlow() {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
+        // Persiste buyNowItem no carrinho antes de redirecionar (buyNowItem não sobrevive reload)
+        const { buyNowItem: bni, addItem } = useCartStore.getState();
+        if (bni) addItem(bni);
         router.replace("/auth/cadastro?redirectTo=/checkout");
         return;
       }
@@ -447,6 +450,8 @@ export function CheckoutFlow() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
+      const { buyNowItem: bni, addItem } = useCartStore.getState();
+      if (bni) addItem(bni);
       router.replace("/auth/cadastro?redirectTo=/checkout");
       return;
     }
