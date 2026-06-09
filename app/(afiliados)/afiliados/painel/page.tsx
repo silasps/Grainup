@@ -6,10 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
   DollarSign, Clock, MousePointerClick, ShoppingBag,
-  AlertCircle, CheckCircle2, XCircle, PauseCircle, BookOpen,
+  AlertCircle, CheckCircle2, XCircle, PauseCircle, BookOpen, TrendingUp,
 } from "lucide-react";
 import { CopyLinkButton } from "./copy-link-button";
 import { ReviewCard } from "./review-card";
+import { CouponManager } from "./coupon-manager";
+import { WithdrawalPanel } from "./withdrawal-panel";
+
+const TIERS = [
+  { min: 0,   max: 9,   label: "Explorador",       margin: 30, next: 10 },
+  { min: 10,  max: 24,  label: "Colaborador",       margin: 35, next: 25 },
+  { min: 25,  max: 49,  label: "Parceiro",          margin: 40, next: 50 },
+  { min: 50,  max: 99,  label: "Embaixador",        margin: 45, next: 100 },
+  { min: 100, max: Infinity, label: "Embaixador Elite", margin: 50, next: null },
+];
+function getTier(sales: number) { return TIERS.find((t) => sales >= t.min && (t.max === Infinity || sales <= t.max)) ?? TIERS[0]; }
 
 export const metadata: Metadata = {
   title: "Painel do Afiliado — Editora Jocum",
@@ -56,16 +67,18 @@ export default async function PainelAfiliadoPage() {
   if (!user) redirect("/auth/login");
 
   const [{ data: affiliate }, { data: roleData }, { data: contactData }] = await Promise.all([
-    supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
       .from("affiliates")
-      .select("id, name, email, status, commission_rate, balance, balance_pending, type, created_at, requires_review, next_review_at, leader_name, leader_email, leader_phone")
+      .select("id, name, email, status, commission_rate, balance, balance_pending, type, total_confirmed_sales, created_at, requires_review, next_review_at, leader_name, leader_email, leader_phone")
       .eq("user_id", user.id)
-      .single(),
+      .single() as Promise<{ data: { id: string; name: string; email: string; status: string; commission_rate: number; balance: number; balance_pending: number; type: string; total_confirmed_sales: number; created_at: string; requires_review: boolean | null; next_review_at: string | null; leader_name: string | null; leader_email: string | null; leader_phone: string | null } | null }>,
     supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .in("role", ["afiliado_jocum", "afiliado_diretor", "lider_jocum"])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .in("role", ["afiliado_jocum", "afiliado_diretor", "afiliado_geral", "lider_jocum"] as any)
       .single(),
     supabase.from("contact_settings").select("email").single(),
   ]);
@@ -110,7 +123,7 @@ export default async function PainelAfiliadoPage() {
     );
   }
 
-  const [{ data: links }, { data: sales }] = await Promise.all([
+  const [{ data: links }, { data: sales }, { data: coupons }, { data: withdrawals }] = await Promise.all([
     supabase
       .from("affiliate_links")
       .select("id, code, clicks, book_id, created_at")
@@ -123,6 +136,17 @@ export default async function PainelAfiliadoPage() {
       .eq("affiliate_id", affiliate.id)
       .order("created_at", { ascending: false })
       .limit(10),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("affiliate_coupons")
+      .select("id, code, discount_percent, max_uses, uses_count, active, created_at")
+      .eq("affiliate_id", affiliate.id)
+      .order("created_at", { ascending: false }) as Promise<{ data: Array<{ id: string; code: string; discount_percent: number; max_uses: number | null; uses_count: number; active: boolean; created_at: string }> | null }>,
+    supabase
+      .from("affiliate_withdrawals")
+      .select("id, amount, status, pix_key, pix_key_type, notes, requested_at, paid_at, created_at")
+      .eq("affiliate_id", affiliate.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   const status = STATUS_CONFIG[affiliate.status as keyof typeof STATUS_CONFIG];
@@ -130,6 +154,11 @@ export default async function PainelAfiliadoPage() {
   const totalClicks = links?.reduce((acc, l) => acc + l.clicks, 0) ?? 0;
   const totalSales = sales?.length ?? 0;
   const isActive = affiliate.status === "ativo";
+
+  const confirmedSales = (affiliate as { total_confirmed_sales?: number }).total_confirmed_sales ?? 0;
+  const isGeral = (affiliate as { type: string }).type === "geral";
+  const tier = isGeral ? getTier(confirmedSales) : null;
+  const margin = tier ? tier.margin : 50;
 
   const reviewDays = affiliate.requires_review && affiliate.next_review_at
     ? Math.ceil((new Date(affiliate.next_review_at).getTime() - Date.now()) / 86_400_000)
@@ -165,7 +194,7 @@ export default async function PainelAfiliadoPage() {
       label: "Vendas geradas",
       value: totalSales.toLocaleString("pt-BR"),
       icon: ShoppingBag,
-      sub: `${affiliate.commission_rate}% de comissão por venda`,
+      sub: "via cupons de desconto",
       highlight: false,
     },
   ];
@@ -191,7 +220,7 @@ export default async function PainelAfiliadoPage() {
 
       {/* Barra de progresso de ganhos — JOCUM */}
       {affiliate.type === "jocum" && isActive && (() => {
-        const META = 50;
+        const META = 100;
         const ganho = affiliate.balance ?? 0;
         const pendente = affiliate.balance_pending ?? 0;
         const total = ganho + pendente;
@@ -371,6 +400,51 @@ export default async function PainelAfiliadoPage() {
         </Card>
       </div>
 
+      {/* Tier card — afiliado geral */}
+      {isActive && isGeral && tier && (
+        <Card className="bg-white border-border">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Seu nível atual</p>
+                <p className="font-bold text-lg text-foreground">{tier.label}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-3xl font-bold text-brand">{tier.margin}%</p>
+                <p className="text-xs text-muted-foreground">de margem</p>
+              </div>
+            </div>
+            {tier.next && (
+              <>
+                <div className="relative h-2 bg-secondary rounded-full overflow-hidden mb-2">
+                  <div className="absolute inset-y-0 left-0 bg-brand rounded-full transition-all duration-700"
+                    style={{ width: `${Math.min(100, Math.round((confirmedSales / tier.next) * 100))}%` }} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {confirmedSales}/{tier.next} vendas para o próximo nível ({tier.margin + 5}% de margem)
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Saque */}
+      {isActive && (
+        <WithdrawalPanel
+          balance={affiliate.balance ?? 0}
+          initialWithdrawals={(withdrawals ?? []) as Parameters<typeof WithdrawalPanel>[0]["initialWithdrawals"]}
+        />
+      )}
+
+      {/* Cupons */}
+      {isActive && (
+        <CouponManager
+          initialCoupons={coupons ?? []}
+          balance={affiliate.balance ?? 0}
+        />
+      )}
+
       {/* Card de avaliação periódica */}
       {affiliate.requires_review && affiliate.next_review_at && (
         <ReviewCard
@@ -391,9 +465,9 @@ export default async function PainelAfiliadoPage() {
           <CardContent className="p-5">
             <div className="grid sm:grid-cols-3 gap-4 text-center">
               {[
-                { label: "Comissão", value: `${affiliate.commission_rate}%`, sub: "por venda confirmada" },
-                { label: "Cookie", value: "30 dias", sub: "de rastreamento" },
-                { label: "Pagamento", value: "Mensal", sub: "via Pix · mín. R$50" },
+                { label: "Sua margem", value: `${margin}%`, sub: tier ? `${tier.label} · sobe conforme vendas` : "Margem fixa" },
+                { label: "Desconto pessoal", value: "50%", sub: "na compra de qualquer livro" },
+                { label: "Saque mínimo", value: "R$ 100", sub: "via Pix · até 3 dias úteis" },
               ].map(({ label, value, sub }) => (
                 <div key={label} className="flex flex-col items-center gap-1">
                   <p className="text-xs text-muted-foreground">{label}</p>

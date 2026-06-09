@@ -16,7 +16,7 @@ export function CreateAffiliateDialog({
   onCreated: (a: unknown) => void;
 }) {
   const [saving, setSaving] = useState(false);
-  const [type, setType] = useState<"jocum" | "diretor">("jocum");
+  const [type, setType] = useState<"geral" | "jocum" | "diretor">("geral");
   const [requiresReview, setRequiresReview] = useState(true);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -80,17 +80,22 @@ export function CreateAffiliateDialog({
 
           <div className="flex flex-col gap-1.5">
             <Label>Tipo</Label>
-            <div className="flex gap-2">
-              {(["jocum", "diretor"] as const).map((t) => (
-                <label key={t} className={`flex-1 border rounded-lg px-3 py-2 text-sm cursor-pointer text-center transition-colors ${type === t ? "border-brand bg-brand-50 text-brand font-medium" : "border-border text-muted-foreground"}`}>
-                  <input type="radio" className="sr-only" checked={type === t} onChange={() => { setType(t); setRequiresReview(t === "jocum"); }} />
-                  {t === "jocum" ? "JOCUM" : "Diretor / Parceiro"}
+            <div className="flex gap-2 flex-wrap">
+              {([
+                { v: "geral",   l: "Parceiro Geral" },
+                { v: "jocum",   l: "JOCUM" },
+                { v: "diretor", l: "Diretor de Treinamento" },
+              ] as const).map(({ v, l }) => (
+                <label key={v} className={`flex-1 border rounded-lg px-3 py-2 text-sm cursor-pointer text-center transition-colors min-w-[120px] ${type === v ? "border-brand bg-brand-50 text-brand font-medium" : "border-border text-muted-foreground"}`}>
+                  <input type="radio" className="sr-only" checked={type === v} onChange={() => { setType(v); setRequiresReview(v === "jocum"); }} />
+                  {l}
                 </label>
               ))}
             </div>
+            {type === "geral" && <p className="text-xs text-muted-foreground">Margem inicial 30% — sobe conforme vendas.</p>}
           </div>
 
-          {type === "jocum" && (
+          {type !== "geral" && (
             <>
               <div className="flex flex-col gap-1.5">
                 <Label>Base / Local de serviço</Label>

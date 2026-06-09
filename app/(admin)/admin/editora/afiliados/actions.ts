@@ -8,12 +8,14 @@ function addMonths(d: Date, m: number) {
   return r;
 }
 
+export type AffiliateType = "geral" | "jocum" | "diretor";
+
 interface CreateAffiliateInput {
   name: string;
   email: string;
   phone: string;
   cpf: string;
-  type: "jocum" | "diretor";
+  type: AffiliateType;
   commission_rate: number;
   serving_location?: string | null;
   leader_name?: string | null;
@@ -25,7 +27,6 @@ export async function createAffiliateAction(input: CreateAffiliateInput) {
   const supabase = await createAdminClient();
   const now = new Date();
 
-  // Try to find an existing Supabase user by email to link the account
   const { data: { users } } = await supabase.auth.admin.listUsers({ perPage: 1000 });
   const existingUser = users.find((u) => u.email === input.email);
 
@@ -37,7 +38,7 @@ export async function createAffiliateAction(input: CreateAffiliateInput) {
     cpf: input.cpf.replace(/\D/g, ""),
     phone: input.phone.replace(/\D/g, ""),
     status: "ativo" as const,
-    commission_rate: input.commission_rate,
+    commission_rate: input.type === "geral" ? 30 : input.commission_rate,
     serving_location: input.serving_location || null,
     leader_name: input.leader_name || null,
     leader_email: input.leader_email || null,
@@ -47,7 +48,8 @@ export async function createAffiliateAction(input: CreateAffiliateInput) {
     next_review_at: input.requires_review ? addMonths(now, 6).toISOString() : null,
   };
 
-  const { data: affiliate, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: affiliate, error } = await (supabase as any)
     .from("affiliates")
     .insert(payload)
     .select()
@@ -55,9 +57,19 @@ export async function createAffiliateAction(input: CreateAffiliateInput) {
 
   if (error) throw new Error(error.message);
 
-  // Create default general link for this affiliate
   const code = Math.random().toString(36).substring(2, 10).toUpperCase();
   await supabase.from("affiliate_links").insert({ affiliate_id: affiliate.id, book_id: null, code });
+
+  if (existingUser) {
+    const role = input.type === "jocum" ? "afiliado_jocum"
+               : input.type === "diretor" ? "afiliado_diretor"
+               : "afiliado_geral";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("user_roles").upsert(
+      { user_id: existingUser.id, role },
+      { onConflict: "user_id,role" }
+    );
+  }
 
   return affiliate;
 }
@@ -65,7 +77,6 @@ export async function createAffiliateAction(input: CreateAffiliateInput) {
 export async function approveAndCreateLinkAction(affiliateId: string) {
   const supabase = await createAdminClient();
 
-  // Only create if no links exist yet
   const { data: existing } = await supabase
     .from("affiliate_links")
     .select("id")
@@ -75,5 +86,88 @@ export async function approveAndCreateLinkAction(affiliateId: string) {
   if (!existing?.length) {
     const code = Math.random().toString(36).substring(2, 10).toUpperCase();
     await supabase.from("affiliate_links").insert({ affiliate_id: affiliateId, book_id: null, code });
+  }
+
+  const { data: affiliate } = await supabase
+    .from("affiliates")
+    .select("user_id, type")
+    .eq("id", affiliateId)
+    .single();
+
+  if (affiliate?.user_id) {
+    const role = (affiliate as unknown as { type: string }).type === "jocum" ? "afiliado_jocum"
+               : (affiliate as unknown as { type: string }).type === "diretor" ? "afiliado_diretor"
+               : "afiliado_geral";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("user_roles").upsert(
+      { user_id: affiliate.user_id, role },
+      { onConflict: "user_id,role" }
+    );
+  }
+}
+
+export async function updateWithdrawalStatusAction(
+  withdrawalId: string,
+  status: "processando" | "pago" | "recusado",
+  notes?: string,
+) {
+  const supabase = await createAdminClient();
+
+  // Busca o saque para saber o valor e o afiliado
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: wd } = await (supabase as any)
+    .from("affiliate_withdrawals")
+    .select("affiliate_id, amount, status")
+    .eq("id", withdrawalId)
+    .single() as { data: { affiliate_id: string; amount: number; status: string } | null };
+
+  if (!wd) throw new Error("Saque não encontrado");
+
+  const now = new Date().toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from("affiliate_withdrawals")
+    .update({
+      status,
+      notes: notes ?? null,
+      processed_at: status === "pago" ? now : null,
+      paid_at: status === "pago" ? now : null,
+    })
+    .eq("id", withdrawalId);
+
+  // Se pago: debita o saldo do afiliado e confirma as comissões
+  if (status === "pago") {
+    const { data: aff } = await supabase
+      .from("affiliates")
+      .select("balance")
+      .eq("id", wd.affiliate_id)
+      .single();
+    if (aff) {
+      await supabase
+        .from("affiliates")
+        .update({ balance: Math.max(0, aff.balance - wd.amount) })
+        .eq("id", wd.affiliate_id);
+    }
+    // Marca as vendas pendentes como pagas
+    await supabase
+      .from("affiliate_sales")
+      .update({ status: "paga" })
+      .eq("affiliate_id", wd.affiliate_id)
+      .eq("status", "confirmada");
+  }
+
+  // Se recusado: devolve o valor ao saldo
+  if (status === "recusado" && wd.status === "pendente") {
+    const { data: aff } = await supabase
+      .from("affiliates")
+      .select("balance")
+      .eq("id", wd.affiliate_id)
+      .single();
+    if (aff) {
+      await supabase
+        .from("affiliates")
+        .update({ balance: aff.balance + wd.amount })
+        .eq("id", wd.affiliate_id);
+    }
   }
 }

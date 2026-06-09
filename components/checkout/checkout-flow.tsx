@@ -23,6 +23,7 @@ import {
   createMpCardPaymentAction,
   checkOrderPaymentStatusAction,
   simulatePixApprovedAction,
+  validateCouponAction,
 } from "@/app/(checkout)/checkout/actions";
 import { MpCardForm, type CardPaymentData } from "@/components/checkout/mp-card-form";
 import { formatCurrency } from "@/lib/utils/format";
@@ -151,6 +152,9 @@ export function CheckoutFlow() {
   const [returnToReview, setReturnToReview] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [confirmedTotal, setConfirmedTotal] = useState(0);
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<{ code: string; discountPercent: number; discountAmount: number } | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topConfirmRef = useRef<HTMLButtonElement>(null);
@@ -343,7 +347,9 @@ export function CheckoutFlow() {
   const selectedShipping = shippingOptions.find((s) => s.id === shipping) ?? null;
   const shippingPrice = isFreeShipping ? 0 : (selectedShipping?.price ?? 0);
   const pixDiscount = payment === "pix" ? Math.round(sub * 0.05 * 100) / 100 : 0;
-  const total = sub + shippingPrice - pixDiscount;
+  const couponDiscount = coupon ? Math.min(coupon.discountAmount, sub) : 0;
+  const totalDiscount = pixDiscount + couponDiscount;
+  const total = sub + shippingPrice - totalDiscount;
   const selectedPayment = PAYMENT_OPTIONS.find((p) => p.id === payment);
   const originalTotal = sub + shippingPrice;
   const savings = originalTotal - total;
@@ -547,6 +553,16 @@ export function CheckoutFlow() {
     setStep("revisao");
   }
 
+  async function applyCoupon() {
+    if (!couponInput.trim()) return;
+    setCouponLoading(true);
+    const result = await validateCouponAction(couponInput.trim(), sub);
+    setCouponLoading(false);
+    if (result.error) { toast.error(result.error); return; }
+    setCoupon(result.coupon!);
+    toast.success(`Cupom aplicado: ${result.coupon!.discountPercent}% de desconto`);
+  }
+
   async function placeOrder() {
     const cpf = onlyDigits(ident.cpf);
     if (cpf.length !== 11) {
@@ -572,12 +588,13 @@ export function CheckoutFlow() {
         city: addr.city, state: addr.state,
       },
       subtotal: sub,
-      discount: pixDiscount,
+      discount: totalDiscount,
       shippingCost: shippingPrice,
       shippingLabel: selectedShipping?.label,
       total,
       paymentMethod: paymentMethodMap[payment ?? ""] ?? null,
       items: items.map((i) => ({ id: i.id, type: i.type, title: i.title, price: i.price, quantity: i.quantity })),
+      couponCode: coupon?.code ?? null,
     });
 
     if (result.error) {
@@ -1218,6 +1235,40 @@ export function CheckoutFlow() {
                     <span>Desconto Pix (5%)</span>
                     <span>-{formatCurrency(pixDiscount)}</span>
                   </div>
+                )}
+                {coupon && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Cupom {coupon.code} ({coupon.discountPercent}%)</span>
+                    <span>-{formatCurrency(couponDiscount)}</span>
+                  </div>
+                )}
+                {/* Campo para inserir cupom */}
+                {!coupon && (
+                  <div className="flex gap-2 pt-1">
+                    <Input
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                      placeholder="Código de cupom"
+                      className="h-8 text-sm uppercase"
+                      onKeyDown={(e) => e.key === "Enter" && applyCoupon()}
+                    />
+                    <Button
+                      type="button" size="sm" variant="outline"
+                      className="h-8 shrink-0 text-xs"
+                      onClick={applyCoupon}
+                      disabled={couponLoading || !couponInput.trim()}
+                    >
+                      {couponLoading ? "…" : "Aplicar"}
+                    </Button>
+                  </div>
+                )}
+                {coupon && (
+                  <button
+                    className="text-xs text-muted-foreground underline text-left"
+                    onClick={() => { setCoupon(null); setCouponInput(""); }}
+                  >
+                    Remover cupom
+                  </button>
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Frete</span>

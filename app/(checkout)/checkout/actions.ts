@@ -66,6 +66,7 @@ interface PlaceOrderInput {
   total: number;
   paymentMethod: "pix" | "credito" | "debito" | null;
   items: OrderItem[];
+  couponCode?: string | null;
 }
 
 function generateOrderNumber(): string {
@@ -87,19 +88,51 @@ export async function placeOrderAction(input: PlaceOrderInput) {
 
   const supabase = await createAdminClient();
 
-  // Affiliate tracking: read cookie set by /r/[code] redirect
-  const cookieStore = await cookies();
-  const affCode = cookieStore.get("aff")?.value ?? null;
+  // Affiliate tracking: coupon code takes priority over cookie
   let affiliateId: string | null = null;
-  if (affCode) {
-    const { data: affLink } = await supabase
-      .from("affiliate_links")
-      .select("affiliate_id, affiliates!inner(status)")
-      .eq("code", affCode)
+
+  if (input.couponCode) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: coupon } = await (supabase as any)
+      .from("affiliate_coupons")
+      .select("affiliate_id, affiliates!inner(status, balance), discount_percent, max_uses, uses_count, active")
+      .eq("code", input.couponCode.toUpperCase())
       .single();
-    const typedLink = affLink as { affiliate_id: string; affiliates: { status: string } } | null;
-    if (typedLink?.affiliates?.status === "ativo") {
-      affiliateId = typedLink.affiliate_id;
+    const typed = coupon as {
+      affiliate_id: string;
+      affiliates: { status: string; balance: number };
+      discount_percent: number;
+      max_uses: number | null;
+      uses_count: number;
+      active: boolean;
+    } | null;
+    if (typed?.active && typed.affiliates?.status === "ativo") {
+      if (typed.max_uses === null || typed.uses_count < typed.max_uses) {
+        if (typed.discount_percent <= 50 || typed.affiliates.balance >= ((typed.discount_percent - 50) / 100) * input.subtotal) {
+          affiliateId = typed.affiliate_id;
+        } else {
+          return { error: "Saldo insuficiente do afiliado. O cupom não pode ser aplicado." };
+        }
+      } else {
+        return { error: "Cupom atingiu o limite de usos." };
+      }
+    } else {
+      return { error: "Cupom inválido ou inativo." };
+    }
+  } else {
+    // Fallback: cookie de link de afiliado
+    const cookieStore = await cookies();
+    const affCode = cookieStore.get("aff")?.value ?? null;
+    if (affCode) {
+      const { data: affLink } = await supabase
+        .from("affiliate_links")
+        .select("affiliate_id, affiliates!inner(status)")
+        .eq("code", affCode)
+        .single();
+      const typedLink = affLink as { affiliate_id: string; affiliates: { status: string } } | null;
+      if (typedLink?.affiliates?.status === "ativo") {
+        affiliateId = typedLink.affiliate_id;
+      }
     }
   }
   const customerName = normalizeNullable(input.customerName) ?? user.email?.split("@")[0] ?? "Cliente";
@@ -185,7 +218,7 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     payment_method: input.paymentMethod,
     fiscal_status: "nao_emitida",
     affiliate_id: affiliateId,
-    coupon_code: null,
+    coupon_code: input.couponCode ?? null,
     notes: null,
     tracking_code: null,
   };
@@ -382,6 +415,51 @@ export async function checkOrderPaymentStatusAction(orderId: string) {
 }
 
 // Apenas sandbox — força aprovação para testar o fluxo completo sem pagar de verdade
+export async function validateCouponAction(code: string, subtotal: number) {
+  if (!code.trim()) return { error: "Informe um código de cupom." };
+  const supabase = await createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: coupon } = await (supabase as any)
+    .from("affiliate_coupons")
+    .select("id, discount_percent, max_uses, uses_count, active, affiliate_id, affiliates(status, balance)")
+    .eq("code", code.trim().toUpperCase())
+    .single() as {
+      data: {
+        id: string;
+        discount_percent: number;
+        max_uses: number | null;
+        uses_count: number;
+        active: boolean;
+        affiliate_id: string;
+        affiliates: { status: string; balance: number } | null;
+      } | null;
+    };
+
+  if (!coupon || !coupon.active) return { error: "Cupom inválido ou inativo." };
+  if (coupon.max_uses !== null && coupon.uses_count >= coupon.max_uses) {
+    return { error: "Este cupom atingiu o limite de usos." };
+  }
+
+  const aff = coupon.affiliates;
+  if (!aff || aff.status !== "ativo") return { error: "Cupom indisponível." };
+
+  const discountPct = coupon.discount_percent;
+  if (discountPct > 50) {
+    const debitAmount = ((discountPct - 50) / 100) * subtotal;
+    if (aff.balance < debitAmount) {
+      return {
+        error: `Saldo insuficiente do afiliado para cobrir este desconto. Tente um cupom com desconto menor.`,
+      };
+    }
+  }
+
+  const discountAmount = Math.round((discountPct / 100) * subtotal * 100) / 100;
+  return {
+    error: null,
+    coupon: { id: coupon.id, code: code.trim().toUpperCase(), discountPercent: discountPct, discountAmount },
+  };
+}
+
 export async function simulatePixApprovedAction(orderId: string) {
   if (!isTestMode()) return { error: "Disponível apenas em modo teste." };
 

@@ -272,11 +272,11 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
 
           {/* Info */}
           <div className="flex flex-col gap-5">
-            {/* Author */}
+            {/* Author chip */}
             {author && (
               <Link
-                href={`/editora/autores/${author.slug}`}
-                className="text-sm text-brand hover:underline font-medium"
+                href={`/editora/livros?autor=${encodeURIComponent(author.name)}`}
+                className="inline-flex items-center gap-1.5 w-fit text-xs font-semibold text-brand bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-full transition-colors uppercase tracking-wide"
               >
                 {author.name}
               </Link>
@@ -292,25 +292,54 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
               <StarRating avg={book.rating_avg} count={book.rating_count} />
             )}
 
-            <Separator />
+            {/* Short description */}
+            {book.description_short && (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {book.description_short}
+              </p>
+            )}
 
-            {/* Price */}
-            <div className="flex flex-col gap-1">
+            {/* Metadata chips */}
+            <div className="flex flex-wrap gap-2">
+              {book.pages && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-secondary px-2.5 py-1 rounded-full">
+                  <BookOpen className="h-3 w-3" /> {book.pages} págs.
+                </span>
+              )}
+              {book.isbn && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-secondary px-2.5 py-1 rounded-full">
+                  ISBN {book.isbn}
+                </span>
+              )}
+              {book.is_bestseller && (
+                <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full font-medium">
+                  <Award className="h-3 w-3" /> Mais vendido
+                </span>
+              )}
+              {book.is_new && (
+                <span className="inline-flex items-center gap-1 text-xs text-brand bg-brand-50 border border-brand-100 px-2.5 py-1 rounded-full font-medium">
+                  Lançamento
+                </span>
+              )}
+            </div>
+
+            {/* Price block — destacado */}
+            <div className="bg-gradient-to-br from-brand-50 to-white border border-brand-100 rounded-2xl p-4 flex flex-col gap-2">
               {hasDiscount ? (
                 <>
                   <div className="flex items-baseline gap-3">
                     <span className="text-3xl font-bold text-brand">
                       {formatCurrency(book.price_promotional!)}
                     </span>
-                    <span className="text-lg text-muted-foreground line-through">
+                    <span className="text-base text-muted-foreground line-through">
                       {formatCurrency(book.price)}
                     </span>
-                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                      {discountPct}% off
+                    <Badge className="bg-red-500 hover:bg-red-500 text-white text-xs rounded-full px-2">
+                      -{discountPct}%
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Você economiza {formatCurrency(book.price - book.price_promotional!)}
+                  <p className="text-xs text-emerald-700 font-medium">
+                    💰 Você economiza {formatCurrency(book.price - book.price_promotional!)}
                   </p>
                 </>
               ) : (
@@ -318,100 +347,85 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
                   {formatCurrency(book.price)}
                 </span>
               )}
-              <p className="text-xs text-muted-foreground mt-1">
-                Em até 3x no cartão sem juros · PIX com 5% de desconto
+              <p className="text-xs text-muted-foreground">
+                Em até 3× no cartão sem juros · PIX com 5% de desconto
               </p>
             </div>
 
-            {/* Stock */}
+            {/* Stock warning */}
             {book.stock <= 5 && book.stock > 0 && (
-              <p className="text-sm text-amber-600 font-medium">
+              <p className="text-sm text-amber-600 font-medium bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                 ⚠️ Apenas {book.stock} {book.stock === 1 ? "unidade" : "unidades"} em estoque
               </p>
             )}
 
-            {/* Quantity + CTA */}
+            {/* Quantity + CTAs */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex items-center border border-border rounded-lg overflow-hidden">
+                <div className="flex items-center bg-secondary rounded-xl overflow-hidden border border-border">
                   <button
                     onClick={() => setQty(Math.max(1, qty - 1))}
-                    className="px-3 py-2 hover:bg-secondary transition-colors"
+                    className="px-3 py-2.5 hover:bg-muted transition-colors disabled:opacity-40"
                     disabled={qty <= 1}
                   >
                     <Minus className="h-4 w-4" />
                   </button>
-                  <span className="px-4 py-2 text-sm font-medium min-w-[40px] text-center">
+                  <span className="px-4 py-2 text-sm font-semibold min-w-[44px] text-center">
                     {qty}
                   </span>
                   <button
                     onClick={() => setQty(Math.min(book.stock, qty + 1))}
-                    className="px-3 py-2 hover:bg-secondary transition-colors"
+                    className="px-3 py-2.5 hover:bg-muted transition-colors disabled:opacity-40"
                     disabled={qty >= book.stock}
                   >
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
-                <span className="text-sm text-muted-foreground">
-                  {book.stock} disponíveis
+                <span className="text-xs text-muted-foreground">
+                  {book.stock} {book.stock === 1 ? "unidade disponível" : "unidades disponíveis"}
                 </span>
               </div>
 
+              {/* Comprar agora = CTA principal (padrão Amazon/Saraiva) */}
               <Button
                 size="lg"
-                className="bg-brand hover:bg-brand-700 text-white font-semibold w-full"
-                onClick={handleAddToCart}
+                className="w-full bg-brand hover:bg-brand-700 text-white font-semibold rounded-xl shadow-sm hover:shadow-md transition-all h-12"
+                onClick={handleBuyNow}
                 disabled={book.stock === 0}
               >
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                {book.stock === 0 ? "Sem estoque" : "Adicionar ao carrinho"}
+                <Zap className="h-5 w-5 mr-2" />
+                {book.stock === 0 ? "Sem estoque" : "Comprar agora"}
               </Button>
 
               <Button
                 size="lg"
                 variant="outline"
-                className="w-full font-semibold border-brand text-brand hover:bg-brand hover:text-white transition-colors"
-                onClick={handleBuyNow}
+                className="w-full font-semibold border-brand/30 text-brand hover:bg-brand-50 rounded-xl h-12 transition-all"
+                onClick={handleAddToCart}
                 disabled={book.stock === 0}
               >
-                <Zap className="h-5 w-5 mr-2" />
-                Comprar agora
+                <ShoppingCart className="h-5 w-5 mr-2" />
+                Adicionar ao carrinho
               </Button>
             </div>
 
             {/* Shipping calculator */}
-            <Separator />
             <ShippingCalculator bookId={book.id} />
 
-            {/* Trust signals */}
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Truck className="h-4 w-4 text-brand flex-shrink-0" />
-                <span>Frete grátis acima de R$200</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 text-brand flex-shrink-0" />
-                <span>Compra 100% segura</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Package className="h-4 w-4 text-brand flex-shrink-0" />
-                <span>Entrega para todo o Brasil</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Award className="h-4 w-4 text-brand flex-shrink-0" />
-                <span>Editora certificada Jocum</span>
-              </div>
+            {/* Trust signals — horizontal strip */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { icon: Truck, label: "Frete grátis acima de R$200" },
+                { icon: ShieldCheck, label: "Compra 100% segura" },
+                { icon: Package, label: "Entrega para todo o Brasil" },
+                { icon: Award, label: "Editora certificada Jocum" },
+              ].map(({ icon: Icon, label }) => (
+                <div key={label} className="flex items-center gap-2 bg-secondary rounded-xl px-3 py-2.5">
+                  <Icon className="h-4 w-4 text-brand flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground leading-tight">{label}</span>
+                </div>
+              ))}
             </div>
-
-            {/* Short description */}
-            {book.description_short && (
-              <>
-                <Separator />
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {book.description_short}
-                </p>
-              </>
-            )}
           </div>
         </div>
 
@@ -469,7 +483,7 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
                   <p className="text-xs font-medium text-brand mb-2">{author.name}</p>
                   <p className="text-sm text-muted-foreground leading-relaxed">{author.bio}</p>
                   <Link
-                    href={`/editora/autores/${author.slug}`}
+                    href={`/editora/livros?autor=${encodeURIComponent(author.name)}`}
                     className="text-xs text-brand hover:underline mt-2 inline-block"
                   >
                     Ver todos os livros do autor →
@@ -480,44 +494,26 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
           </TabsContent>
 
           <TabsContent value="detalhes" className="mt-6">
-            <div className="max-w-sm">
-              <dl className="divide-y divide-border">
-                {book.isbn && (
-                  <div className="flex justify-between py-3 text-sm">
-                    <dt className="text-muted-foreground">ISBN</dt>
-                    <dd className="font-medium">{book.isbn}</dd>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-lg">
+              {[
+                book.pages     && { label: "Páginas",  value: String(book.pages) },
+                book.isbn      && { label: "ISBN",     value: book.isbn },
+                book.weight_grams && { label: "Peso", value: `${book.weight_grams}g` },
+                author         && { label: "Autor",    value: author.name, href: `/editora/autores/${author.slug}` },
+                               { label: "Editora",   value: "Jocum Brasil" },
+              ].filter(Boolean).map((item) => {
+                const i = item as { label: string; value: string; href?: string };
+                return (
+                  <div key={i.label} className="bg-secondary rounded-2xl p-4 flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">{i.label}</span>
+                    {i.href ? (
+                      <Link href={i.href} className="text-sm font-semibold text-brand hover:underline">{i.value}</Link>
+                    ) : (
+                      <span className="text-sm font-semibold text-foreground">{i.value}</span>
+                    )}
                   </div>
-                )}
-                {book.pages && (
-                  <div className="flex justify-between py-3 text-sm">
-                    <dt className="text-muted-foreground">Páginas</dt>
-                    <dd className="font-medium">{book.pages}</dd>
-                  </div>
-                )}
-                {book.weight_grams && (
-                  <div className="flex justify-between py-3 text-sm">
-                    <dt className="text-muted-foreground">Peso</dt>
-                    <dd className="font-medium">{book.weight_grams}g</dd>
-                  </div>
-                )}
-                {author && (
-                  <div className="flex justify-between py-3 text-sm">
-                    <dt className="text-muted-foreground">Autor</dt>
-                    <dd className="font-medium">
-                      <Link
-                        href={`/editora/autores/${author.slug}`}
-                        className="text-brand hover:underline"
-                      >
-                        {author.name}
-                      </Link>
-                    </dd>
-                  </div>
-                )}
-                <div className="flex justify-between py-3 text-sm">
-                  <dt className="text-muted-foreground">Editora</dt>
-                  <dd className="font-medium">Editora Jocum / Jocum Brasil</dd>
-                </div>
-              </dl>
+                );
+              })}
             </div>
           </TabsContent>
 
@@ -568,7 +564,7 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
                   {reviews.map((review) => (
                     <div
                       key={review.id}
-                      className="p-5 border border-border rounded-xl flex flex-col gap-2"
+                      className="p-5 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.06)] bg-white flex flex-col gap-2"
                     >
                       <div className="flex items-center gap-1">
                         {[1, 2, 3, 4, 5].map((s) => (

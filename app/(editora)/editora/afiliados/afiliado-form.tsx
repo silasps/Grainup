@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, CheckCircle2, Mail, Clock, Share2, Wallet } from "lucide-react";
+import { Loader2, CheckCircle2, Mail, Clock, Share2, Wallet, UserPlus, LogIn } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,7 +91,7 @@ const schema = z.object({
   email: z.string().email("E-mail inválido"),
   phone: z.string().min(8, "Telefone obrigatório"),
   cpf: z.string().min(11, "CPF inválido").max(14, "CPF inválido"),
-  type: z.enum(["jocum", "diretor"]),
+  type: z.enum(["geral", "jocum", "diretor"]),
   serving_location: z.string().optional(),
   leader_name: z.string().optional(),
   leader_email: z.string().optional(),
@@ -124,6 +125,15 @@ export function AfiliadoForm() {
   const [submitted, setSubmitted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [isJocum, setIsJocum] = useState(false);
+  const [authUser, setAuthUser] = useState<User | null | undefined>(undefined); // undefined = carregando
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setAuthUser(user));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, [supabase]);
 
   const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } =
     useForm<FormData>({ resolver: zodResolver(schema) });
@@ -131,25 +141,16 @@ export function AfiliadoForm() {
   const typeValue = watch("type");
 
   async function onSubmit(data: FormData) {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      toast.error("Você precisa estar logado para se inscrever", {
-        description: "Crie uma conta ou faça login e tente novamente.",
-        action: { label: "Criar conta", onClick: () => { window.location.href = "/auth/cadastro?redirectTo=/editora/afiliados"; } },
-      });
-      return;
-    }
-
     const { error } = await supabase.from("affiliates").insert({
-      user_id: user.id,
-      type: data.type,
+      user_id: authUser!.id,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      type: data.type as any,
       name: data.name,
       email: data.email,
       cpf: data.cpf.replace(/\D/g, ""),
       phone: data.phone.replace(/\D/g, ""),
       status: "pendente",
-      commission_rate: 10,
+      commission_rate: data.type === "geral" ? 30 : 50,
       serving_location: data.serving_location || null,
       leader_name: data.leader_name || null,
       leader_email: data.leader_email || null,
@@ -192,6 +193,59 @@ export function AfiliadoForm() {
       descricao: "Compartilhe os livros e acompanhe cliques, vendas e comissões em tempo real. Pagamentos mensais via Pix.",
     },
   ];
+
+  // Carregando estado de autenticação
+  if (authUser === undefined) {
+    return (
+      <div className="bg-white rounded-2xl border border-border p-12 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Não logado → pedir para criar conta primeiro
+  if (authUser === null) {
+    return (
+      <div className="bg-white rounded-2xl border border-border p-10 flex flex-col items-center text-center gap-6">
+        <div className="bg-brand-50 rounded-full p-5">
+          <UserPlus className="h-10 w-10 text-brand" />
+        </div>
+        <div>
+          <h3 className="font-heading text-xl font-bold text-foreground mb-2">
+            Primeiro, crie sua conta
+          </h3>
+          <p className="text-muted-foreground max-w-sm mx-auto text-sm leading-relaxed">
+            Para participar do programa de afiliados você precisa de uma conta na plataforma.
+            É rápido e gratuito — depois é só voltar aqui e preencher a inscrição.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+          <Button
+            className="flex-1 bg-brand hover:bg-brand-700 text-white"
+            onClick={() => {
+              window.location.href = "/auth/cadastro?redirectTo=/editora/afiliados%23cadastro";
+            }}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Criar conta
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => {
+              window.location.href = "/auth/login?redirectTo=/editora/afiliados%23cadastro";
+            }}
+          >
+            <LogIn className="h-4 w-4 mr-2" />
+            Já tenho conta
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Após o login, o formulário de inscrição abrirá automaticamente aqui.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -309,19 +363,20 @@ export function AfiliadoForm() {
             {errors.cpf && <p className="text-xs text-destructive">{errors.cpf.message}</p>}
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label>Tipo de afiliado</Label>
-            <div className="flex gap-3">
+          <div className="sm:col-span-2 flex flex-col gap-1.5">
+            <Label>Tipo de participação</Label>
+            <div className="flex flex-col sm:flex-row gap-3">
               {[
-                { value: "jocum", label: "JOCUM" },
-                { value: "diretor", label: "Diretor / Parceiro" },
+                { value: "geral", label: "Parceiro Geral", desc: "Qualquer pessoa — margem de 30% a 50% conforme vendas" },
+                { value: "jocum", label: "Colaborador JOCUM", desc: "Membro ou voluntário da JOCUM — 50% fixo" },
+                { value: "diretor", label: "Diretor de Treinamento", desc: "Diretor de treinamento JOCUM — 50% fixo" },
               ].map((opt) => (
                 <label
                   key={opt.value}
-                  className={`flex-1 border rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                  className={`flex-1 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${
                     typeValue === opt.value
-                      ? "border-brand bg-brand-50 text-brand font-medium"
-                      : "border-border text-muted-foreground hover:border-brand/40"
+                      ? "border-brand bg-brand-50"
+                      : "border-border hover:border-brand/40"
                   }`}
                 >
                   <input
@@ -329,12 +384,13 @@ export function AfiliadoForm() {
                     value={opt.value}
                     {...register("type")}
                     onChange={() => {
-                      setValue("type", opt.value as "jocum" | "diretor");
+                      setValue("type", opt.value as "geral" | "jocum" | "diretor");
                       setIsJocum(opt.value === "jocum");
                     }}
                     className="sr-only"
                   />
-                  {opt.label}
+                  <span className={`block text-sm font-medium ${typeValue === opt.value ? "text-brand" : "text-foreground"}`}>{opt.label}</span>
+                  <span className="block text-xs text-muted-foreground mt-0.5">{opt.desc}</span>
                 </label>
               ))}
             </div>
@@ -343,8 +399,8 @@ export function AfiliadoForm() {
         </div>
       </div>
 
-      {/* Dados JOCUM (só para tipo jocum) */}
-      {typeValue === "jocum" && (
+      {/* Dados JOCUM/Diretor (só para não-geral) */}
+      {typeValue && typeValue !== "geral" && (
         <div>
           <h3 className="font-semibold text-foreground mb-4 text-sm uppercase tracking-wide text-muted-foreground">
             Contexto na JOCUM
@@ -398,9 +454,6 @@ export function AfiliadoForm() {
 
       <p className="text-xs text-muted-foreground text-center">
         Ao enviar, você concorda com os termos do programa de afiliados.
-        Precisa ter uma conta para se inscrever —{" "}
-        <a href="/auth/login" className="text-brand hover:underline">faça login</a> ou{" "}
-        <a href="/auth/cadastro" className="text-brand hover:underline">crie sua conta</a>.
       </p>
     </form>
       )}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Search, User, ShieldCheck, Mail } from "lucide-react";
+import { Menu, X, Search, User, ShieldCheck, Mail, Handshake } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { CartBadge } from "@/components/editora/cart-badge";
@@ -88,6 +88,21 @@ export function EditoraHeader({ adminArea, isLoggedIn }: { adminArea?: AdminArea
                 <Mail className="h-3.5 w-3.5" />
                 Newsletter
               </button>
+
+              {/* Afiliados — destaque na nav (padrão Hotmart/Eduzz) */}
+              <Link
+                href="/editora/afiliados"
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-full border transition-colors",
+                  pathname.startsWith("/editora/afiliados")
+                    ? "bg-brand text-white border-brand"
+                    : "border-brand text-brand hover:bg-brand hover:text-white"
+                )}
+              >
+                <Handshake className="h-3.5 w-3.5" />
+                Seja afiliado
+              </Link>
+
               {adminArea && (
                 <Link
                   href={adminArea.href}
@@ -174,6 +189,13 @@ export function EditoraHeader({ adminArea, isLoggedIn }: { adminArea?: AdminArea
                 </Link>
               ))}
               <div className="border-t border-border mt-2 pt-2 flex flex-col gap-1">
+                {/* Afiliados — destaque no mobile */}
+                <Link
+                  href="/editora/afiliados"
+                  className="flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-brand rounded-md bg-brand-50 hover:bg-brand-100 transition-colors"
+                >
+                  <Handshake className="h-4 w-4" /> Seja afiliado
+                </Link>
                 <button
                   onClick={() => { setMenuOpen(false); setNewsletterOpen(true); }}
                   className="flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary text-left"

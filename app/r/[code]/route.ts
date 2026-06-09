@@ -35,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
   const response = NextResponse.redirect(new URL(destination, req.url));
   response.cookies.set("aff", code, {
     path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: 60 * 60 * 24 * 60, // 60 days
     sameSite: "lax",
     httpOnly: true,
   });

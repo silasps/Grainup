@@ -25,7 +25,7 @@ const schema = z.object({
   image_url: z.string().optional(),
   cta_label: z.string().optional(),
   cta_url: z.string().optional(),
-  type: z.enum(["promo", "info", "warning"]).default("promo"),
+  type: z.enum(["promo", "info", "warning"]),
   starts_at: z.string().optional(),
   ends_at: z.string().optional(),
   is_active: z.boolean(),

@@ -207,7 +207,7 @@ export default async function EditoraHomePage() {
                 return (
                   <div
                     key={id}
-                    className="bg-card border border-border rounded-xl p-5 flex flex-col gap-3"
+                    className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-5 flex flex-col gap-3"
                   >
                     <div className="flex">
                       {[1, 2, 3, 4, 5].map((s) => (
@@ -245,38 +245,26 @@ export default async function EditoraHomePage() {
         </section>
       )}
 
-      {/* BENEFÍCIOS */}
-      <section className="bg-brand text-white py-6">
+      {/* BENEFÍCIOS — versão clara com cards */}
+      <section className="py-8 bg-[#F7F4EF] border-y border-border">
         <div className="container mx-auto max-w-7xl px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center text-sm">
-            <div className="flex flex-col items-center gap-2">
-              <Truck className="h-6 w-6 flex-shrink-0 opacity-90" />
-              <div>
-                <p className="font-semibold">Frete grátis</p>
-                <p className="text-white/70 text-xs">acima de R$200</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { Icon: Truck,       title: "Frete grátis",   sub: "acima de R$200" },
+              { Icon: ShieldCheck, title: "Compra segura",  sub: "pagamento protegido" },
+              { Icon: Star,        title: "+200 títulos",   sub: "em estoque" },
+              { Icon: BookOpen,    title: "Todo o Brasil",  sub: "entregamos para você" },
+            ].map(({ Icon, title, sub }) => (
+              <div key={title} className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 shadow-sm">
+                <div className="bg-brand-50 rounded-xl p-2 shrink-0">
+                  <Icon className="h-5 w-5 text-brand" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm text-foreground">{title}</p>
+                  <p className="text-xs text-muted-foreground">{sub}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <ShieldCheck className="h-6 w-6 flex-shrink-0 opacity-90" />
-              <div>
-                <p className="font-semibold">Compra segura</p>
-                <p className="text-white/70 text-xs">pagamento protegido</p>
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <Star className="h-6 w-6 flex-shrink-0 opacity-90" />
-              <div>
-                <p className="font-semibold">+200 títulos</p>
-                <p className="text-white/70 text-xs">em estoque</p>
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <BookOpen className="h-6 w-6 flex-shrink-0 opacity-90" />
-              <div>
-                <p className="font-semibold">Todo o Brasil</p>
-                <p className="text-white/70 text-xs">entregamos para você</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
@@ -288,32 +276,26 @@ export default async function EditoraHomePage() {
         </div>
       </section>
 
-      {/* CTA FINAL */}
-      <section className="py-16 bg-foreground text-white">
-        <div className="container mx-auto max-w-7xl px-4 text-center">
-          <h2 className="font-heading text-2xl sm:text-3xl font-bold mb-4">
+      {/* CTA FINAL — claro com destaque brand */}
+      <section className="py-16 bg-gradient-to-br from-brand-50 via-[#F7F4EF] to-brand-100">
+        <div className="container mx-auto max-w-3xl px-4 text-center">
+          <span className="inline-block text-xs font-semibold uppercase tracking-widest text-brand/70 bg-white border border-brand-100 px-3 py-1.5 rounded-full mb-5">
+            Editora Jocum Brasil
+          </span>
+          <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground mb-4">
             Pronto para explorar nosso catálogo?
           </h2>
-          <p className="text-white/60 mb-8 max-w-lg mx-auto">
+          <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
             Mais de 200 títulos sobre missões, liderança, família, oração, evangelismo e muito mais.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <Button
-              size="lg"
-              className="bg-brand hover:bg-brand-700 text-white font-semibold px-8"
-              asChild
-            >
+            <Button size="lg" className="bg-brand hover:bg-brand-700 text-white font-semibold px-8 shadow-md hover:shadow-lg" asChild>
               <Link href="/editora/livros">
                 Explorar catálogo
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="bg-transparent border-white/50 text-white hover:bg-white/10 hover:text-white hover:border-white"
-              asChild
-            >
+            <Button size="lg" variant="outline" className="border-brand/30 text-brand hover:bg-white font-semibold px-8" asChild>
               <Link href="/editora/afiliados">Seja um afiliado</Link>
             </Button>
           </div>

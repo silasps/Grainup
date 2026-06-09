@@ -22,33 +22,75 @@ function getYouTubeId(url: string): string | null {
   return m?.[1] ?? null;
 }
 
-// ── Slide padrão (hero estático quando não há destaques ou é o slide 0) ───────
+// ── Slide padrão — hero claro editorial (padrão Penguin / H1 / Apple Books) ──
 function DefaultSlide() {
   return (
-    <div className="absolute inset-0">
-      <div className="absolute inset-0 bg-[url('/textura.png')] bg-cover bg-center" />
-      <div className="absolute inset-0 bg-gradient-to-br from-black/75 via-black/55 to-black/30" />
-      <div className="absolute inset-0 flex items-center justify-center text-white px-4">
-        <div className="text-center max-w-5xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-white/60 mb-4">
-            Editora Jocum Brasil
-          </p>
-          <h1 className="font-heading text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold leading-[1.05] tracking-tight text-balance mb-6">
-            Livros que{" "}
-            <span className="text-brand">transformam</span>{" "}
-            vidas
-          </h1>
-          <p className="text-base sm:text-lg text-white/70 leading-relaxed mb-10 max-w-2xl mx-auto">
-            Conhecer a Deus e fazê-lo conhecido. Mais de 200 títulos sobre missões,
-            liderança, família, oração e vida cristã.
-          </p>
-          <div className="flex flex-wrap gap-3 justify-center">
-            <Button size="lg" className="bg-brand hover:bg-brand-700 text-white font-semibold px-8 h-12 text-base" asChild>
-              <Link href="/editora/livros">Ver catálogo completo <ArrowRight className="ml-2 h-4 w-4" /></Link>
-            </Button>
-            <Button size="lg" variant="outline" className="bg-transparent border-white/70 text-white hover:bg-white hover:text-primary h-12 text-base" asChild>
-              <Link href="/editora/ofertas">Ver ofertas</Link>
-            </Button>
+    <div className="absolute inset-0 bg-gradient-to-br from-[#F7F4EF] via-[#F2EFE9] to-brand-50 flex items-center">
+      {/* Círculos decorativos de fundo */}
+      <div className="absolute top-[-80px] right-[-80px] w-[420px] h-[420px] rounded-full bg-brand-100/40 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-[-60px] left-[-60px] w-[300px] h-[300px] rounded-full bg-brand-50/60 blur-2xl pointer-events-none" />
+
+      <div className="container mx-auto max-w-7xl px-4 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+          {/* Texto */}
+          <div className="text-left">
+            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-brand/70 bg-brand-50 border border-brand-100 px-3 py-1.5 rounded-full mb-6">
+              Editora Jocum Brasil
+            </span>
+            <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.08] tracking-tight text-foreground mb-5">
+              Livros que{" "}
+              <span className="text-brand relative">
+                transformam
+                <svg className="absolute -bottom-1 left-0 w-full" viewBox="0 0 200 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2 6 Q100 2 198 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-brand-200"/>
+                </svg>
+              </span>{" "}
+              vidas
+            </h1>
+            <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-8 max-w-lg">
+              Conhecer a Deus e fazê-lo conhecido. Mais de 200 títulos sobre missões,
+              liderança, família, oração e vida cristã.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button size="lg" className="bg-brand hover:bg-brand-700 text-white font-semibold px-8 h-12 text-base shadow-md hover:shadow-lg" asChild>
+                <Link href="/editora/livros">Ver catálogo <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
+              <Button size="lg" variant="outline" className="border-brand/30 text-brand hover:bg-brand-50 h-12 text-base font-semibold" asChild>
+                <Link href="/editora/ofertas">Ver ofertas</Link>
+              </Button>
+            </div>
+            {/* Social proof */}
+            <div className="flex items-center gap-4 mt-8 pt-6 border-t border-border">
+              <div className="text-center">
+                <p className="font-bold text-foreground text-lg leading-none">200+</p>
+                <p className="text-xs text-muted-foreground mt-0.5">títulos</p>
+              </div>
+              <div className="w-px h-8 bg-border" />
+              <div className="text-center">
+                <p className="font-bold text-foreground text-lg leading-none">50+</p>
+                <p className="text-xs text-muted-foreground mt-0.5">países</p>
+              </div>
+              <div className="w-px h-8 bg-border" />
+              <div className="text-center">
+                <p className="font-bold text-foreground text-lg leading-none">60 anos</p>
+                <p className="text-xs text-muted-foreground mt-0.5">de missão</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Grade de capas — decorativa */}
+          <div className="hidden lg:grid grid-cols-3 gap-3 py-6">
+            {[
+              { rotate: "-rotate-3", delay: "", top: "mt-6" },
+              { rotate: "rotate-1",  delay: "",  top: "" },
+              { rotate: "-rotate-2", delay: "",  top: "mt-10" },
+            ].map(({ rotate, top }, i) => (
+              <div key={i} className={`${top} ${rotate} transition-transform duration-500 hover:rotate-0 hover:scale-105`}>
+                <div className="aspect-[2/3] rounded-2xl bg-gradient-to-br from-brand-100 to-brand-200 shadow-[0_8px_24px_rgba(0,0,0,0.15)] overflow-hidden flex items-center justify-center">
+                  <span className="text-4xl opacity-30">📖</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
