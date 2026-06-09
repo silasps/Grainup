@@ -26,9 +26,8 @@ function getYouTubeId(url: string): string | null {
 function DefaultSlide({ covers }: { covers: { url: string; title: string; slug: string }[] }) {
   return (
     <div className="absolute inset-0 bg-gradient-to-br from-[#F7F4EF] via-[#F2EFE9] to-brand-50 flex items-center">
-      {/* Círculos decorativos de fundo */}
-      <div className="absolute top-[-80px] right-[-80px] w-[420px] h-[420px] rounded-full bg-brand-100/40 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-60px] left-[-60px] w-[300px] h-[300px] rounded-full bg-brand-50/60 blur-2xl pointer-events-none" />
+      {/* Círculo decorativo de fundo — apenas canto superior direito */}
+      <div className="absolute top-[-80px] right-[-80px] w-[420px] h-[420px] rounded-full bg-brand-100/30 blur-3xl pointer-events-none" />
 
       <div className="container mx-auto max-w-7xl px-4 w-full">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
