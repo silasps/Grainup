@@ -155,6 +155,7 @@ export function CheckoutFlow() {
   const [couponInput, setCouponInput] = useState("");
   const [coupon, setCoupon] = useState<{ code: string; discountPercent: number; discountAmount: number } | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topConfirmRef = useRef<HTMLButtonElement>(null);
@@ -563,9 +564,10 @@ export function CheckoutFlow() {
     setCouponLoading(true);
     const result = await validateCouponAction(couponInput.trim(), sub);
     setCouponLoading(false);
-    if (result.error) { toast.error(result.error); return; }
+    if (result.error) { setCouponError(result.error); return; }
+    setCouponError(null);
     setCoupon(result.coupon!);
-    toast.success(`Cupom aplicado: ${result.coupon!.discountPercent}% de desconto`);
+    toast.success(`Cupom aplicado!`);
   }
 
   async function placeOrder() {
@@ -1249,22 +1251,27 @@ export function CheckoutFlow() {
                 )}
                 {/* Campo para inserir cupom */}
                 {!coupon && (
-                  <div className="flex gap-2 pt-1">
-                    <Input
-                      value={couponInput}
-                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                      placeholder="Código de cupom"
-                      className="h-8 text-sm uppercase"
-                      onKeyDown={(e) => e.key === "Enter" && applyCoupon()}
-                    />
-                    <Button
-                      type="button" size="sm" variant="outline"
-                      className="h-8 shrink-0 text-xs"
-                      onClick={applyCoupon}
-                      disabled={couponLoading || !couponInput.trim()}
-                    >
-                      {couponLoading ? "…" : "Aplicar"}
-                    </Button>
+                  <div className="flex flex-col gap-1 pt-1">
+                    <div className="flex gap-2">
+                      <Input
+                        value={couponInput}
+                        onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null); }}
+                        placeholder="Código de cupom"
+                        className={`h-8 text-sm uppercase ${couponError ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                        onKeyDown={(e) => e.key === "Enter" && applyCoupon()}
+                      />
+                      <Button
+                        type="button" size="sm" variant="outline"
+                        className="h-8 shrink-0 text-xs"
+                        onClick={applyCoupon}
+                        disabled={couponLoading || !couponInput.trim()}
+                      >
+                        {couponLoading ? "…" : "Aplicar"}
+                      </Button>
+                    </div>
+                    {couponError && (
+                      <p className="text-xs text-destructive">{couponError}</p>
+                    )}
                   </div>
                 )}
                 {coupon && (
