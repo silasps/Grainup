@@ -31,17 +31,17 @@ export default function SobrePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-br from-foreground via-foreground/95 to-brand-800 text-white py-20">
+      <section className="bg-background py-20 border-b border-border">
         <div className="container mx-auto max-w-7xl px-4">
           <Badge className="mb-6 bg-brand hover:bg-brand text-white text-xs px-3 py-1">
             Nossa História
           </Badge>
-          <h1 className="font-heading text-4xl sm:text-5xl font-bold leading-tight mb-6 max-w-2xl">
+          <h1 className="font-heading text-4xl sm:text-5xl font-bold leading-tight mb-6 max-w-2xl text-foreground">
             Publicando para{" "}
-            <HeroHighlight>transformar vidas</HeroHighlight>{" "}
+            <HeroHighlight className="text-brand before:bg-brand-50/80">transformar vidas</HeroHighlight>{" "}
             há décadas
           </h1>
-          <p className="text-white/70 text-lg max-w-xl leading-relaxed">
+          <p className="text-muted-foreground text-lg max-w-xl leading-relaxed">
             A Editora Jocum nasceu do coração missionário da JOCUM — Jovens Com Uma Missão.
             Somos movidos pelo propósito de colocar nas mãos das pessoas literatura que forma,
             inspira e equipa para o chamado de Deus.
@@ -50,7 +50,7 @@ export default function SobrePage() {
       </section>
 
       {/* Números */}
-      <section className="bg-brand text-white py-10">
+      <section className="bg-secondary py-10 border-b border-border">
         <div className="container mx-auto max-w-7xl px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {[
@@ -60,8 +60,8 @@ export default function SobrePage() {
               { num: "Milhões", label: "de leitores impactados" },
             ].map((item) => (
               <div key={item.label}>
-                <p className="font-heading text-2xl font-bold">{item.num}</p>
-                <p className="text-white/70 text-sm mt-1">{item.label}</p>
+                <p className="font-heading text-2xl font-bold text-foreground">{item.num}</p>
+                <p className="text-muted-foreground text-sm mt-1">{item.label}</p>
               </div>
             ))}
           </div>

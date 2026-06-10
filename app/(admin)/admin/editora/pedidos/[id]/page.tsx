@@ -83,7 +83,7 @@ interface OrderDetail {
 
 async function getOrder(id: string): Promise<OrderDetail | null> {
   const supabase = await createAdminClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("orders")
     .select(
       `id, order_number, status, payment_status, payment_method,
@@ -94,6 +94,7 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
     )
     .eq("id", id)
     .single();
+  if (error) console.error("[getOrder]", error.message);
   return data as unknown as OrderDetail | null;
 }
 

@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { submitBetaFeedback } from "@/lib/actions/beta-feedback";
 
-export function BetaFeedbackButton() {
+export function BetaFeedbackButtonClient() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -46,9 +46,6 @@ export function BetaFeedbackButton() {
       >
         <MessageSquarePlus className="h-4 w-4 flex-shrink-0" />
         <span>Sugerir melhoria</span>
-        <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide">
-          BETA
-        </span>
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>

@@ -297,6 +297,8 @@ export type Database = {
           coupon_code: string | null;
           notes: string | null;
           tracking_code: string | null;
+          invoice_number: string | null;
+          invoice_url: string | null;
           fiscal_status: FiscalStatus;
           created_at: string;
           updated_at: string;

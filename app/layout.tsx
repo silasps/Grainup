@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import { Toaster } from "sonner";
-import { BetaFeedbackButton } from "@/components/shared/beta-feedback-button";
+import { BetaFeedbackButtonClient } from "@/components/shared/beta-feedback-button";
+import { createClient } from "@/lib/supabase/server";
+import { getMyRole } from "@/lib/actions/get-my-role";
 import "./globals.css";
 
 const inter = Inter({
@@ -38,11 +40,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const role = user ? await getMyRole(user.id) : null;
+  const isAdminOrSuper = role !== null;
+
   return (
     <html
       lang="pt-BR"
@@ -50,7 +57,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
-        <BetaFeedbackButton />
+        {isAdminOrSuper && <BetaFeedbackButtonClient />}
         <Toaster richColors position="bottom-right" />
       </body>
     </html>
