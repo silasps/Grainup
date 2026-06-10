@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { CreateAffiliateDialog } from "./create-affiliate-dialog";
-import { approveAndCreateLinkAction, updateWithdrawalStatusAction } from "./actions";
+import { approveAndCreateLinkAction, updateWithdrawalStatusAction, deleteAffiliateAction } from "./actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type AffiliateStatus = "pendente" | "ativo" | "suspenso" | "rejeitado";
@@ -79,7 +79,7 @@ const WD_STATUS: Record<string, { label: string; cls: string }> = {
 // ── Detail Panel ──────────────────────────────────────────────────────────────
 function AffiliateDetail({
   affiliate, salesData, withdrawals,
-  onBack, onStatusChange, onReviewTrigger,
+  onBack, onStatusChange, onReviewTrigger, onDelete,
 }: {
   affiliate: Affiliate;
   salesData?: { total: number; confirmed: number };
@@ -87,9 +87,12 @@ function AffiliateDetail({
   onBack: () => void;
   onStatusChange: (id: string, s: AffiliateStatus) => void;
   onReviewTrigger: (a: Affiliate) => void;
+  onDelete: (id: string) => void;
 }) {
   const [, startT] = useTransition();
   const [approveOpen, setApproveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [requiresReview, setRequiresReview] = useState(affiliate.requires_review ?? affiliate.type === "jocum");
   const [approving, setApproving] = useState(false);
   const [rejectNote, setRejectNote] = useState("");
@@ -201,6 +204,10 @@ function AffiliateDetail({
               <Ban className="h-3.5 w-3.5 mr-1" /> Suspender
             </Button>
           )}
+          <Button size="sm" variant="outline" className="text-red-700 border-red-300 hover:bg-red-50"
+            onClick={() => setDeleteOpen(true)}>
+            Excluir afiliado
+          </Button>
           {affiliate.status === "suspenso" && (
             <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={() => onStatusChange(affiliate.id, "ativo")}>
@@ -209,6 +216,38 @@ function AffiliateDetail({
           )}
         </div>
       </div>
+
+      {/* Delete dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Excluir afiliado</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir <strong className="text-foreground">{affiliate.name}</strong>?
+            Essa ação remove o afiliado, seus links e cupons. O histórico de vendas é mantido.
+            <br /><br />
+            <span className="text-red-600 font-medium">Esta ação não pode ser desfeita.</span>
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white" disabled={deleting}
+              onClick={async () => {
+                setDeleting(true);
+                try {
+                  await deleteAffiliateAction(affiliate.id);
+                  toast.success("Afiliado excluído.");
+                  setDeleteOpen(false);
+                  onDelete(affiliate.id);
+                } catch (err: unknown) {
+                  toast.error((err as Error).message ?? "Erro ao excluir.");
+                } finally { setDeleting(false); }
+              }}>
+              {deleting ? "Excluindo…" : "Excluir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Approve dialog */}
       <Dialog open={approveOpen} onOpenChange={setApproveOpen}>
@@ -519,6 +558,7 @@ export function AffiliatosTable({
         onBack={() => setSelected(null)}
         onStatusChange={handleStatusChange}
         onReviewTrigger={triggerReview}
+        onDelete={(id) => { setAffiliates((prev) => prev.filter((a) => a.id !== id)); setSelected(null); }}
       />
     );
   }

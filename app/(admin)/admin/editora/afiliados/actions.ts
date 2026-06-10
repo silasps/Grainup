@@ -265,3 +265,13 @@ export async function updateWithdrawalStatusAction(
     }
   }
 }
+
+export async function deleteAffiliateAction(affiliateId: string) {
+  const supabase = await createAdminClient();
+  // Remove link, vendas e o registro do afiliado (cascade deve cobrir o resto)
+  await supabase.from("affiliate_links").delete().eq("affiliate_id", affiliateId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("affiliate_coupons").delete().eq("affiliate_id", affiliateId);
+  const { error } = await supabase.from("affiliates").delete().eq("id", affiliateId);
+  if (error) throw new Error(error.message);
+}
