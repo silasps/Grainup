@@ -481,6 +481,53 @@ export async function simulatePixApprovedAction(orderId: string) {
     .eq("id", orderId)
     .eq("user_id", user.id);
 
+  // Credita comissão do afiliado (simula o que o webhook faria)
+  const { data: order } = await supabase
+    .from("orders")
+    .select("affiliate_id, subtotal, coupon_code")
+    .eq("id", orderId)
+    .single() as { data: { affiliate_id: string | null; subtotal: number; coupon_code: string | null } | null };
+
+  if (order?.affiliate_id) {
+    const { data: affiliate } = await supabase
+      .from("affiliates")
+      .select("id, balance, balance_pending, commission_rate, total_confirmed_sales")
+      .eq("id", order.affiliate_id)
+      .single() as { data: { id: string; balance: number; balance_pending: number; commission_rate: number; total_confirmed_sales: number } | null };
+
+    if (affiliate) {
+      const MARGIN = 50;
+      let discountPct = 0;
+      if (order.coupon_code) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: coupon } = await (supabase as any)
+          .from("affiliate_coupons").select("discount_percent")
+          .eq("code", order.coupon_code).eq("affiliate_id", affiliate.id).single() as { data: { discount_percent: number } | null };
+        if (coupon) discountPct = coupon.discount_percent;
+      }
+      const earnPct = MARGIN - discountPct;
+      const commission = Math.round((earnPct / 100) * order.subtotal * 100) / 100;
+
+      const { data: existingSale } = await supabase.from("affiliate_sales").select("id").eq("order_id", orderId).maybeSingle();
+      if (!existingSale) {
+        await supabase.from("affiliate_sales").insert({
+          affiliate_id: affiliate.id, order_id: orderId,
+          commission_amount: commission, commission_rate: earnPct, status: "confirmada",
+        });
+        if (commission > 0) {
+          await supabase.from("affiliates").update({
+            balance: affiliate.balance + commission,
+            total_confirmed_sales: (affiliate.total_confirmed_sales ?? 0) + 1,
+          }).eq("id", affiliate.id);
+        }
+        if (order.coupon_code) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase.rpc as any)("increment_coupon_uses", { p_code: order.coupon_code });
+        }
+      }
+    }
+  }
+
   sendOrderConfirmationEmail(orderId).catch(console.error);
   return { error: null };
 }
