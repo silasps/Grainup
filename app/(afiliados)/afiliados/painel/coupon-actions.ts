@@ -4,7 +4,9 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 export async function createCouponAction(input: {
   code: string;
+  discountType: "percent" | "fixed";
   discountPercent: number;
+  discountFixed: number | null;
   maxUses: number | null;
 }) {
   const supabase = await createClient();
@@ -23,14 +25,15 @@ export async function createCouponAction(input: {
   if (!/^[A-Z0-9_-]{3,20}$/.test(code)) {
     return { error: "Código inválido. Use apenas letras, números, _ ou - (3 a 20 caracteres)." };
   }
-  if (input.discountPercent < 1 || input.discountPercent > 100) {
-    return { error: "Desconto deve ser entre 1% e 100%." };
-  }
 
-  // Se desconto > 50%, verificar se afiliado tem saldo
-  // (o débito acontece por venda; aqui só alertamos se o saldo está zerado)
-  if (input.discountPercent > 50 && affiliate.balance <= 0) {
-    return { error: "Saldo insuficiente para criar cupom com desconto acima de 50%." };
+  if (input.discountType === "percent") {
+    if (input.discountPercent < 1 || input.discountPercent > 100)
+      return { error: "Desconto deve ser entre 1% e 100%." };
+    if (input.discountPercent > 50 && affiliate.balance <= 0)
+      return { error: "Saldo insuficiente para criar cupom com desconto acima de 50%." };
+  } else {
+    if (!input.discountFixed || input.discountFixed <= 0)
+      return { error: "Informe um valor de desconto válido." };
   }
 
   const admin = await createAdminClient();
@@ -40,7 +43,9 @@ export async function createCouponAction(input: {
     .insert({
       affiliate_id: affiliate.id,
       code,
-      discount_percent: input.discountPercent,
+      discount_type: input.discountType,
+      discount_percent: input.discountType === "percent" ? input.discountPercent : 0,
+      discount_fixed: input.discountType === "fixed" ? input.discountFixed : null,
       max_uses: input.maxUses ?? null,
     })
     .select()
