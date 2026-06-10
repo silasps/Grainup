@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils/format";
 import { Pencil, Eye, Search, X } from "lucide-react";
-import { toast } from "sonner";
-import { updateBookStockAction } from "./actions";
 
 interface BookRow {
   id: string;
@@ -29,40 +27,6 @@ interface BookRow {
   authors: { name: string } | null;
 }
 
-function StockCell({ bookId, initial }: { bookId: string; initial: number }) {
-  const [stock, setStock] = useState(initial);
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(String(initial));
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  function startEdit() { setVal(String(stock)); setEditing(true); setTimeout(() => inputRef.current?.select(), 0); }
-
-  async function commit() {
-    const n = parseInt(val);
-    if (isNaN(n) || n < 0) { setEditing(false); return; }
-    if (n === stock) { setEditing(false); return; }
-    const res = await updateBookStockAction(bookId, n);
-    if (res.error) { toast.error(res.error); } else { setStock(n); }
-    setEditing(false);
-  }
-
-  if (editing) return (
-    <input ref={inputRef} type="number" min={0} value={val}
-      onChange={(e) => setVal(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-      className="w-16 h-7 rounded border border-brand px-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
-    />
-  );
-
-  return (
-    <button onClick={startEdit} title="Clique para editar"
-      className={`flex items-center gap-1 group ${stock <= 5 ? "text-red-600 font-semibold" : "text-muted-foreground"}`}>
-      {stock}
-      <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
-    </button>
-  );
-}
 
 export function BooksTable({ books }: { books: BookRow[] }) {
   const searchParams = useSearchParams();
@@ -197,7 +161,9 @@ export function BooksTable({ books }: { books: BookRow[] }) {
                       </div>
                     </td>
                     <td className="px-5 py-3 hidden lg:table-cell">
-                      <StockCell bookId={book.id} initial={book.stock} />
+                      <span className={book.stock <= 5 ? "text-red-600 font-semibold" : "text-muted-foreground"}>
+                        {book.stock}
+                      </span>
                     </td>
                     <td className="px-5 py-3 hidden lg:table-cell text-muted-foreground">
                       {book.sales_count ?? 0}
