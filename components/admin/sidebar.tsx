@@ -20,6 +20,7 @@ import {
   ArrowUpRight,
   Code2,
   Store,
+  Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/logo";
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   { label: "Vitrine", href: "/admin/editora/livros/vitrine", icon: Store },
   { label: "Combos", href: "/admin/editora/combos", icon: BookOpen },
   { label: "Destaques", href: "/admin/editora/destaques", icon: Sparkles },
+  { label: "Ofertas", href: "/admin/editora/ofertas", icon: Tag },
   { label: "Anúncios", href: "/admin/editora/anuncios", icon: Megaphone },
   { label: "Pedidos", href: "/admin/editora/pedidos", icon: ShoppingBag },
   { label: "Avaliações", href: "/admin/editora/avaliacoes", icon: Star },
