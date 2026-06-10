@@ -8,6 +8,7 @@ import {
   Check, ChevronLeft, ChevronRight, MapPin, PackageCheck, Loader2, Plus, Truck, BookOpen, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
+import { handleActionError } from "@/lib/handle-action-error";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -605,7 +606,7 @@ export function CheckoutFlow() {
     });
 
     if (result.error) {
-      toast.error(result.error);
+      handleActionError(result.error);
       setPlacing(false);
       return;
     }
@@ -629,7 +630,7 @@ export function CheckoutFlow() {
       });
       setPlacing(false);
       if (pixResult.error) {
-        toast.error(pixResult.error);
+        handleActionError(pixResult.error);
         return;
       }
       // Só limpa o carrinho após PIX gerado com sucesso
@@ -663,7 +664,7 @@ export function CheckoutFlow() {
     });
 
     if (result.error) {
-      toast.error(result.error);
+      handleActionError(result.error);
       return;
     }
     if (result.status === "approved" || result.status === "pending") {
@@ -811,7 +812,7 @@ export function CheckoutFlow() {
                 onClick={async () => {
                   const r = await simulatePixApprovedAction(orderId);
                   if (!r.error) setStep("sucesso");
-                  else toast.error(r.error);
+                  else handleActionError(r.error);
                 }}
               >
                 <Check className="h-3 w-3 mr-1.5" />

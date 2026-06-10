@@ -1,6 +1,8 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { sendReviewRequestEmail } from "@/lib/email";
 import type { OrderRow } from "@/components/admin/pedidos-table";
 
 export interface StatRow {
@@ -26,6 +28,59 @@ export async function fetchStatsAction(): Promise<StatRow[]> {
     .from("orders")
     .select("status, total, shipping_cost, shipping_address");
   return (data ?? []) as unknown as StatRow[];
+}
+
+export async function updateOrderStatusAction(
+  orderId: string,
+  status: string,
+): Promise<{ error: string | null }> {
+  const supabase = await createAdminClient();
+  const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
+  if (error) return { error: error.message };
+
+  // Ao marcar como entregue → dispara email pedindo avaliação
+  if (status === "entregue") {
+    const { data: order } = await supabase
+      .from("orders")
+      .select("order_number, customer_name, customer_email, order_items(title, book_id, books(slug, cover_url))")
+      .eq("id", orderId)
+      .single();
+
+    if (order?.customer_email) {
+      const books = (order.order_items ?? [])
+        .filter((i: { book_id: string | null }) => i.book_id)
+        .map((i: { title: string; books: { slug: string; cover_url: string | null } | null }) => ({
+          title: i.title,
+          slug: i.books?.slug ?? "",
+          coverUrl: i.books?.cover_url ?? null,
+        }));
+      if (books.length > 0) {
+        sendReviewRequestEmail(
+          order.customer_email,
+          order.customer_name,
+          order.order_number,
+          books,
+        ).catch(console.error);
+      }
+    }
+  }
+
+  revalidatePath(`/admin/editora/pedidos/${orderId}`);
+  revalidatePath("/admin/editora/pedidos");
+  return { error: null };
+}
+
+export async function updateInvoiceNumberAction(
+  orderId: string,
+  invoiceNumber: string
+): Promise<{ error: string | null }> {
+  const supabase = await createAdminClient();
+  const { error } = await supabase
+    .from("orders")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update({ invoice_number: invoiceNumber || null } as any)
+    .eq("id", orderId);
+  return { error: error?.message ?? null };
 }
 
 export async function updateTrackingCodeAction(

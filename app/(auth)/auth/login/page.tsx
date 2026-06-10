@@ -76,8 +76,14 @@ function LoginForm() {
     window.location.href = redirectTo;
   }
 
-  function signInWithGoogle() {
-    setAlert({ type: "info", message: "Login com Google não está disponível ainda." });
+  async function signInWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+      },
+    });
+    if (error) setAlert({ type: "error", message: "Erro ao iniciar login com Google." });
   }
 
   if (areaCard) {

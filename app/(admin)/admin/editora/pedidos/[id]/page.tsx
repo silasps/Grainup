@@ -10,6 +10,8 @@ import { formatCurrency, formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 import { TrackingCodeForm } from "@/components/admin/tracking-code-form";
+import { InvoiceField } from "@/components/admin/invoice-field";
+import { OrderStatusSelect } from "@/components/admin/order-status-select";
 
 export const metadata: Metadata = { title: "Detalhe do Pedido — Admin" };
 
@@ -73,6 +75,7 @@ interface OrderDetail {
   customer_email: string;
   shipping_address: Record<string, string> | null;
   tracking_code: string | null;
+  invoice_number: string | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItem[];
@@ -85,7 +88,7 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
     .select(
       `id, order_number, status, payment_status, payment_method,
        subtotal, discount, shipping_cost, total,
-       customer_name, customer_email, shipping_address, tracking_code,
+       customer_name, customer_email, shipping_address, tracking_code, invoice_number,
        created_at, updated_at,
        order_items(id, quantity, unit_price, total_price, title, book_id, combo_id, books(title, cover_url, sku), combos(name, combo_items(quantity, books(title, cover_url, sku))))`
     )
@@ -228,12 +231,7 @@ export default async function AdminOrderDetailPage({
             {/* Status card */}
             <div className="bg-white rounded-xl border border-border p-5 space-y-3">
               <h3 className="text-sm font-semibold">Status</h3>
-              <Badge
-                variant="outline"
-                className={cn("text-xs w-fit", STATUS_COLORS[order.status])}
-              >
-                {STATUS_LABELS[order.status] ?? order.status}
-              </Badge>
+              <OrderStatusSelect orderId={order.id} initialStatus={order.status} />
               <div className="grid grid-cols-2 gap-3 text-sm pt-2">
                 <div>
                   <p className="text-xs text-muted-foreground">Pagamento</p>
@@ -266,6 +264,9 @@ export default async function AdminOrderDetailPage({
                 </p>
               </div>
             )}
+
+            {/* Nota Fiscal */}
+            <InvoiceField orderId={order.id} initialValue={order.invoice_number} />
 
             {/* Tracking code */}
             <TrackingCodeForm orderId={order.id} initialCode={order.tracking_code} />

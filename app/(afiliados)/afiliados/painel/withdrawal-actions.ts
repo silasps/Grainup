@@ -9,7 +9,7 @@ export async function requestWithdrawalAction(input: {
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Sessão expirada." };
+  if (!user) return { error: "SESSION_EXPIRED" };
 
   const { data: affiliate } = await supabase
     .from("affiliates")

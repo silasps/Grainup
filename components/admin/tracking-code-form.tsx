@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateTrackingCodeAction } from "@/app/(admin)/admin/editora/pedidos/actions";
 import { toast } from "sonner";
-import { Truck } from "lucide-react";
+import { Truck, ExternalLink } from "lucide-react";
 
 export function TrackingCodeForm({
   orderId,
@@ -50,9 +50,24 @@ export function TrackingCodeForm({
           {loading ? "Salvando…" : "Salvar"}
         </Button>
       </div>
-      {code && (
+      {code ? (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            O cliente verá este código na área de pedidos.
+          </p>
+          <a
+            href={`https://melhorrastreio.com.br/rastreio/${code.trim()}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-brand hover:underline shrink-0"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Rastrear no Melhor Envio
+          </a>
+        </div>
+      ) : (
         <p className="text-xs text-muted-foreground">
-          O cliente verá este código na área de pedidos assim que for salvo.
+          O código é gerado pelo Melhor Envio ao emitir a etiqueta — cole aqui após a emissão.
         </p>
       )}
     </div>

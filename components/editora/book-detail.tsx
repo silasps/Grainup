@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ReviewForm } from "@/components/editora/review-form";
 import { trackBookEvent } from "@/lib/actions/track-event";
 import {
   ShoppingCart,
@@ -136,6 +137,8 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
   const [selectedImage, setSelectedImage] = useState(0);
   const addItem = useCartStore((s) => s.addItem);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const defaultTab = searchParams.get("avaliar") === "1" ? "avaliacoes" : "descricao";
 
   useEffect(() => {
     trackBookEvent(book.id, "view");
@@ -430,7 +433,7 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
         </div>
 
         {/* Tabs: Description / Details / Reviews */}
-        <Tabs defaultValue="descricao" className="mb-16">
+        <Tabs defaultValue={defaultTab} className="mb-16">
           <TabsList className="w-full justify-start border-b border-border bg-transparent p-0 h-auto">
             <TabsTrigger
               value="descricao"
@@ -595,6 +598,12 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
                 </div>
               </>
             )}
+
+            {/* Formulário de avaliação */}
+            <div className="mt-8 pt-6 border-t border-border">
+              <h4 className="text-sm font-semibold mb-4">Deixe sua avaliação</h4>
+              <ReviewForm bookId={book.id} bookTitle={book.title} />
+            </div>
           </TabsContent>
         </Tabs>
 

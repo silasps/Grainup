@@ -74,7 +74,7 @@ export async function placeOrderAction(input: PlaceOrderInput) {
   const userClient = await createClient();
   const { data: { user } } = await userClient.auth.getUser();
 
-  if (!user) return { error: "Sessão expirada. Faça login novamente." };
+  if (!user) return { error: "SESSION_EXPIRED" };
 
   const supabase = await createAdminClient();
 
@@ -472,7 +472,7 @@ export async function simulatePixApprovedAction(orderId: string) {
 
   const userClient = await createClient();
   const { data: { user } } = await userClient.auth.getUser();
-  if (!user) return { error: "Sessão expirada." };
+  if (!user) return { error: "SESSION_EXPIRED" };
 
   const supabase = await createAdminClient();
   await supabase

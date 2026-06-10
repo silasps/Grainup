@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Tag, ToggleLeft, ToggleRight, Info, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { handleActionError } from "@/lib/handle-action-error";
 import { createCouponAction, toggleCouponAction, deleteCouponAction } from "./coupon-actions";
 
 interface Coupon {
@@ -47,7 +48,7 @@ export function CouponManager({ initialCoupons, balance }: { initialCoupons: Cou
         discountFixed: discountType === "fixed" ? parseFloat(discountFixed) : null,
         maxUses: maxUses ? parseInt(maxUses) : null,
       });
-      if (result.error) { toast.error(result.error); return; }
+      if (result.error) { handleActionError(result.error); return; }
       setCoupons((prev) => [result.coupon as unknown as Coupon, ...prev]);
       setCode(""); setDiscount(20); setDiscountFixed(""); setMaxUses(""); setShowForm(false);
       toast.success("Cupom criado!");
@@ -57,7 +58,7 @@ export function CouponManager({ initialCoupons, balance }: { initialCoupons: Cou
   function handleDelete(id: string) {
     startDelete(async () => {
       const result = await deleteCouponAction(id);
-      if (result.error) { toast.error(result.error); return; }
+      if (result.error) { handleActionError(result.error); return; }
       setCoupons((prev) => prev.filter((x) => x.id !== id));
       setConfirmDelete(null);
       toast.success("Cupom excluído.");
@@ -67,7 +68,7 @@ export function CouponManager({ initialCoupons, balance }: { initialCoupons: Cou
   function handleToggle(c: Coupon) {
     startToggle(async () => {
       const result = await toggleCouponAction(c.id, !c.active);
-      if (result.error) { toast.error(result.error); return; }
+      if (result.error) { handleActionError(result.error); return; }
       setCoupons((prev) => prev.map((x) => x.id === c.id ? { ...x, active: !x.active } : x));
     });
   }

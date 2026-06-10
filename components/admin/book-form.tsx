@@ -536,7 +536,7 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
             {/* Dados físicos e editoriais */}
             <div className="bg-white rounded-xl border border-border p-5 space-y-4">
               <h3 className="text-sm font-semibold">Dados físicos e editoriais</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="pages">Páginas</Label>
                   <Input id="pages" type="number" value={pages} onChange={(e) => setPages(e.target.value)} placeholder="200" />
@@ -545,11 +545,11 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
                   <Label htmlFor="weight">Peso (g)</Label>
                   <Input id="weight" type="number" value={weightGrams} onChange={(e) => setWeightGrams(e.target.value)} placeholder="300" />
                 </div>
-                <div className="space-y-1.5 col-span-2">
+                <div className="space-y-1.5 col-span-2 sm:col-span-1">
                   <Label htmlFor="isbn">ISBN</Label>
                   <Input id="isbn" value={isbn} onChange={(e) => setIsbn(e.target.value)} placeholder="978-..." />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 col-span-2 sm:col-span-1">
                   <Label htmlFor="sku">SKU (código Bling)</Label>
                   <Input
                     id="sku" value={sku}
@@ -566,7 +566,7 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
                   {blingStatus === "not_found" && <p className="text-xs text-orange-500">Produto não encontrado no Bling — cadastre lá também</p>}
                   {blingStatus === "idle" && <p className="text-xs text-muted-foreground">Usado para sincronizar estoque com o Bling ERP</p>}
                 </div>
-                <div className="space-y-1.5 col-span-3">
+                <div className="space-y-1.5 col-span-2">
                   <Label htmlFor="publisher">Editora</Label>
                   <Input id="publisher" value={publisher} onChange={(e) => setPublisher(e.target.value)} placeholder="Editora Jocum" />
                 </div>

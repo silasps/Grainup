@@ -301,6 +301,40 @@ export async function sendSacReplyEmail(to: string, customerName: string, ticket
   await sendEmail(to, `Re: ${ticketSubject}`, html);
 }
 
+// ─── Solicitação de avaliação após entrega ────────────────────────────────────
+
+export async function sendReviewRequestEmail(
+  to: string,
+  customerName: string,
+  orderNumber: string,
+  books: Array<{ title: string; slug: string; coverUrl: string | null }>,
+) {
+  const bookItems = books.map((b) => `
+    <tr>
+      <td style="padding:8px 0;vertical-align:middle;">
+        ${b.coverUrl ? `<img src="${b.coverUrl}" width="40" height="56" style="border-radius:4px;object-fit:cover;display:block;" alt="${b.title}" />` : ""}
+      </td>
+      <td style="padding:8px 12px;vertical-align:middle;font-size:14px;color:#333;">${b.title}</td>
+      <td style="padding:8px 0;vertical-align:middle;text-align:right;">
+        <a href="${SITE}/editora/livros/${b.slug}?avaliar=1" style="background:#1a1a2e;color:#fff;text-decoration:none;padding:7px 16px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap;">
+          Avaliar →
+        </a>
+      </td>
+    </tr>`).join("");
+
+  const html = baseHtml(
+    "Sua opinião importa! Avalie seu pedido",
+    `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 20px;">
+      Olá, <strong>${customerName.split(" ")[0]}</strong>! O pedido <strong>#${orderNumber}</strong> foi entregue. Que tal deixar sua avaliação? Isso ajuda outros leitores a conhecerem os livros.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      ${bookItems}
+    </table>
+    <p style="font-size:12px;color:#aaa;text-align:center;">Leva menos de 1 minuto ✨</p>`
+  );
+  await sendEmail(to, `Como foi o pedido #${orderNumber}? Deixe sua avaliação`, html);
+}
+
 // ─── Formulário de contato — confirmação ao visitante ─────────────────────────
 
 export async function sendContactConfirmationEmail(to: string, name: string, message: string) {

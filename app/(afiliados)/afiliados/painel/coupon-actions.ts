@@ -11,7 +11,7 @@ export async function createCouponAction(input: {
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Sessão expirada." };
+  if (!user) return { error: "SESSION_EXPIRED" };
 
   const { data: affiliate } = await supabase
     .from("affiliates")
@@ -62,7 +62,7 @@ export async function createCouponAction(input: {
 export async function toggleCouponAction(couponId: string, active: boolean) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Sessão expirada." };
+  if (!user) return { error: "SESSION_EXPIRED" };
 
   const admin = await createAdminClient();
 
@@ -89,7 +89,7 @@ export async function toggleCouponAction(couponId: string, active: boolean) {
 export async function deleteCouponAction(couponId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Sessão expirada." };
+  if (!user) return { error: "SESSION_EXPIRED" };
 
   const { data: affiliate } = await supabase.from("affiliates").select("id").eq("user_id", user.id).single();
   if (!affiliate) return { error: "Afiliado não encontrado." };
@@ -104,5 +104,4 @@ export async function deleteCouponAction(couponId: string) {
 
   if (error) return { error: error.message };
   return { error: null };
-}
 }

@@ -37,7 +37,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/r/") ||
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/afiliados/inscricao") ||
-    (pathname.startsWith("/afiliados") && !AFILIADO_PAINEL.test(pathname))
+    (pathname.startsWith("/afiliados") && !AFILIADO_PAINEL.test(pathname)) ||
+    pathname.startsWith("/api/")
   ) {
     return supabaseResponse;
   }
