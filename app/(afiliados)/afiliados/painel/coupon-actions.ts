@@ -85,3 +85,24 @@ export async function toggleCouponAction(couponId: string, active: boolean) {
   if (error) return { error: error.message };
   return { error: null };
 }
+
+export async function deleteCouponAction(couponId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Sessão expirada." };
+
+  const { data: affiliate } = await supabase.from("affiliates").select("id").eq("user_id", user.id).single();
+  if (!affiliate) return { error: "Afiliado não encontrado." };
+
+  const admin = await createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (admin as any)
+    .from("affiliate_coupons")
+    .delete()
+    .eq("id", couponId)
+    .eq("affiliate_id", affiliate.id);
+
+  if (error) return { error: error.message };
+  return { error: null };
+}
+}

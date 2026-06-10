@@ -6,9 +6,9 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Tag, ToggleLeft, ToggleRight, Info } from "lucide-react";
+import { Plus, Tag, ToggleLeft, ToggleRight, Info, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { createCouponAction, toggleCouponAction } from "./coupon-actions";
+import { createCouponAction, toggleCouponAction, deleteCouponAction } from "./coupon-actions";
 
 interface Coupon {
   id: string;
@@ -34,6 +34,8 @@ export function CouponManager({ initialCoupons, balance }: { initialCoupons: Cou
   const [maxUses, setMaxUses] = useState("");
   const [saving, startSaving] = useTransition();
   const [toggling, startToggle] = useTransition();
+  const [deleting, startDelete] = useTransition();
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +51,16 @@ export function CouponManager({ initialCoupons, balance }: { initialCoupons: Cou
       setCoupons((prev) => [result.coupon as unknown as Coupon, ...prev]);
       setCode(""); setDiscount(20); setDiscountFixed(""); setMaxUses(""); setShowForm(false);
       toast.success("Cupom criado!");
+    });
+  }
+
+  function handleDelete(id: string) {
+    startDelete(async () => {
+      const result = await deleteCouponAction(id);
+      if (result.error) { toast.error(result.error); return; }
+      setCoupons((prev) => prev.filter((x) => x.id !== id));
+      setConfirmDelete(null);
+      toast.success("Cupom excluído.");
     });
   }
 
@@ -173,9 +185,23 @@ export function CouponManager({ initialCoupons, balance }: { initialCoupons: Cou
                       {c.uses_count}{c.max_uses ? `/${c.max_uses}` : ""} uso{c.uses_count !== 1 ? "s" : ""}
                     </p>
                   </div>
-                  <button onClick={() => handleToggle(c)} disabled={toggling} title={c.active ? "Desativar" : "Ativar"} className="text-muted-foreground hover:text-foreground transition-colors">
-                    {c.active ? <ToggleRight className="h-5 w-5 text-brand" /> : <ToggleLeft className="h-5 w-5" />}
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {confirmDelete === c.id ? (
+                      <>
+                        <span className="text-xs text-destructive mr-1">Excluir?</span>
+                        <button onClick={() => handleDelete(c.id)} disabled={deleting} className="text-xs text-destructive font-medium hover:underline">Sim</button>
+                        <span className="text-xs text-muted-foreground mx-1">/</span>
+                        <button onClick={() => setConfirmDelete(null)} className="text-xs text-muted-foreground hover:underline">Não</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setConfirmDelete(c.id)} title="Excluir" className="text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button onClick={() => handleToggle(c)} disabled={toggling} title={c.active ? "Desativar" : "Ativar"} className="text-muted-foreground hover:text-foreground transition-colors ml-1">
+                      {c.active ? <ToggleRight className="h-5 w-5 text-brand" /> : <ToggleLeft className="h-5 w-5" />}
+                    </button>
+                  </div>
                 </div>
               );
             })}
