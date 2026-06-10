@@ -389,8 +389,8 @@ export default async function PainelAfiliadoPage() {
                       <p className="text-sm text-foreground">Pedido #{sale.order_id.slice(-6).toUpperCase()}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-foreground">
-                        +{formatBRL(sale.commission_amount)}
+                      <p className={`text-sm font-semibold ${sale.commission_amount < 0 ? "text-orange-600" : "text-foreground"}`}>
+                        {sale.commission_amount >= 0 ? "+" : ""}{formatBRL(sale.commission_amount)}
                       </p>
                       <Badge
                         className={`text-xs px-1.5 py-0 ${

@@ -541,6 +541,19 @@ export async function simulatePixApprovedAction(orderId: string) {
             balance: affiliate.balance + commission,
             total_confirmed_sales: (affiliate.total_confirmed_sales ?? 0) + 1,
           }).eq("id", affiliate.id);
+        } else if (commission < 0) {
+          const debit = Math.abs(commission);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from("affiliates").update({
+            balance: Math.max(0, affiliate.balance - debit),
+            total_confirmed_sales: (affiliate.total_confirmed_sales ?? 0) + 1,
+          }).eq("id", affiliate.id);
+        } else {
+          // commission === 0: venda sem ganho nem débito, mas ainda conta como venda
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from("affiliates").update({
+            total_confirmed_sales: (affiliate.total_confirmed_sales ?? 0) + 1,
+          }).eq("id", affiliate.id);
         }
         if (order.coupon_code) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
