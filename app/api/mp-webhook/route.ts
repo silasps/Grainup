@@ -135,6 +135,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Cupom promocional (sem afiliado): incrementa contador de usos
+      if (!order.affiliate_id && order.coupon_code) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase.rpc as any)("increment_promo_coupon_uses", { p_code: order.coupon_code });
+      }
+
       const grossAmount = order.total; // total já inclui frete cobrado do cliente
       const netAmount = grossAmount - gatewayFee - affiliateCommission;
 

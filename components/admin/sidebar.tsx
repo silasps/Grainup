@@ -22,6 +22,7 @@ import {
   Code2,
   Store,
   Tag,
+  Ticket,
   UserCheck,
   ReceiptText,
 } from "lucide-react";
@@ -52,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Combos",     href: "/admin/editora/combos",         icon: BookOpen },
       { label: "Destaques",  href: "/admin/editora/destaques",      icon: Sparkles },
       { label: "Ofertas",    href: "/admin/editora/ofertas",        icon: Tag },
+      { label: "Cupons",     href: "/admin/editora/cupons",         icon: Ticket },
       { label: "Anúncios",   href: "/admin/editora/anuncios",       icon: Megaphone },
     ],
   },

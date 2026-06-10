@@ -82,13 +82,14 @@ export async function placeOrderAction(input: PlaceOrderInput) {
   let affiliateId: string | null = null;
 
   if (input.couponCode) {
+    const normalizedCode = input.couponCode.toUpperCase();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: coupon } = await (supabase as any)
+    const { data: affCoupon } = await (supabase as any)
       .from("affiliate_coupons")
       .select("affiliate_id, affiliates!inner(status, balance, type, total_confirmed_sales), discount_percent, max_uses, uses_count, active")
-      .eq("code", input.couponCode.toUpperCase())
-      .single();
-    const typed = coupon as {
+      .eq("code", normalizedCode)
+      .maybeSingle();
+    const typed = affCoupon as {
       affiliate_id: string;
       affiliates: { status: string; balance: number; type: string; total_confirmed_sales: number };
       discount_percent: number;
@@ -96,24 +97,40 @@ export async function placeOrderAction(input: PlaceOrderInput) {
       uses_count: number;
       active: boolean;
     } | null;
-    if (typed?.active && typed.affiliates?.status === "ativo") {
-      if (typed.max_uses === null || typed.uses_count < typed.max_uses) {
-        const affMargin = typed.affiliates.type !== "geral" ? 50
-          : typed.affiliates.total_confirmed_sales >= 100 ? 50
-          : typed.affiliates.total_confirmed_sales >= 50  ? 40
-          : typed.affiliates.total_confirmed_sales >= 25  ? 30
-          : typed.affiliates.total_confirmed_sales >= 10  ? 20
-          : 10;
-        if (typed.discount_percent <= affMargin || typed.affiliates.balance >= ((typed.discount_percent - affMargin) / 100) * input.subtotal) {
-          affiliateId = typed.affiliate_id;
-        } else {
-          return { error: "Saldo insuficiente do afiliado. O cupom não pode ser aplicado." };
-        }
-      } else {
+
+    if (typed) {
+      // Cupom de afiliado — lógica com margem
+      if (!typed.active || typed.affiliates?.status !== "ativo")
+        return { error: "Cupom inválido ou inativo." };
+      if (typed.max_uses !== null && typed.uses_count >= typed.max_uses)
         return { error: "Cupom atingiu o limite de usos." };
+      const affMargin = typed.affiliates.type !== "geral" ? 50
+        : typed.affiliates.total_confirmed_sales >= 100 ? 50
+        : typed.affiliates.total_confirmed_sales >= 50  ? 40
+        : typed.affiliates.total_confirmed_sales >= 25  ? 30
+        : typed.affiliates.total_confirmed_sales >= 10  ? 20
+        : 10;
+      if (typed.discount_percent <= affMargin || typed.affiliates.balance >= ((typed.discount_percent - affMargin) / 100) * input.subtotal) {
+        affiliateId = typed.affiliate_id;
+      } else {
+        return { error: "Saldo insuficiente do afiliado. O cupom não pode ser aplicado." };
       }
     } else {
-      return { error: "Cupom inválido ou inativo." };
+      // Fallback: cupom promocional do admin
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: promoCoupon } = await (supabase as any)
+        .from("promo_coupons")
+        .select("id, active, expires_at, max_uses, uses_count")
+        .eq("code", normalizedCode)
+        .maybeSingle() as { data: { id: string; active: boolean; expires_at: string | null; max_uses: number | null; uses_count: number } | null };
+
+      if (!promoCoupon || !promoCoupon.active)
+        return { error: "Cupom inválido ou inativo." };
+      if (promoCoupon.expires_at && new Date(promoCoupon.expires_at) < new Date())
+        return { error: "Este cupom está expirado." };
+      if (promoCoupon.max_uses !== null && promoCoupon.uses_count >= promoCoupon.max_uses)
+        return { error: "Cupom atingiu o limite de usos." };
+      // affiliateId permanece null — sem comissão
     }
   } else {
     // Fallback: cookie de link de afiliado
@@ -424,16 +441,18 @@ export async function checkOrderPaymentStatusAction(orderId: string) {
   return { paymentStatus: order.payment_status ?? null };
 }
 
-// Apenas sandbox — força aprovação para testar o fluxo completo sem pagar de verdade
 export async function validateCouponAction(code: string, subtotal: number) {
   if (!code.trim()) return { error: "Informe um código de cupom." };
+  const normalizedCode = code.trim().toUpperCase();
   const supabase = await createAdminClient();
+
+  // 1. Verifica cupons de afiliado
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: coupon } = await (supabase as any)
+  const { data: affCoupon } = await (supabase as any)
     .from("affiliate_coupons")
     .select("id, discount_type, discount_percent, discount_fixed, max_uses, uses_count, active, affiliate_id, affiliates(status, balance, type, total_confirmed_sales)")
-    .eq("code", code.trim().toUpperCase())
-    .single() as {
+    .eq("code", normalizedCode)
+    .maybeSingle() as {
       data: {
         id: string;
         discount_type: "percent" | "fixed";
@@ -447,40 +466,67 @@ export async function validateCouponAction(code: string, subtotal: number) {
       } | null;
     };
 
-  if (!coupon || !coupon.active) return { error: "Cupom inválido ou inativo." };
-  if (coupon.max_uses !== null && coupon.uses_count >= coupon.max_uses) {
-    return { error: "Este cupom atingiu o limite de usos." };
-  }
+  if (affCoupon) {
+    if (!affCoupon.active) return { error: "Cupom inválido ou inativo." };
+    if (affCoupon.max_uses !== null && affCoupon.uses_count >= affCoupon.max_uses)
+      return { error: "Este cupom atingiu o limite de usos." };
 
-  const aff = coupon.affiliates;
-  if (!aff || aff.status !== "ativo") return { error: "Cupom indisponível." };
+    const aff = affCoupon.affiliates;
+    if (!aff || aff.status !== "ativo") return { error: "Cupom indisponível." };
 
-  const affMargin = aff.type !== "geral" ? 50
-    : (aff.total_confirmed_sales ?? 0) >= 100 ? 50
-    : (aff.total_confirmed_sales ?? 0) >= 50  ? 40
-    : (aff.total_confirmed_sales ?? 0) >= 25  ? 30
-    : (aff.total_confirmed_sales ?? 0) >= 10  ? 20
-    : 10;
+    const affMargin = aff.type !== "geral" ? 50
+      : (aff.total_confirmed_sales ?? 0) >= 100 ? 50
+      : (aff.total_confirmed_sales ?? 0) >= 50  ? 40
+      : (aff.total_confirmed_sales ?? 0) >= 25  ? 30
+      : (aff.total_confirmed_sales ?? 0) >= 10  ? 20
+      : 10;
 
-  let discountAmount: number;
-  const discountPct = coupon.discount_type === "percent" ? coupon.discount_percent : 0;
-
-  if (coupon.discount_type === "fixed") {
-    discountAmount = Math.min(coupon.discount_fixed ?? 0, subtotal);
-  } else {
-    if (discountPct > affMargin) {
-      const debitAmount = ((discountPct - affMargin) / 100) * subtotal;
-      if (aff.balance < debitAmount) {
-        return { error: "Saldo insuficiente do afiliado para cobrir este desconto." };
+    const discountPct = affCoupon.discount_type === "percent" ? affCoupon.discount_percent : 0;
+    let discountAmount: number;
+    if (affCoupon.discount_type === "fixed") {
+      discountAmount = Math.min(affCoupon.discount_fixed ?? 0, subtotal);
+    } else {
+      if (discountPct > affMargin) {
+        const debitAmount = ((discountPct - affMargin) / 100) * subtotal;
+        if (aff.balance < debitAmount)
+          return { error: "Saldo insuficiente do afiliado para cobrir este desconto." };
       }
+      discountAmount = Math.round((discountPct / 100) * subtotal * 100) / 100;
     }
-    discountAmount = Math.round((discountPct / 100) * subtotal * 100) / 100;
+    return { error: null, coupon: { id: affCoupon.id, code: normalizedCode, discountPercent: discountPct, discountAmount } };
   }
 
-  return {
-    error: null,
-    coupon: { id: coupon.id, code: code.trim().toUpperCase(), discountPercent: discountPct, discountAmount },
-  };
+  // 2. Fallback: verifica cupons promocionais do admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: promoCoupon } = await (supabase as any)
+    .from("promo_coupons")
+    .select("id, discount_type, discount_percent, discount_fixed, max_uses, uses_count, active, expires_at")
+    .eq("code", normalizedCode)
+    .maybeSingle() as {
+      data: {
+        id: string;
+        discount_type: "percent" | "fixed";
+        discount_percent: number;
+        discount_fixed: number | null;
+        max_uses: number | null;
+        uses_count: number;
+        active: boolean;
+        expires_at: string | null;
+      } | null;
+    };
+
+  if (!promoCoupon || !promoCoupon.active) return { error: "Cupom inválido ou inativo." };
+  if (promoCoupon.expires_at && new Date(promoCoupon.expires_at) < new Date())
+    return { error: "Este cupom está expirado." };
+  if (promoCoupon.max_uses !== null && promoCoupon.uses_count >= promoCoupon.max_uses)
+    return { error: "Este cupom atingiu o limite de usos." };
+
+  const discountPct = promoCoupon.discount_type === "percent" ? promoCoupon.discount_percent : 0;
+  const discountAmount = promoCoupon.discount_type === "fixed"
+    ? Math.min(promoCoupon.discount_fixed ?? 0, subtotal)
+    : Math.round((discountPct / 100) * subtotal * 100) / 100;
+
+  return { error: null, coupon: { id: promoCoupon.id, code: normalizedCode, discountPercent: discountPct, discountAmount } };
 }
 
 export async function simulatePixApprovedAction(orderId: string) {
@@ -561,6 +607,12 @@ export async function simulatePixApprovedAction(orderId: string) {
         }
       }
     }
+  }
+
+  // Cupom promocional (sem afiliado): incrementa contador de usos
+  if (!order?.affiliate_id && order?.coupon_code) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.rpc as any)("increment_promo_coupon_uses", { p_code: order.coupon_code });
   }
 
   sendOrderConfirmationEmail(orderId).catch(console.error);
