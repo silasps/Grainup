@@ -43,8 +43,13 @@ export function BookShelf({ books, className }: BookShelfProps) {
         className={cn(
           "flex gap-3 overflow-x-auto scrollbar-hide",
           "snap-x snap-mandatory",
-          "-mx-4 px-4 pb-2 lg:mx-0 lg:px-0"
+          "-mx-4 px-4 pb-2 lg:mx-0 lg:px-0",
+          "lg:[mask-image:none]"
         )}
+        style={{
+          maskImage: "linear-gradient(to right, transparent 0px, black 16px, black calc(100% - 40px), transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to right, transparent 0px, black 16px, black calc(100% - 40px), transparent 100%)",
+        }}
       >
         {books.map((book) => (
           <div
@@ -59,12 +64,6 @@ export function BookShelf({ books, className }: BookShelfProps) {
         <div className="flex-shrink-0 w-4 lg:hidden" aria-hidden />
       </div>
 
-      {/* Fade right — sinaliza mais conteúdo (mobile/tablet) */}
-      <div
-        className="pointer-events-none absolute right-0 top-0 bottom-2 w-24 lg:hidden"
-        style={{ background: "linear-gradient(to left, var(--color-background) 20%, transparent)" }}
-        aria-hidden
-      />
 
       {/* Seta direita — desktop */}
       <button
