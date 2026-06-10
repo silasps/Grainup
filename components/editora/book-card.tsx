@@ -126,8 +126,8 @@ export function BookCard({ book, className }: BookCardProps) {
           </div>
         )}
 
-        {/* Overlay escuro no hover para revelar botão de carrinho rápido */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100">
+        {/* Desktop: overlay no hover | Mobile: botão sempre visível no canto */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100 hidden sm:flex">
           <button
             onClick={handleAddToCart}
             className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-foreground text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg hover:bg-white transition-colors"
@@ -136,6 +136,13 @@ export function BookCard({ book, className }: BookCardProps) {
             Adicionar
           </button>
         </div>
+        <button
+          onClick={handleAddToCart}
+          className="sm:hidden absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm text-foreground p-2 rounded-full shadow-lg active:scale-95 transition-transform"
+          aria-label="Adicionar ao carrinho"
+        >
+          <ShoppingCart className="h-4 w-4" />
+        </button>
       </Link>
 
       {/* Conteúdo */}
