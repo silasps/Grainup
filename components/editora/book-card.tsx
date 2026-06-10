@@ -162,7 +162,7 @@ export function BookCard({ book, className }: BookCardProps) {
             </p>
           )}
 
-          <h3 className="flex-1 text-sm font-semibold text-foreground leading-snug line-clamp-2">
+          <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2 min-h-[2.5rem]">
             {book.title}
           </h3>
 

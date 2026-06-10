@@ -61,7 +61,8 @@ export function BookShelf({ books, className }: BookShelfProps) {
 
       {/* Fade right — sinaliza mais conteúdo (mobile/tablet) */}
       <div
-        className="pointer-events-none absolute right-0 top-0 bottom-2 w-12 bg-gradient-to-l from-background to-transparent lg:hidden"
+        className="pointer-events-none absolute right-0 top-0 bottom-2 w-24 lg:hidden"
+        style={{ background: "linear-gradient(to left, var(--color-background) 20%, transparent)" }}
         aria-hidden
       />
 
