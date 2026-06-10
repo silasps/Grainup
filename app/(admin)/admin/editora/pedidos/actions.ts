@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendReviewRequestEmail } from "@/lib/email";
 import type { OrderRow } from "@/components/admin/pedidos-table";
+import type { OrderStatus } from "@/types/database";
 
 export interface StatRow {
   status: string;
@@ -32,7 +33,7 @@ export async function fetchStatsAction(): Promise<StatRow[]> {
 
 export async function updateOrderStatusAction(
   orderId: string,
-  status: string,
+  status: OrderStatus,
 ): Promise<{ error: string | null }> {
   const supabase = await createAdminClient();
   const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
@@ -40,27 +41,25 @@ export async function updateOrderStatusAction(
 
   // Ao marcar como entregue → dispara email pedindo avaliação
   if (status === "entregue") {
-    const { data: order } = await supabase
+    const { data: orderRaw } = await supabase
       .from("orders")
       .select("order_number, customer_name, customer_email, order_items(title, book_id, books(slug, cover_url))")
       .eq("id", orderId)
       .single();
 
+    const order = orderRaw as unknown as {
+      order_number: string;
+      customer_name: string;
+      customer_email: string;
+      order_items: Array<{ title: string; book_id: string | null; books: { slug: string; cover_url: string | null } | null }>;
+    } | null;
+
     if (order?.customer_email) {
       const books = (order.order_items ?? [])
-        .filter((i: { book_id: string | null }) => i.book_id)
-        .map((i: { title: string; books: { slug: string; cover_url: string | null } | null }) => ({
-          title: i.title,
-          slug: i.books?.slug ?? "",
-          coverUrl: i.books?.cover_url ?? null,
-        }));
+        .filter((i) => i.book_id)
+        .map((i) => ({ title: i.title, slug: i.books?.slug ?? "", coverUrl: i.books?.cover_url ?? null }));
       if (books.length > 0) {
-        sendReviewRequestEmail(
-          order.customer_email,
-          order.customer_name,
-          order.order_number,
-          books,
-        ).catch(console.error);
+        sendReviewRequestEmail(order.customer_email, order.customer_name, order.order_number, books).catch(console.error);
       }
     }
   }

@@ -140,9 +140,9 @@ export default async function PainelAfiliadoPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("affiliate_coupons")
-      .select("id, code, discount_percent, max_uses, uses_count, active, created_at")
+      .select("id, code, discount_percent, discount_type, discount_fixed, max_uses, uses_count, active, created_at")
       .eq("affiliate_id", affiliate.id)
-      .order("created_at", { ascending: false }) as Promise<{ data: Array<{ id: string; code: string; discount_percent: number; max_uses: number | null; uses_count: number; active: boolean; created_at: string }> | null }>,
+      .order("created_at", { ascending: false }) as Promise<{ data: Array<{ id: string; code: string; discount_percent: number; discount_type: "percent" | "fixed"; discount_fixed: number | null; max_uses: number | null; uses_count: number; active: boolean; created_at: string }> | null }>,
     supabase
       .from("affiliate_withdrawals")
       .select("id, amount, status, pix_key, pix_key_type, notes, requested_at, paid_at, created_at")

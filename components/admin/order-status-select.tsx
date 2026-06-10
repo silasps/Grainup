@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { updateOrderStatusAction } from "@/app/(admin)/admin/editora/pedidos/actions";
+import type { OrderStatus } from "@/types/database";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,7 +21,7 @@ export function OrderStatusSelect({ orderId, initialStatus }: { orderId: string;
   const [loading, setLoading] = useState(false);
   const current = STATUSES.find((s) => s.value === status);
 
-  async function handleChange(newStatus: string) {
+  async function handleChange(newStatus: OrderStatus) {
     if (newStatus === status) return;
     setLoading(true);
     const { error } = await updateOrderStatusAction(orderId, newStatus);
@@ -42,7 +43,7 @@ export function OrderStatusSelect({ orderId, initialStatus }: { orderId: string;
       </div>
       <select
         value={status}
-        onChange={(e) => handleChange(e.target.value)}
+        onChange={(e) => handleChange(e.target.value as OrderStatus)}
         disabled={loading}
         className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-50 cursor-pointer"
       >

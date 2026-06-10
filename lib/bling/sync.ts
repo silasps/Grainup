@@ -74,6 +74,7 @@ export async function pushOrderToBling(orderId: string) {
   const result = await createBlingOrder(payload);
 
   // Salva o ID do pedido Bling no registro do pedido (adicionar coluna bling_order_id)
-  await supabase.from("orders").update({ bling_order_id: result.id } as Record<string, unknown>).eq("id", orderId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("orders").update({ bling_order_id: result.id }).eq("id", orderId);
   console.log(`[Bling] Pedido ${order.order_number} enviado → ID Bling ${result.id}`);
 }

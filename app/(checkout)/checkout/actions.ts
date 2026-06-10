@@ -515,7 +515,8 @@ export async function simulatePixApprovedAction(orderId: string) {
           commission_amount: commission, commission_rate: earnPct, status: "confirmada",
         });
         if (commission > 0) {
-          await supabase.from("affiliates").update({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from("affiliates").update({
             balance: affiliate.balance + commission,
             total_confirmed_sales: (affiliate.total_confirmed_sales ?? 0) + 1,
           }).eq("id", affiliate.id);

@@ -42,14 +42,17 @@ export async function POST(req: NextRequest) {
       if (event.status !== "delivered") continue;
 
       // Busca o pedido pelo código de rastreio
-      const { data: order } = await supabase
+      const { data: orderRaw } = await supabase
         .from("orders")
-        .select(`
-          id, order_number, status, customer_name, customer_email,
-          order_items(title, book_id, books(slug, cover_url))
-        `)
+        .select("id, order_number, status, customer_name, customer_email, order_items(title, book_id, books(slug, cover_url))")
         .eq("tracking_code", trackingCode)
         .maybeSingle();
+
+      const order = orderRaw as {
+        id: string; order_number: string; status: string;
+        customer_name: string; customer_email: string;
+        order_items: Array<{ title: string; book_id: string | null; books: { slug: string; cover_url: string | null } | null }>;
+      } | null;
 
       if (!order) continue;
       if (order.status === "entregue") continue; // já processado
