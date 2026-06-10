@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import {
   Tag, Wallet, BarChart3, Gift,
-  CheckCircle, Handshake, Zap, ShoppingBag, Star, TrendingUp,
+  CheckCircle, Handshake, Zap, ShoppingBag, Star, TrendingUp, ArrowRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { HeroHighlight } from "@/components/editora/hero-highlight";
 import { AfiliadoCTA } from "./afiliado-cta";
 import { EntrarButton } from "./entrar-button";
 
@@ -14,37 +13,49 @@ export const metadata: Metadata = {
     "Crie cupons de desconto, ajude pessoas a comprarem livros com desconto real e receba parte do valor na sua carteira. Grátis para participar.",
 };
 
-/* ── simulação de ganhos ────────────────────────────────────────────────── */
+/* ── tiers ────────────────────────────────────────────────────────────────── */
+const TIERS_LANDING = [
+  { label: "Explorador",       vendas: "0–9",    margin: "10%", destaque: false },
+  { label: "Colaborador",      vendas: "10–24",  margin: "20%", destaque: false },
+  { label: "Parceiro",         vendas: "25–49",  margin: "30%", destaque: false },
+  { label: "Embaixador",       vendas: "50–99",  margin: "40%", destaque: false },
+  { label: "Embaixador Elite", vendas: "100+",   margin: "50%", destaque: true  },
+];
+
+/* ── cenários de ganho (baseados em margem 10% inicial → 50% máxima) ──────── */
 const CENARIOS = [
   {
-    label: "Divulgador",
-    cupom: 50,
+    label: "Explorador",
+    tier: "10% de margem",
+    cupom: 5,
     livro: 60,
-    desconto: 30,
-    ganho: 0,
+    desconto: 3,
+    ganho: 3,
     cor: "border-muted-foreground/30 bg-secondary/50",
     destaque: false,
-    desc: "O cliente paga R$ 30 e você divulga sem custo ou retorno.",
+    desc: "O cliente paga R$ 57. Você recebe R$ 3 na carteira.",
   },
   {
-    label: "Indicador",
+    label: "Parceiro",
+    tier: "30% de margem",
+    cupom: 20,
+    livro: 60,
+    desconto: 12,
+    ganho: 6,
+    cor: "border-brand/40 bg-brand-50/40",
+    destaque: true,
+    desc: "O cliente paga R$ 48. Você recebe R$ 6 na carteira.",
+  },
+  {
+    label: "Elite",
+    tier: "50% de margem",
     cupom: 20,
     livro: 60,
     desconto: 12,
     ganho: 18,
-    cor: "border-brand/40 bg-brand-50/40",
-    destaque: true,
-    desc: "O cliente paga R$ 48. Você recebe R$ 18 na carteira.",
-  },
-  {
-    label: "Parceiro",
-    cupom: 10,
-    livro: 60,
-    desconto: 6,
-    ganho: 24,
     cor: "border-emerald-400/40 bg-emerald-50/40",
     destaque: false,
-    desc: "O cliente paga R$ 54. Você recebe R$ 24 na carteira.",
+    desc: "O cliente paga R$ 48. Você recebe R$ 18 na carteira.",
   },
 ];
 
@@ -59,7 +70,7 @@ const COMO_FUNCIONA = [
     num: "02",
     icon: Tag,
     titulo: "Crie seus cupons",
-    desc: "No seu painel você cria cupons com o desconto que quiser (até 50%). Você decide quanto oferecer.",
+    desc: "No seu painel você cria cupons com o desconto que quiser. Você decide quanto oferecer.",
   },
   {
     num: "03",
@@ -71,20 +82,20 @@ const COMO_FUNCIONA = [
     num: "04",
     icon: Wallet,
     titulo: "Receba na carteira",
-    desc: "A diferença entre os 50% da sua margem e o desconto dado vai direto para o seu saldo. Saque a partir de R$ 100 via Pix.",
+    desc: "A diferença entre a sua margem atual e o desconto dado vai direto para o seu saldo. Saque a partir de R$ 100 via Pix.",
   },
 ];
 
 const BENEFICIOS = [
   {
-    icon: Tag,
-    titulo: "50% de desconto pessoal",
-    desc: "Você compra qualquer livro da editora com 50% de desconto — para o seu uso.",
+    icon: TrendingUp,
+    titulo: "Margem que cresce com você",
+    desc: "Começa em 10% e chega a 50% conforme as vendas se acumulam. Quanto mais você vende, mais você ganha por venda.",
   },
   {
     icon: Gift,
     titulo: "Crie cupons livremente",
-    desc: "Gere cupons de 1% a 50% para seus contatos. Cada cupom tem código único e rastreamento em tempo real.",
+    desc: "Gere cupons com o desconto que quiser para seus contatos. Cada cupom tem código único e rastreamento em tempo real.",
   },
   {
     icon: Wallet,
@@ -102,26 +113,18 @@ const BENEFICIOS = [
     desc: "O programa é 100% gratuito. Nenhuma taxa de entrada, nenhuma mensalidade.",
   },
   {
-    icon: TrendingUp,
-    titulo: "Missão que rende",
-    desc: "Espalhe literatura cristã de qualidade e seja recompensado. Cada livro vendido é uma vida impactada.",
+    icon: Tag,
+    titulo: "Link de rastreamento",
+    desc: "Além dos cupons, você recebe um link exclusivo. Se alguém comprar em até 60 dias após clicar, você é creditado.",
   },
-];
-
-const TIERS_LANDING = [
-  { label: "Explorador",       vendas: "0–9",    margin: "30%" },
-  { label: "Colaborador",      vendas: "10–24",  margin: "35%" },
-  { label: "Parceiro",         vendas: "25–49",  margin: "40%" },
-  { label: "Embaixador",       vendas: "50–99",  margin: "45%" },
-  { label: "Embaixador Elite", vendas: "100+",   margin: "50%" },
 ];
 
 const TIPOS_AFILIADO = [
   {
     tipo: "Parceiro Geral",
     quem: "Qualquer pessoa",
-    margem: "30% → 50%",
-    desc: "Começa com 30% de margem e sobe conforme as vendas confirmadas. Ao chegar em 100 vendas, atinge os 50% máximos.",
+    margem: "10% → 50%",
+    desc: "Começa com 10% de margem e sobe conforme as vendas confirmadas. Ao chegar em 100 vendas, atinge os 50% máximos.",
     destaque: false,
   },
   {
@@ -132,7 +135,7 @@ const TIPOS_AFILIADO = [
     destaque: true,
   },
   {
-    tipo: "Diretor Acadêmico",
+    tipo: "Diretor Acadêmico EIFOL",
     quem: "Diretores acadêmicos",
     margem: "50% fixo",
     desc: "Margem máxima desde o início, sem progressão de tier.",
@@ -147,7 +150,11 @@ const FAQ = [
   },
   {
     q: "Como funciona a lógica de ganhos?",
-    a: "Você tem uma margem em cada livro (30–50% dependendo do seu nível). Se der um cupom de 20% e sua margem for 30%, você ganha 10% do valor na carteira.",
+    a: "Você tem uma margem em cada livro (10–50% dependendo do seu nível). Se der um cupom de 5% e sua margem for 10%, você ganha 5% do valor na carteira.",
+  },
+  {
+    q: "Como a margem sobe?",
+    a: "Cada venda confirmada conta. Com 10 vendas sua margem vai para 20%, 25 vendas → 30%, 50 vendas → 40%, 100+ vendas → 50% máximo.",
   },
   {
     q: "O que é o cookie de rastreamento?",
@@ -161,10 +168,6 @@ const FAQ = [
     q: "Posso criar mais de um cupom?",
     a: "Sim! Quantos quiser, com descontos diferentes. Você controla tudo pelo painel em tempo real.",
   },
-  {
-    q: "Como funciona a progressão de tier?",
-    a: "Cada venda confirmada conta. Ao atingir 10 vendas sua margem sobe para 35%, 25 vendas → 40%, 50 → 45%, 100+ → 50% máximo.",
-  },
 ];
 
 export default function AfiliadosPage() {
@@ -172,37 +175,44 @@ export default function AfiliadosPage() {
     <div className="overflow-x-hidden">
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <section className="relative bg-gradient-to-br from-foreground via-foreground/95 to-brand-800 text-white py-24 overflow-hidden">
-        <div className="absolute inset-0 opacity-10 pointer-events-none select-none"
-          style={{ backgroundImage: "radial-gradient(circle at 70% 40%, #fff 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
-        <div className="container mx-auto max-w-7xl px-4 relative">
-          <Badge className="mb-5 bg-brand hover:bg-brand text-white text-xs px-3 py-1">
+      <section className="bg-background py-20 border-b border-border">
+        <div className="container mx-auto max-w-7xl px-4">
+          <Badge className="mb-6 bg-brand hover:bg-brand text-white text-xs px-3 py-1">
             Programa de Afiliados
           </Badge>
-          <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-6 max-w-3xl">
+          <h1 className="font-heading text-4xl sm:text-5xl font-bold leading-tight mb-6 max-w-2xl text-foreground">
             Dê desconto real.{" "}
-            <HeroHighlight>Ganhe de verdade.</HeroHighlight>
+            <span className="text-brand relative inline-block pb-1">
+              Ganhe de verdade.
+              <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 200 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 6 Q100 2 198 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-brand-200" />
+              </svg>
+            </span>
           </h1>
-          <p className="text-white/75 text-lg sm:text-xl max-w-2xl leading-relaxed mb-10">
+          <p className="text-muted-foreground text-lg max-w-xl leading-relaxed mb-10">
             Crie seus próprios cupons de desconto para livros da Editora Jocum.
-            Você decide o desconto — e recebe a diferença automaticamente na carteira.
+            Você decide o desconto — e recebe a diferença na carteira. Sua margem começa em 10% e pode chegar a 50%.
           </p>
           <div className="flex flex-wrap gap-3">
             <AfiliadoCTA label="Quero participar" variant="brand" />
             <EntrarButton />
           </div>
+        </div>
+      </section>
 
-          {/* mini stats */}
-          <div className="flex flex-wrap gap-6 mt-12 text-sm">
+      {/* ── Mini stats ────────────────────────────────────────────────────── */}
+      <section className="bg-secondary py-10 border-b border-border">
+        <div className="container mx-auto max-w-7xl px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {[
-              { v: "30→50%", l: "de margem por venda" },
-              { v: "50%", l: "desconto pessoal em livros" },
+              { v: "10→50%", l: "de margem por venda" },
+              { v: "5 níveis", l: "de progressão" },
               { v: "60 dias", l: "de cookie de rastreamento" },
               { v: "3 d.u.", l: "prazo para saque Pix" },
             ].map(({ v, l }) => (
-              <div key={l} className="flex flex-col">
-                <span className="font-heading text-2xl font-bold text-white">{v}</span>
-                <span className="text-white/60 text-xs mt-0.5">{l}</span>
+              <div key={l} className="flex flex-col items-center gap-1">
+                <span className="font-heading text-2xl font-bold text-foreground">{v}</span>
+                <span className="text-muted-foreground text-xs">{l}</span>
               </div>
             ))}
           </div>
@@ -217,25 +227,25 @@ export default function AfiliadosPage() {
               Como a lógica de ganhos funciona
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              Você tem <strong>50% de margem</strong> em cada livro. O desconto que você oferece sai dessa margem.
-              O que sobrar vai para a sua carteira.
+              Você tem uma <strong>margem por livro</strong> que cresce com suas vendas.
+              O desconto que você oferece sai dessa margem. O que sobrar vai para a sua carteira.
             </p>
           </div>
 
           {/* fórmula visual */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12 text-sm font-medium">
             <div className="flex flex-col items-center px-5 py-3 rounded-xl bg-brand-50 border border-brand/20">
-              <span className="text-2xl font-bold text-brand">50%</span>
-              <span className="text-muted-foreground text-xs mt-1">Sua margem</span>
+              <span className="text-2xl font-bold text-brand">X%</span>
+              <span className="text-muted-foreground text-xs mt-1">Sua margem atual</span>
             </div>
             <span className="text-2xl text-muted-foreground font-light">−</span>
             <div className="flex flex-col items-center px-5 py-3 rounded-xl bg-secondary border border-border">
-              <span className="text-2xl font-bold text-foreground">X%</span>
+              <span className="text-2xl font-bold text-foreground">Y%</span>
               <span className="text-muted-foreground text-xs mt-1">Desconto do cupom</span>
             </div>
             <span className="text-2xl text-muted-foreground font-light">=</span>
             <div className="flex flex-col items-center px-5 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
-              <span className="text-2xl font-bold text-emerald-600">(50−X)%</span>
+              <span className="text-2xl font-bold text-emerald-600">(X−Y)%</span>
               <span className="text-muted-foreground text-xs mt-1">Seu ganho por venda</span>
             </div>
           </div>
@@ -250,7 +260,10 @@ export default function AfiliadosPage() {
                   </span>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-foreground">{c.label}</span>
+                  <div>
+                    <span className="font-semibold text-foreground">{c.label}</span>
+                    <p className="text-[11px] text-muted-foreground">{c.tier}</p>
+                  </div>
                   <Badge variant="secondary" className="text-xs">Cupom {c.cupom}% off</Badge>
                 </div>
                 <div className="text-sm text-muted-foreground leading-relaxed">{c.desc}</div>
@@ -304,15 +317,26 @@ export default function AfiliadosPage() {
           </div>
           <div className="flex flex-col gap-2">
             {TIERS_LANDING.map((t, i) => (
-              <div key={t.label} className={`flex items-center justify-between px-4 py-3 rounded-xl border ${i === 0 ? "border-border bg-secondary/50" : i === TIERS_LANDING.length - 1 ? "border-brand/30 bg-brand-50/30" : "border-border bg-white"}`}>
-                <div>
-                  <span className="font-semibold text-sm text-foreground">{t.label}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">{t.vendas} vendas</span>
+              <div key={t.label} className={`flex items-center justify-between px-4 py-3 rounded-xl border ${t.destaque ? "border-brand/30 bg-brand-50/30" : "border-border bg-secondary/50"}`}>
+                <div className="flex items-center gap-3">
+                  {i < TIERS_LANDING.length - 1 && (
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40" />
+                  )}
+                  {i === TIERS_LANDING.length - 1 && (
+                    <Star className="h-3.5 w-3.5 text-brand" />
+                  )}
+                  <div>
+                    <span className="font-semibold text-sm text-foreground">{t.label}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{t.vendas} vendas confirmadas</span>
+                  </div>
                 </div>
-                <span className={`font-bold text-lg ${i === TIERS_LANDING.length - 1 ? "text-brand" : "text-foreground"}`}>{t.margin}</span>
+                <span className={`font-bold text-lg ${t.destaque ? "text-brand" : "text-foreground"}`}>{t.margin}</span>
               </div>
             ))}
           </div>
+          <p className="text-center text-xs text-muted-foreground mt-4">
+            A progressão é automática — não é preciso solicitar a mudança de nível.
+          </p>
         </div>
       </section>
 
@@ -366,7 +390,7 @@ export default function AfiliadosPage() {
         </div>
       </section>
 
-      {/* ── Testemunho / CTA intermediário ────────────────────────────────── */}
+      {/* ── CTA intermediário ─────────────────────────────────────────────── */}
       <section className="py-16 bg-gradient-to-r from-brand to-brand-700 text-white">
         <div className="container mx-auto max-w-3xl px-4 text-center">
           <p className="font-heading text-2xl sm:text-3xl font-bold mb-4 leading-tight">

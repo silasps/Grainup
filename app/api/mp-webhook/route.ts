@@ -57,10 +57,10 @@ export async function POST(request: NextRequest) {
           const getMargin = (type: string, sales: number) => {
             if (type !== "geral") return 50;
             if (sales >= 100) return 50;
-            if (sales >= 50)  return 45;
-            if (sales >= 25)  return 40;
-            if (sales >= 10)  return 35;
-            return 30;
+            if (sales >= 50)  return 40;
+            if (sales >= 25)  return 30;
+            if (sales >= 10)  return 20;
+            return 10;
           };
           const MARGIN = getMargin(
             (affiliate as unknown as { type: string }).type,

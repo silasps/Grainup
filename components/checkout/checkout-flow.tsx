@@ -349,8 +349,11 @@ export function CheckoutFlow() {
   const count = items.reduce((s, i) => s + i.quantity, 0);
   const sub = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const isFreeShipping = sub >= 200;
+  const cheapestShipping = shippingOptions.length > 0 ? shippingOptions[0] : null;
   const selectedShipping = shippingOptions.find((s) => s.id === shipping) ?? null;
-  const shippingPrice = isFreeShipping ? 0 : (selectedShipping?.price ?? 0);
+  const shippingPrice = isFreeShipping && selectedShipping?.id === cheapestShipping?.id
+    ? 0
+    : (selectedShipping?.price ?? 0);
   const pixDiscount = payment === "pix" ? Math.round(sub * 0.05 * 100) / 100 : 0;
   const couponDiscount = coupon ? Math.min(coupon.discountAmount, sub) : 0;
   const totalDiscount = pixDiscount + couponDiscount;
@@ -1172,17 +1175,20 @@ export function CheckoutFlow() {
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        {isFreeShipping && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 block mb-0.5">
-                            GRÁTIS
-                          </span>
+                        {isFreeShipping && opt.id === cheapestShipping?.id ? (
+                          <>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 block mb-0.5">
+                              GRÁTIS
+                            </span>
+                            <p className="font-bold text-sm line-through text-muted-foreground">
+                              {formatCurrency(opt.price)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="font-bold text-sm text-foreground">
+                            {formatCurrency(opt.price)}
+                          </p>
                         )}
-                        <p className={cn(
-                          "font-bold text-sm",
-                          isFreeShipping ? "line-through text-muted-foreground" : "text-foreground"
-                        )}>
-                          {formatCurrency(opt.price)}
-                        </p>
                       </div>
                     </button>
                   ))}
@@ -1285,7 +1291,7 @@ export function CheckoutFlow() {
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Frete</span>
-                  {shippingPrice === 0 ? (
+                  {isFreeShipping && shippingPrice === 0 ? (
                     <span className="text-emerald-600 font-medium">Grátis</span>
                   ) : (
                     <span>{formatCurrency(shippingPrice)}</span>
@@ -1447,7 +1453,7 @@ export function CheckoutFlow() {
           <div className="flex items-center justify-between px-4 py-2">
             <span className="text-sm text-muted-foreground">Frete</span>
             <span className="font-bold text-foreground">
-              {loadingShipping ? "—" : shippingPrice === 0 ? "Grátis" : formatCurrency(shippingPrice)}
+              {loadingShipping ? "—" : isFreeShipping && shippingPrice === 0 ? "Grátis" : formatCurrency(shippingPrice)}
             </span>
           </div>
           <div className="px-4 pb-4">

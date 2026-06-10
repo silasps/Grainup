@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { MessageCircle, CheckCircle2, Copy, Search, UserCheck } from "lucide-react";
 import { createAffiliateWithAccountAction, lookupUserByEmailAction } from "./actions";
 
-const TYPE_LABELS = { geral: "Parceiro Geral", jocum: "JOCUM", diretor: "Diretor Acadêmico" } as const;
+const TYPE_LABELS = { geral: "Parceiro Geral", jocum: "JOCUM", diretor: "Diretor Acadêmico EIFOL" } as const;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://editorajocum.com.br";
 
 const DDI_OPTIONS = [

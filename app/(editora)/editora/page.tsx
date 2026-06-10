@@ -120,7 +120,7 @@ export default async function EditoraHomePage() {
 
       {/* DESTAQUES — prateleira horizontal */}
       {featuredNorm.length > 0 && (
-        <section className="py-14 bg-brand-50">
+        <section className="py-14 bg-secondary">
           <div className="container mx-auto max-w-7xl px-4">
             <div className="flex items-end justify-between mb-6">
               <div>

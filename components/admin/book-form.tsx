@@ -70,6 +70,9 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
   const [blingStatus, setBlingStatus] = useState<"idle" | "found" | "not_found">("idle");
   const [publisher, setPublisher] = useState(book?.publisher ?? "");
   const [weightGrams, setWeightGrams] = useState(String(book?.weight_grams ?? ""));
+  const [heightCm, setHeightCm] = useState(String(book?.height_cm ?? ""));
+  const [widthCm, setWidthCm] = useState(String(book?.width_cm ?? ""));
+  const [lengthCm, setLengthCm] = useState(String(book?.length_cm ?? ""));
   const [isActive, setIsActive] = useState(book?.is_active ?? true);
   const [isFeatured, setIsFeatured] = useState(book?.is_featured ?? false);
   const [isNew, setIsNew] = useState(book?.is_new ?? false);
@@ -229,6 +232,9 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
         sku: sku || null,
         publisher: publisher || null,
         weight_grams: weightGrams ? parseInt(weightGrams) : null,
+        height_cm: heightCm ? parseFloat(heightCm) : null,
+        width_cm: widthCm ? parseFloat(widthCm) : null,
+        length_cm: lengthCm ? parseFloat(lengthCm) : null,
         is_active: isActive,
         is_featured: isFeatured,
         is_new: isNew,
@@ -544,6 +550,24 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
                 <div className="space-y-1.5">
                   <Label htmlFor="weight">Peso (g)</Label>
                   <Input id="weight" type="number" value={weightGrams} onChange={(e) => setWeightGrams(e.target.value)} placeholder="300" />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-muted-foreground text-xs">Dimensões para frete (cm)</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="height_cm" className="text-xs">Altura</Label>
+                      <Input id="height_cm" type="number" step="0.1" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} placeholder="21" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="width_cm" className="text-xs">Largura</Label>
+                      <Input id="width_cm" type="number" step="0.1" value={widthCm} onChange={(e) => setWidthCm(e.target.value)} placeholder="14" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="length_cm" className="text-xs">Comprimento</Label>
+                      <Input id="length_cm" type="number" step="0.1" value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} placeholder="2" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Usado no cálculo de frete (Mercado Envios / Correios)</p>
                 </div>
                 <div className="space-y-1.5 col-span-2 sm:col-span-1">
                   <Label htmlFor="isbn">ISBN</Label>

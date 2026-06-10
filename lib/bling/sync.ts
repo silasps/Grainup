@@ -33,28 +33,77 @@ export async function pushOrderToBling(orderId: string) {
       customer_name, customer_email,
       shipping_street, shipping_number, shipping_complement,
       shipping_neighborhood, shipping_city, shipping_state, shipping_cep,
-      order_items(title, quantity, unit_price, book_id, books(sku))
+      order_items(title, quantity, unit_price, book_id, combo_id, books(sku))
     `)
     .eq("id", orderId)
     .single() as { data: Record<string, unknown> | null };
 
   if (!order) throw new Error("Pedido não encontrado.");
 
-  const items = (order.order_items as Array<{
+  type RawItem = {
     title: string; quantity: number; unit_price: number;
+    book_id: string | null; combo_id: string | null;
     books: { sku: string | null } | null;
-  }>);
+  };
+
+  const rawItems = order.order_items as RawItem[];
+
+  // Expande combos em linhas individuais de livro com desconto proporcional
+  type BlingItem = { codigo: string; descricao: string; quantidade: number; valor_unitario: number };
+  const blingItems: BlingItem[] = [];
+
+  for (const item of rawItems) {
+    if (!item.combo_id) {
+      blingItems.push({
+        codigo: item.books?.sku ?? item.title,
+        descricao: item.title,
+        quantidade: item.quantity,
+        valor_unitario: item.unit_price,
+      });
+      continue;
+    }
+
+    // Busca os livros do combo com título, SKU e preço individual
+    const { data: comboBooks } = await supabase
+      .from("combo_items")
+      .select("quantity, books(title, sku, price)")
+      .eq("combo_id", item.combo_id) as {
+        data: Array<{ quantity: number; books: { title: string; sku: string | null; price: number } | null }> | null
+      };
+
+    if (!comboBooks || comboBooks.length === 0) {
+      // Fallback: envia o combo como linha única se não tiver estrutura
+      blingItems.push({
+        codigo: item.combo_id,
+        descricao: item.title,
+        quantidade: item.quantity,
+        valor_unitario: item.unit_price,
+      });
+      continue;
+    }
+
+    // Distribui o preço do combo proporcionalmente entre os livros
+    const somaPrecos = comboBooks.reduce((acc, cb) => acc + (cb.books?.price ?? 0) * cb.quantity, 0);
+    for (const cb of comboBooks) {
+      if (!cb.books) continue;
+      const fator = somaPrecos > 0 ? (cb.books.price * cb.quantity) / somaPrecos : 1 / comboBooks.length;
+      const precoUnitarioProporcional = somaPrecos > 0
+        ? (item.unit_price * fator) / cb.quantity
+        : item.unit_price / comboBooks.length;
+      blingItems.push({
+        codigo: cb.books.sku ?? cb.books.title,
+        descricao: cb.books.title,
+        quantidade: item.quantity * cb.quantity,
+        valor_unitario: Math.round(precoUnitarioProporcional * 100) / 100,
+      });
+    }
+  }
 
   const payload: BlingOrderPayload = {
     numero_loja: String(order.order_number),
     data: new Date(order.created_at as string).toISOString().slice(0, 10),
     contato: { nome: order.customer_name as string, email: order.customer_email as string },
-    itens: items.map((i) => ({
-      codigo: i.books?.sku ?? i.title,
-      descricao: i.title,
-      quantidade: i.quantity,
-      valor_unitario: i.unit_price,
-    })),
+    itens: blingItems,
     parcelas: [{ valor: (order.subtotal as number) + (order.shipping_cost as number || 0), forma_pagamento: { id: 1 } }],
     transporte: {
       frete_por_conta: "D",

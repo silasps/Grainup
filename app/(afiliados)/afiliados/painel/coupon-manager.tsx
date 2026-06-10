@@ -23,9 +23,8 @@ interface Coupon {
   created_at: string;
 }
 
-const AFFILIATE_MARGIN = 50;
-
-export function CouponManager({ initialCoupons, balance }: { initialCoupons: Coupon[]; balance: number }) {
+export function CouponManager({ initialCoupons, balance, affiliateMargin }: { initialCoupons: Coupon[]; balance: number; affiliateMargin: number }) {
+  const AFFILIATE_MARGIN = affiliateMargin;
   const [coupons, setCoupons] = useState(initialCoupons);
   const [showForm, setShowForm] = useState(false);
   const [code, setCode] = useState("");
@@ -106,8 +105,8 @@ export function CouponManager({ initialCoupons, balance }: { initialCoupons: Cou
         <div className="flex gap-2 p-3 rounded-lg bg-secondary/60 text-xs text-muted-foreground">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-brand" />
           <p>
-            Você tem <strong className="text-foreground">50% de margem</strong> por livro.
-            Cupons percentuais acima de 50% debitam o excesso do seu saldo (atual:{" "}
+            Você tem <strong className="text-foreground">{AFFILIATE_MARGIN}% de margem</strong> por livro.
+            Cupons percentuais acima de {AFFILIATE_MARGIN}% debitam o excesso do seu saldo (atual:{" "}
             <strong className="text-foreground">R$ {balance.toFixed(2).replace(".", ",")}</strong>).
             Cupons de valor fixo são deduzidos da sua comissão por venda.
           </p>

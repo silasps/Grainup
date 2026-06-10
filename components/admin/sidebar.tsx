@@ -180,6 +180,9 @@ export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
   const { open: mobileOpen, close: mobileClose } = useMobileMenu();
 
+  // No mobile o menu nunca colapsa (sempre mostra labels)
+  const isCollapsed = collapsed && !mobileOpen;
+
   return (
     <aside
       className={cn(
@@ -191,9 +194,9 @@ export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
       )}
     >
       {/* Logo */}
-      <div className={cn("flex h-14 items-center border-b border-sidebar-border px-3", collapsed ? "justify-center" : "gap-2 px-4")}>
-        {!collapsed && <Logo variant="white" className="h-6" />}
-        {collapsed && <span className="text-white font-bold text-sm">G</span>}
+      <div className={cn("flex h-14 items-center border-b border-sidebar-border px-3", isCollapsed ? "justify-center" : "gap-2 px-4")}>
+        {!isCollapsed && <Logo variant="white" className="h-6" />}
+        {isCollapsed && <span className="text-white font-bold text-sm">G</span>}
       </div>
 
       {/* Nav */}
@@ -202,7 +205,7 @@ export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
         <Link
           href="/admin/editora"
           onClick={mobileClose}
-          title={collapsed ? "Dashboard" : undefined}
+          title={isCollapsed ? "Dashboard" : undefined}
           className={cn(
             "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors mb-2",
             pathname === "/admin/editora"
@@ -211,14 +214,14 @@ export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
           )}
         >
           <LayoutDashboard className="h-4 w-4 flex-shrink-0" />
-          {!collapsed && <span className="truncate">Dashboard</span>}
+          {!isCollapsed && <span className="truncate">Dashboard</span>}
         </Link>
 
         {NAV_GROUPS.map((group) => (
           <NavGroup
             key={group.label}
             group={group}
-            collapsed={collapsed}
+            collapsed={isCollapsed}
             pathname={pathname}
             onNavigate={mobileClose}
           />
@@ -226,21 +229,21 @@ export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
 
         {superAdmin && (
           <>
-            {!collapsed && <div className="my-2 border-t border-white/10" />}
+            {!isCollapsed && <div className="my-2 border-t border-white/10" />}
             <Link
               href="/admin/editora/desenvolvedor"
               onClick={mobileClose}
-              title={collapsed ? "Desenvolvedor" : undefined}
+              title={isCollapsed ? "Desenvolvedor" : undefined}
               className={cn(
                 "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors",
                 pathname.startsWith("/admin/editora/desenvolvedor")
                   ? "bg-brand text-white"
                   : "text-sidebar-foreground/70 hover:bg-white/10 hover:text-white",
-                collapsed && "justify-center"
+                isCollapsed && "justify-center"
               )}
             >
               <Code2 className="h-4 w-4 flex-shrink-0" />
-              {!collapsed && <span className="truncate">Desenvolvedor</span>}
+              {!isCollapsed && <span className="truncate">Desenvolvedor</span>}
             </Link>
           </>
         )}
@@ -254,11 +257,11 @@ export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
         title="Ver loja"
         className={cn(
           "flex items-center gap-2.5 mx-2 mb-2 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors border border-white/20 text-white/80 hover:bg-white/10 hover:text-white hover:border-white/30",
-          collapsed && "justify-center"
+          isCollapsed && "justify-center"
         )}
       >
         <ArrowUpRight className="h-4 w-4 flex-shrink-0" />
-        {!collapsed && <span className="truncate">Ver loja</span>}
+        {!isCollapsed && <span className="truncate">Ver loja</span>}
       </a>
 
       {/* Collapse toggle — desktop */}

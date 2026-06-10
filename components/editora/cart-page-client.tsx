@@ -16,7 +16,7 @@ export function CartPageClient() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const { items, removeItem, updateQty, clear, toggleSelect, isSelected, selectedItems, itemCount } = useCartStore();
+  const { items, removeItem, updateQty, clear, toggleSelect, isSelected, selectedItems, itemCount, clearBuyNow } = useCartStore();
 
   const selected = mounted ? selectedItems() : [];
   const allItems = mounted ? items : [];
@@ -227,7 +227,7 @@ export function CartPageClient() {
             asChild={selectedCount > 0}
           >
             {selectedCount > 0 ? (
-              <Link href="/checkout">
+              <Link href="/checkout" onClick={clearBuyNow}>
                 Continuar ({selectedCount})
               </Link>
             ) : (

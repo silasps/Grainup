@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { BookOpen, Heart, Globe, Users, Award, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { HeroHighlight } from "@/components/editora/hero-highlight";
 
 export const metadata: Metadata = {
   title: "Nossa História",
@@ -38,7 +37,12 @@ export default function SobrePage() {
           </Badge>
           <h1 className="font-heading text-4xl sm:text-5xl font-bold leading-tight mb-6 max-w-2xl text-foreground">
             Publicando para{" "}
-            <HeroHighlight className="text-brand before:bg-brand-50/80">transformar vidas</HeroHighlight>{" "}
+            <span className="text-brand relative inline-block pb-1">
+              transformar vidas
+              <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 200 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 6 Q100 2 198 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-brand-200" />
+              </svg>
+            </span>{" "}
             há décadas
           </h1>
           <p className="text-muted-foreground text-lg max-w-xl leading-relaxed">

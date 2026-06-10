@@ -220,9 +220,10 @@ export type Database = {
           discount_type: "fixed" | "percentage";
           is_active: boolean;
           is_featured: boolean;
+          bling_product_id: number | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["combos"]["Row"], "id" | "created_at">;
+        Insert: Omit<Database["public"]["Tables"]["combos"]["Row"], "id" | "created_at" | "bling_product_id"> & { bling_product_id?: number | null };
         Update: Partial<Database["public"]["Tables"]["combos"]["Insert"]>;
         Relationships: never[];
       };

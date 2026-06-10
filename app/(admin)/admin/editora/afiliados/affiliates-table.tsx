@@ -43,7 +43,7 @@ const STATUS_CLASS: Record<AffiliateStatus, string> = {
   pendente: "bg-yellow-100 text-yellow-700", ativo: "bg-emerald-100 text-emerald-700",
   suspenso: "bg-red-100 text-red-700",       rejeitado: "bg-gray-100 text-gray-500",
 };
-const TYPE_LABEL: Record<AffiliateType, string> = { geral: "Parceiro Geral", jocum: "JOCUM", diretor: "Diretor Acadêmico" };
+const TYPE_LABEL: Record<AffiliateType, string> = { geral: "Parceiro Geral", jocum: "JOCUM", diretor: "Diretor Acadêmico EIFOL" };
 const TYPE_CLASS: Record<AffiliateType, string> = {
   geral: "bg-blue-100 text-blue-700", jocum: "bg-brand-100 text-brand", diretor: "bg-purple-100 text-purple-700",
 };

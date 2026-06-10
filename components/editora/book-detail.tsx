@@ -69,6 +69,9 @@ interface BookDetailProps {
     sku: string | null;
     pages: number | null;
     weight_grams: number | null;
+    height_cm: number | null;
+    width_cm: number | null;
+    length_cm: number | null;
     stock: number;
     rating_avg: number;
     rating_count: number;
@@ -502,6 +505,10 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
                 book.pages     && { label: "Páginas",  value: String(book.pages) },
                 book.isbn      && { label: "ISBN",     value: book.isbn },
                 book.weight_grams && { label: "Peso", value: `${book.weight_grams}g` },
+                (book.height_cm && book.width_cm && book.length_cm) && {
+                  label: "Dimensões",
+                  value: `${book.height_cm} × ${book.width_cm} × ${book.length_cm} cm`,
+                },
                 author         && { label: "Autor",    value: author.name, href: `/editora/autores/${author.slug}` },
                                { label: "Editora",   value: "Jocum Brasil" },
               ].filter(Boolean).map((item) => {

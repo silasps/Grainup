@@ -85,12 +85,12 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: coupon } = await (supabase as any)
       .from("affiliate_coupons")
-      .select("affiliate_id, affiliates!inner(status, balance), discount_percent, max_uses, uses_count, active")
+      .select("affiliate_id, affiliates!inner(status, balance, type, total_confirmed_sales), discount_percent, max_uses, uses_count, active")
       .eq("code", input.couponCode.toUpperCase())
       .single();
     const typed = coupon as {
       affiliate_id: string;
-      affiliates: { status: string; balance: number };
+      affiliates: { status: string; balance: number; type: string; total_confirmed_sales: number };
       discount_percent: number;
       max_uses: number | null;
       uses_count: number;
@@ -98,7 +98,13 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     } | null;
     if (typed?.active && typed.affiliates?.status === "ativo") {
       if (typed.max_uses === null || typed.uses_count < typed.max_uses) {
-        if (typed.discount_percent <= 50 || typed.affiliates.balance >= ((typed.discount_percent - 50) / 100) * input.subtotal) {
+        const affMargin = typed.affiliates.type !== "geral" ? 50
+          : typed.affiliates.total_confirmed_sales >= 100 ? 50
+          : typed.affiliates.total_confirmed_sales >= 50  ? 40
+          : typed.affiliates.total_confirmed_sales >= 25  ? 30
+          : typed.affiliates.total_confirmed_sales >= 10  ? 20
+          : 10;
+        if (typed.discount_percent <= affMargin || typed.affiliates.balance >= ((typed.discount_percent - affMargin) / 100) * input.subtotal) {
           affiliateId = typed.affiliate_id;
         } else {
           return { error: "Saldo insuficiente do afiliado. O cupom não pode ser aplicado." };
@@ -425,7 +431,7 @@ export async function validateCouponAction(code: string, subtotal: number) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: coupon } = await (supabase as any)
     .from("affiliate_coupons")
-    .select("id, discount_type, discount_percent, discount_fixed, max_uses, uses_count, active, affiliate_id, affiliates(status, balance)")
+    .select("id, discount_type, discount_percent, discount_fixed, max_uses, uses_count, active, affiliate_id, affiliates(status, balance, type, total_confirmed_sales)")
     .eq("code", code.trim().toUpperCase())
     .single() as {
       data: {
@@ -437,7 +443,7 @@ export async function validateCouponAction(code: string, subtotal: number) {
         uses_count: number;
         active: boolean;
         affiliate_id: string;
-        affiliates: { status: string; balance: number } | null;
+        affiliates: { status: string; balance: number; type: string; total_confirmed_sales: number } | null;
       } | null;
     };
 
@@ -449,14 +455,21 @@ export async function validateCouponAction(code: string, subtotal: number) {
   const aff = coupon.affiliates;
   if (!aff || aff.status !== "ativo") return { error: "Cupom indisponível." };
 
+  const affMargin = aff.type !== "geral" ? 50
+    : (aff.total_confirmed_sales ?? 0) >= 100 ? 50
+    : (aff.total_confirmed_sales ?? 0) >= 50  ? 40
+    : (aff.total_confirmed_sales ?? 0) >= 25  ? 30
+    : (aff.total_confirmed_sales ?? 0) >= 10  ? 20
+    : 10;
+
   let discountAmount: number;
   const discountPct = coupon.discount_type === "percent" ? coupon.discount_percent : 0;
 
   if (coupon.discount_type === "fixed") {
     discountAmount = Math.min(coupon.discount_fixed ?? 0, subtotal);
   } else {
-    if (discountPct > 50) {
-      const debitAmount = ((discountPct - 50) / 100) * subtotal;
+    if (discountPct > affMargin) {
+      const debitAmount = ((discountPct - affMargin) / 100) * subtotal;
       if (aff.balance < debitAmount) {
         return { error: "Saldo insuficiente do afiliado para cobrir este desconto." };
       }
@@ -494,12 +507,17 @@ export async function simulatePixApprovedAction(orderId: string) {
   if (order?.affiliate_id) {
     const { data: affiliate } = await supabase
       .from("affiliates")
-      .select("id, balance, balance_pending, commission_rate, total_confirmed_sales")
+      .select("id, balance, balance_pending, commission_rate, type, total_confirmed_sales")
       .eq("id", order.affiliate_id)
-      .single() as { data: { id: string; balance: number; balance_pending: number; commission_rate: number; total_confirmed_sales: number } | null };
+      .single() as { data: { id: string; balance: number; balance_pending: number; commission_rate: number; type: string; total_confirmed_sales: number } | null };
 
     if (affiliate) {
-      const MARGIN = 50;
+      const MARGIN = affiliate.type !== "geral" ? 50
+        : (affiliate.total_confirmed_sales ?? 0) >= 100 ? 50
+        : (affiliate.total_confirmed_sales ?? 0) >= 50  ? 40
+        : (affiliate.total_confirmed_sales ?? 0) >= 25  ? 30
+        : (affiliate.total_confirmed_sales ?? 0) >= 10  ? 20
+        : 10;
       let discountPct = 0;
       if (order.coupon_code) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

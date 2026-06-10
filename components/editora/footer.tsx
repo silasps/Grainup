@@ -50,8 +50,7 @@ const LINKS_LOJA = [
 
 const LINKS_AJUDA = [
   { href: "/editora/faq", label: "Perguntas frequentes" },
-  { href: "/editora/sac", label: "Atendimento (SAC)" },
-  { href: "/editora/contato", label: "Fale conosco" },
+  { href: "/editora/contato", label: "Fale conosco (SAC)" },
   { href: "/editora/trocas-e-devolucoes", label: "Trocas e devoluções" },
 ];
 

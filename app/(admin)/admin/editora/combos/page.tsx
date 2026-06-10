@@ -113,10 +113,10 @@ const schema = z.object({
   name: z.string().min(3, "Nome obrigatório (mín. 3 caracteres)"),
   slug: z.string().min(3, "Slug obrigatório"),
   description: z.string().optional(),
-  discount_type: z.enum(["fixed", "percentage"]),
-  discount_value: z.number().min(0, "Desconto inválido"),
+  price_promotional: z.number().min(0.01, "Informe o preço do combo"),
   is_active: z.boolean(),
   is_featured: z.boolean(),
+  bling_product_id: z.union([z.number().int().positive(), z.nan()]).optional().nullable(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -153,18 +153,10 @@ function ComboForm({
       name: initial?.name ?? "",
       slug: initial?.slug ?? "",
       description: initial?.description ?? "",
-      discount_type: (initial?.discount_type ?? "fixed") as "fixed" | "percentage",
-      discount_value: initial
-        ? (() => {
-            const diff = Math.max(0, initial.price_original - initial.price_promotional);
-            if (initial.discount_type === "percentage" && initial.price_original > 0) {
-              return Math.round((diff / initial.price_original) * 10000) / 100;
-            }
-            return Math.round(diff * 100) / 100;
-          })()
-        : 0,
+      price_promotional: initial?.price_promotional ?? undefined,
       is_active: initial?.is_active ?? true,
       is_featured: initial?.is_featured ?? false,
+      bling_product_id: initial?.bling_product_id ?? null,
     },
   });
 
@@ -202,8 +194,7 @@ function ComboForm({
   const nameVal = watch("name");
   const isActive = watch("is_active");
   const isFeatured = watch("is_featured");
-  const discountType = watch("discount_type");
-  const discountValue = watch("discount_value") ?? 0;
+  const pricePromotionalVal = watch("price_promotional") ?? 0;
 
   const initialBookIds = useMemo(
     () => (initial?.combo_items ?? []).map((i) => i.book_id).sort().join(","),
@@ -231,14 +222,6 @@ function ComboForm({
     () => selectedBooks.reduce((sum, b) => sum + b.price, 0),
     [selectedBooks]
   );
-
-  const pricePromotional = useMemo(() => {
-    if (priceOriginal <= 0) return 0;
-    if (discountType === "percentage") {
-      return Math.max(0, priceOriginal * (1 - discountValue / 100));
-    }
-    return Math.max(0, priceOriginal - discountValue);
-  }, [priceOriginal, discountType, discountValue]);
 
   useEffect(() => {
     if (!slugManual && nameVal) {
@@ -277,10 +260,11 @@ function ComboForm({
         description: data.description || null,
         image_url: imageUrl,
         price_original: priceOriginal,
-        price_promotional: pricePromotional,
-        discount_type: data.discount_type,
+        price_promotional: data.price_promotional,
+        discount_type: "fixed",
         is_active: data.is_active,
         is_featured: data.is_featured,
+        bling_product_id: data.bling_product_id && !isNaN(data.bling_product_id) ? data.bling_product_id : null,
       },
       selectedBooks.map((b) => ({ book_id: b.book_id, quantity: b.quantity })),
       initial?.id
@@ -420,75 +404,44 @@ function ComboForm({
           )}
         </div>
 
-        {/* Preço original + Desconto — sub-grid alinhado pela base */}
-        <div className="sm:col-span-2 grid grid-cols-2 gap-4 items-end">
-
-        <div className="flex flex-col gap-1.5">
-          <Label>Preço original (soma dos livros)</Label>
-          <div className="h-10 w-full flex items-center rounded-md border border-border bg-secondary/40 px-3 text-sm font-semibold text-foreground">
-            {priceOriginal > 0
-              ? formatCurrency(priceOriginal)
-              : <span className="text-muted-foreground font-normal">Adicione livros acima</span>}
-          </div>
-        </div>
-
-        {/* Desconto */}
-        <div className="flex flex-col gap-1.5">
-          <Label>Desconto</Label>
-          <div className="flex gap-2">
-            <div className="flex rounded-md border border-border overflow-hidden shrink-0">
-              {(["fixed", "percentage"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setValue("discount_type", t)}
-                  className={`px-3 h-10 text-sm font-medium transition-colors ${
-                    discountType === t
-                      ? "bg-brand text-white"
-                      : "bg-white text-muted-foreground hover:bg-secondary/50"
-                  }`}
-                >
-                  {t === "fixed" ? "R$" : "%"}
-                </button>
-              ))}
+        {/* Preços */}
+        <div className="sm:col-span-2 grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label>Soma dos livros</Label>
+            <div className="h-10 w-full flex items-center rounded-md border border-border bg-secondary/40 px-3 text-sm font-semibold text-foreground">
+              {priceOriginal > 0
+                ? formatCurrency(priceOriginal)
+                : <span className="text-muted-foreground font-normal">Adicione livros abaixo</span>}
             </div>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              max={discountType === "percentage" ? 100 : undefined}
-              placeholder={discountType === "percentage" ? "Ex: 15" : "Ex: 30,00"}
-              className="h-10"
-              {...register("discount_value", {
-                valueAsNumber: true,
-                setValueAs: (v) => Math.round(parseFloat(v) * 100) / 100 || 0,
-              })}
-            />
           </div>
-          {errors.discount_value && (
-            <p className="text-xs text-destructive">{errors.discount_value.message}</p>
-          )}
-        </div>
 
-        </div>{/* fim sub-grid preço + desconto */}
-
-        {/* Preço promocional — read-only, calculado */}
-        <div className="sm:col-span-2 flex flex-col gap-1.5">
-          <Label>Preço promocional (calculado)</Label>
-          <div className={`h-10 flex items-center justify-between rounded-md border px-3 text-sm font-semibold ${
-            pricePromotional > 0 && priceOriginal > 0
-              ? "border-brand/40 bg-brand/5 text-brand"
-              : "border-border bg-secondary/40 text-muted-foreground font-normal"
-          }`}>
-            <span>
-              {pricePromotional > 0 && priceOriginal > 0
-                ? formatCurrency(pricePromotional)
-                : "—"}
-            </span>
-            {pricePromotional > 0 && priceOriginal > 0 && discountValue > 0 && (
-              <span className="text-xs font-normal text-muted-foreground">
-                economia de {formatCurrency(priceOriginal - pricePromotional)}
-              </span>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="price_promotional">Preço do combo</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none select-none">R$</span>
+              <Input
+                id="price_promotional"
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="0,00"
+                className="pl-9"
+                {...register("price_promotional", {
+                  valueAsNumber: true,
+                  setValueAs: (v) => {
+                    const n = parseFloat(v);
+                    return isNaN(n) ? 0 : Math.round(n * 100) / 100;
+                  },
+                })}
+              />
+            </div>
+            {errors.price_promotional && (
+              <p className="text-xs text-destructive">{errors.price_promotional.message}</p>
+            )}
+            {pricePromotionalVal > 0 && priceOriginal > pricePromotionalVal && (
+              <p className="text-xs text-emerald-600 font-medium">
+                economia de {formatCurrency(priceOriginal - pricePromotionalVal)}
+              </p>
             )}
           </div>
         </div>
@@ -603,6 +556,70 @@ function ComboForm({
             </p>
           )}
         </div>
+      </div>
+
+      {/* Integração Bling */}
+      <div className="flex flex-col gap-3 border border-border rounded-xl p-4 bg-secondary/20">
+        <div className="flex items-start gap-2">
+          <div className="flex flex-col gap-1 flex-1">
+            <Label htmlFor="bling_product_id" className="flex items-center gap-2">
+              ID do produto no Bling
+              <span className="text-muted-foreground font-normal text-xs">(opcional — necessário para NF-e)</span>
+            </Label>
+            <Input
+              id="bling_product_id"
+              type="number"
+              min="1"
+              step="1"
+              placeholder="Ex: 123456789"
+              className="max-w-xs"
+              {...register("bling_product_id", { valueAsNumber: true })}
+            />
+            <p className="text-xs text-muted-foreground">
+              ID do produto com composição criado no Bling. Quando preenchido, os pedidos com este combo são enviados ao Bling com cada livro como linha individual (preço proporcional), permitindo a emissão correta da NF-e.
+            </p>
+          </div>
+        </div>
+
+        <details className="group">
+          <summary className="cursor-pointer text-xs font-medium text-brand hover:text-brand/80 select-none list-none flex items-center gap-1">
+            <span className="group-open:hidden">▶ Como criar o produto composição no Bling</span>
+            <span className="hidden group-open:inline">▼ Como criar o produto composição no Bling</span>
+          </summary>
+          <ol className="mt-3 flex flex-col gap-2 text-xs text-foreground">
+            <li className="flex gap-2">
+              <span className="shrink-0 font-bold text-brand">1.</span>
+              <span>No Bling, acesse <strong>Produtos → Cadastrar produto</strong>.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-bold text-brand">2.</span>
+              <span>Preencha o nome (igual ao combo), o SKU e defina o preço igual ao <strong>preço do combo</strong> ({pricePromotionalVal > 0 ? formatCurrency(pricePromotionalVal) : "informado acima"}).</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-bold text-brand">3.</span>
+              <span>Em <strong>Tipo</strong>, selecione <strong>Composição (Kit)</strong>.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-bold text-brand">4.</span>
+              <span>Na aba <strong>Componentes</strong>, adicione cada livro do combo pelo SKU com a quantidade correspondente.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-bold text-brand">5.</span>
+              <span>Em <strong>Tipo de estoque</strong>, selecione <strong>Virtual</strong>. Em <strong>Lançamento de estoque</strong>, selecione <strong>Somente componentes</strong>.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-bold text-brand">6.</span>
+              <span>Salve o produto. O ID aparece na URL: <code className="bg-muted px-1 rounded">bling.com.br/produtos/<strong>123456789</strong></code></span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-bold text-brand">7.</span>
+              <span>Cole o ID no campo acima e salve o combo.</span>
+            </li>
+          </ol>
+          <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+            <strong>Importante:</strong> no Bling, acesse <strong>Configurações → Vendas</strong> e ative <strong>&ldquo;Desmembrar produtos com composição na nota fiscal&rdquo;</strong>. Isso faz a NF-e listar cada livro separadamente, como exige a legislação fiscal (SEFAZ/SP Consulta 19383/2019).
+          </div>
+        </details>
       </div>
 
       <div className="flex gap-3 justify-end">

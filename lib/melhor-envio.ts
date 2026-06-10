@@ -61,7 +61,7 @@ export async function calculateShipping(
   console.log("[ME raw]", JSON.stringify(data));
 
   return (data as Record<string, unknown>[])
-    .filter((opt) => !opt.error && opt.price)
+    .filter((opt) => !opt.error && opt.price && parseFloat(opt.price as string) > 0)
     .map((opt) => ({
       id: String(opt.id),
       label: `${opt.name} — ${(opt.company as Record<string, unknown>).name}`,

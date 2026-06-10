@@ -6,7 +6,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   admin_ead: "Admin EAD",
   admin_eifol: "Admin EIFOL",
   afiliado_jocum: "Afiliado JOCUM",
-  afiliado_diretor: "Afiliado Diretor Acadêmico",
+  afiliado_diretor: "Afiliado Diretor Acadêmico EIFOL",
   lider_jocum: "Líder JOCUM",
   cliente: "Cliente",
 };

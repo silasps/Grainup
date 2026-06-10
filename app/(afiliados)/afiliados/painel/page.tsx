@@ -14,11 +14,11 @@ import { CouponManager } from "./coupon-manager";
 import { WithdrawalPanel } from "./withdrawal-panel";
 
 const TIERS = [
-  { min: 0,   max: 9,   label: "Explorador",       margin: 30, next: 10 },
-  { min: 10,  max: 24,  label: "Colaborador",       margin: 35, next: 25 },
-  { min: 25,  max: 49,  label: "Parceiro",          margin: 40, next: 50 },
-  { min: 50,  max: 99,  label: "Embaixador",        margin: 45, next: 100 },
-  { min: 100, max: Infinity, label: "Embaixador Elite", margin: 50, next: null },
+  { min: 0,   max: 9,   label: "Explorador",       margin: 10, next: 10,  nextMargin: 20 },
+  { min: 10,  max: 24,  label: "Colaborador",       margin: 20, next: 25,  nextMargin: 30 },
+  { min: 25,  max: 49,  label: "Parceiro",          margin: 30, next: 50,  nextMargin: 40 },
+  { min: 50,  max: 99,  label: "Embaixador",        margin: 40, next: 100, nextMargin: 50 },
+  { min: 100, max: Infinity, label: "Embaixador Elite", margin: 50, next: null, nextMargin: null },
 ];
 function getTier(sales: number) { return TIERS.find((t) => sales >= t.min && (t.max === Infinity || sales <= t.max)) ?? TIERS[0]; }
 
@@ -490,7 +490,7 @@ export default async function PainelAfiliadoPage() {
                     style={{ width: `${Math.min(100, Math.round((confirmedSales / tier.next) * 100))}%` }} />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {confirmedSales}/{tier.next} vendas para o próximo nível ({tier.margin + 5}% de margem)
+                  {confirmedSales}/{tier.next} vendas para o próximo nível ({tier.nextMargin}% de margem)
                 </p>
               </>
             )}
@@ -511,6 +511,7 @@ export default async function PainelAfiliadoPage() {
         <CouponManager
           initialCoupons={coupons ?? []}
           balance={affiliate.balance ?? 0}
+          affiliateMargin={margin}
         />
       )}
 
@@ -535,7 +536,7 @@ export default async function PainelAfiliadoPage() {
             <div className="grid sm:grid-cols-3 gap-4 text-center">
               {[
                 { label: "Sua margem", value: `${margin}%`, sub: tier ? `${tier.label} · sobe conforme vendas` : "Margem fixa" },
-                { label: "Desconto pessoal", value: "50%", sub: "na compra de qualquer livro" },
+                { label: "Desconto pessoal", value: `${margin}%`, sub: "na compra de qualquer livro" },
                 { label: "Saque mínimo", value: "R$ 100", sub: "via Pix · até 3 dias úteis" },
               ].map(({ label, value, sub }) => (
                 <div key={label} className="flex flex-col items-center gap-1">

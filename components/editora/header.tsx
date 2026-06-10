@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Search, User, ShieldCheck, Mail, Handshake } from "lucide-react";
+import { Menu, X, User, ShieldCheck, Mail, Handshake } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { CartBadge } from "@/components/editora/cart-badge";
@@ -11,6 +11,7 @@ import { LogoutButton } from "@/components/shared/logout-button";
 import { NewsletterForm } from "@/components/editora/newsletter-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { HeaderSearch } from "@/components/editora/header-search";
 
 const NAV_LINKS = [
   { href: "/editora/livros", label: "Livros", exact: false },
@@ -115,12 +116,7 @@ export function EditoraHeader({ adminArea, isLoggedIn }: { adminArea?: AdminArea
             </nav>
 
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" asChild>
-                <Link href="/editora/livros?busca=">
-                  <Search className="h-4 w-4" />
-                  <span className="sr-only">Buscar livros</span>
-                </Link>
-              </Button>
+              <HeaderSearch />
 
               <Button variant="ghost" size="icon" asChild className="hidden sm:flex">
                 <Link href={isLoggedIn ? "/minha-conta" : "/auth/login"}>
