@@ -15,6 +15,7 @@ import { Logo } from "@/components/shared/logo";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { applyCpfMask, isValidCpf, onlyCpfDigits } from "@/lib/utils/cpf";
+import { sendWelcomeEmailAction } from "./actions";
 
 // ---------------------------------------------------------------------------
 // Países + DDI + máscara  (0 = dígito obrigatório)
@@ -156,6 +157,7 @@ function CadastroForm() {
     }
 
     if (signUpData.session) {
+      sendWelcomeEmailAction(data.email, data.name).catch(console.error);
       toast.success("Conta criada com sucesso!");
       router.push(redirectTo);
       router.refresh();

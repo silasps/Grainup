@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { sendContactConfirmationEmail, sendContactNotificationEmail } from "@/lib/email";
 
 interface CreateTicketInput {
   customerName: string;
@@ -46,6 +47,9 @@ export async function createContactTicketAction(input: CreateTicketInput) {
     body: input.message,
     is_admin: false,
   });
+
+  sendContactConfirmationEmail(input.customerEmail, input.customerName, input.message).catch(console.error);
+  sendContactNotificationEmail(input.customerName, input.customerEmail, input.message, input.subject).catch(console.error);
 
   return { error: null, ticketNumber: ticket_number };
 }

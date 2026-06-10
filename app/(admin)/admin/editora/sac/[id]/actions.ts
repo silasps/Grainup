@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { TicketStatus } from "@/types/database";
+import { sendSacReplyEmail } from "@/lib/email";
 
 export async function updateTicketStatusAction(ticketId: string, status: TicketStatus) {
   const supabase = await createAdminClient();
@@ -40,8 +41,12 @@ export async function sendAdminReplyAction(
       .eq("id", ticketId);
   }
 
-  // TODO: send email via Resend
-  // await sendEmail({ to: customerEmail, subject, html: body });
+  // Busca e-mail do cliente para envio
+  const { data: ticket } = await supabase
+    .from("support_tickets").select("customer_email, customer_name").eq("id", ticketId).single();
+  if (ticket?.customer_email) {
+    sendSacReplyEmail(ticket.customer_email, ticket.customer_name ?? "Cliente", subject, body).catch(console.error);
+  }
 
   revalidatePath(`/admin/editora/sac/${ticketId}`);
   revalidatePath("/admin/editora/sac");

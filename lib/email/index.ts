@@ -183,3 +183,152 @@ export async function sendOrderConfirmationEmail(orderId: string) {
     console.error("[Email] Erro ao enviar confirmação:", err);
   }
 }
+
+// ─── Helper ────────────────────────────────────────────────────────────────────
+
+async function sendEmail(to: string, subject: string, html: string) {
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`[Email] RESEND_API_KEY não configurado — e-mail para ${to} ignorado`);
+    return;
+  }
+  const { Resend } = await import("resend");
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const from = `Editora JOCUM <${process.env.EMAIL_FROM ?? "noreply@editorajocum.com.br"}>`;
+  try {
+    await resend.emails.send({ from, to, subject, html });
+    console.log(`[Email] "${subject}" → ${to}`);
+  } catch (err) {
+    console.error(`[Email] Erro ao enviar "${subject}":`, err);
+  }
+}
+
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://editorajocum.com.br";
+
+function baseHtml(title: string, body: string) {
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Helvetica Neue',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+<tr><td style="background:#1a1a2e;padding:28px 40px;text-align:center;">
+  <p style="margin:0;font-size:20px;font-weight:700;color:#fff;">Editora JOCUM</p>
+</td></tr>
+<tr><td style="padding:32px 40px;">
+  <h2 style="margin:0 0 16px;font-size:18px;color:#1a1a2e;">${title}</h2>
+  ${body}
+</td></tr>
+<tr><td style="background:#f8f8f8;padding:20px 40px;text-align:center;border-top:1px solid #f0f0f0;">
+  <p style="margin:0;font-size:12px;color:#999;">Dúvidas? <a href="mailto:contato@editorajocum.com.br" style="color:#1a1a2e;">contato@editorajocum.com.br</a></p>
+</td></tr>
+</table></td></tr></table></body></html>`;
+}
+
+// ─── Boas-vindas (cadastro) ────────────────────────────────────────────────────
+
+export async function sendWelcomeEmail(to: string, name: string) {
+  const html = baseHtml(
+    `Bem-vindo, ${name.split(" ")[0]}!`,
+    `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 20px;">
+      Sua conta na <strong>Editora JOCUM</strong> foi criada com sucesso.
+      Explore nosso catálogo de livros e recursos para a sua jornada.
+    </p>
+    <a href="${SITE}/editora" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">
+      Acessar a loja →
+    </a>`
+  );
+  await sendEmail(to, "Bem-vindo à Editora JOCUM!", html);
+}
+
+// ─── Afiliado aprovado ─────────────────────────────────────────────────────────
+
+export async function sendAffiliateApprovedEmail(to: string, name: string, affiliateLink: string) {
+  const html = baseHtml(
+    "Sua conta de afiliado foi aprovada! 🎉",
+    `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px;">
+      Olá, <strong>${name.split(" ")[0]}</strong>! Você agora faz parte do programa de afiliados da Editora JOCUM.
+    </p>
+    <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 20px;">
+      Seu link exclusivo: <a href="${affiliateLink}" style="color:#1a1a2e;font-weight:600;">${affiliateLink}</a>
+    </p>
+    <a href="${SITE}/afiliados/painel" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">
+      Acessar painel de afiliado →
+    </a>`
+  );
+  await sendEmail(to, "Você foi aprovado como afiliado da Editora JOCUM!", html);
+}
+
+// ─── Saque processado / recusado ───────────────────────────────────────────────
+
+export async function sendWithdrawalStatusEmail(
+  to: string, name: string,
+  status: "pago" | "recusado",
+  amount: number, notes?: string
+) {
+  const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const isPaid = status === "pago";
+  const html = baseHtml(
+    isPaid ? `Saque de ${fmt(amount)} processado ✓` : `Saque recusado`,
+    `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px;">
+      Olá, <strong>${name.split(" ")[0]}</strong>.
+      ${isPaid
+        ? `Seu saque de <strong>${fmt(amount)}</strong> foi processado com sucesso.`
+        : `Seu pedido de saque de <strong>${fmt(amount)}</strong> foi recusado.`}
+    </p>
+    ${notes ? `<p style="font-size:13px;color:#777;margin:0 0 20px;"><em>${notes}</em></p>` : ""}
+    <a href="${SITE}/afiliados/painel" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">
+      Ver meu painel →
+    </a>`
+  );
+  await sendEmail(to, isPaid ? `Saque de ${fmt(amount)} confirmado` : "Seu saque foi recusado", html);
+}
+
+// ─── SAC — resposta do admin ───────────────────────────────────────────────────
+
+export async function sendSacReplyEmail(to: string, customerName: string, ticketSubject: string, replyText: string) {
+  const html = baseHtml(
+    `Resposta ao seu chamado`,
+    `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 8px;">
+      Olá, <strong>${customerName.split(" ")[0]}</strong>. Temos uma atualização sobre seu chamado:
+    </p>
+    <p style="font-size:13px;color:#777;margin:0 0 16px;">Assunto: <em>${ticketSubject}</em></p>
+    <div style="background:#f8f8f8;border-left:3px solid #1a1a2e;padding:16px 20px;border-radius:0 8px 8px 0;font-size:14px;color:#333;line-height:1.7;margin-bottom:24px;">
+      ${replyText.replace(/\n/g, "<br>")}
+    </div>
+    <a href="${SITE}/minha-conta" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">
+      Minha conta →
+    </a>`
+  );
+  await sendEmail(to, `Re: ${ticketSubject}`, html);
+}
+
+// ─── Formulário de contato — confirmação ao visitante ─────────────────────────
+
+export async function sendContactConfirmationEmail(to: string, name: string, message: string) {
+  const html = baseHtml(
+    "Recebemos sua mensagem!",
+    `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px;">
+      Olá, <strong>${name.split(" ")[0]}</strong>! Recebemos sua mensagem e entraremos em contato em breve.
+    </p>
+    <div style="background:#f8f8f8;border-radius:8px;padding:16px 20px;font-size:13px;color:#666;line-height:1.6;margin-bottom:8px;">
+      ${message.substring(0, 300).replace(/\n/g, "<br>")}${message.length > 300 ? "…" : ""}
+    </div>`
+  );
+  await sendEmail(to, "Recebemos sua mensagem — Editora JOCUM", html);
+}
+
+// ─── Formulário de contato — notificação ao admin ─────────────────────────────
+
+export async function sendContactNotificationEmail(name: string, email: string, message: string, subject?: string) {
+  const adminEmail = process.env.ADMIN_EMAIL ?? "contato@editorajocum.com.br";
+  const html = baseHtml(
+    "Nova mensagem de contato",
+    `<p style="font-size:14px;color:#555;margin:0 0 16px;">
+      <strong>De:</strong> ${name} &lt;${email}&gt;<br>
+      ${subject ? `<strong>Assunto:</strong> ${subject}<br>` : ""}
+    </p>
+    <div style="background:#f8f8f8;border-radius:8px;padding:16px 20px;font-size:14px;color:#333;line-height:1.7;">
+      ${message.replace(/\n/g, "<br>")}
+    </div>`
+  );
+  await sendEmail(adminEmail, `[Contato] ${name}: ${subject ?? message.substring(0, 50)}`, html);
+}

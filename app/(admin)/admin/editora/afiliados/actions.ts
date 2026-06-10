@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/server";
+import { sendAffiliateApprovedEmail, sendWithdrawalStatusEmail } from "@/lib/email";
 
 function addMonths(d: Date, m: number) {
   const r = new Date(d);
@@ -197,6 +198,14 @@ export async function approveAndCreateLinkAction(affiliateId: string) {
       { user_id: affiliate.user_id, role },
       { onConflict: "user_id,role" }
     );
+
+    // Email de aprovação
+    const { data: aff } = await supabase.from("affiliates").select("email, name").eq("id", affiliateId).single();
+    const { data: link } = await supabase.from("affiliate_links").select("code").eq("affiliate_id", affiliateId).limit(1).single();
+    if (aff?.email && link?.code) {
+      const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://editorajocum.com.br";
+      sendAffiliateApprovedEmail(aff.email, aff.name, `${SITE}/r/${link.code}`).catch(console.error);
+    }
   }
 }
 
@@ -248,6 +257,14 @@ export async function updateWithdrawalStatusAction(
       .update({ status: "paga" })
       .eq("affiliate_id", wd.affiliate_id)
       .eq("status", "confirmada");
+  }
+
+  // Email ao afiliado
+  if (status === "pago" || status === "recusado") {
+    const { data: aff } = await supabase.from("affiliates").select("email, name").eq("id", wd.affiliate_id).single();
+    if (aff?.email) {
+      sendWithdrawalStatusEmail(aff.email, aff.name, status, wd.amount, notes).catch(console.error);
+    }
   }
 
   // Se recusado: devolve o valor ao saldo
