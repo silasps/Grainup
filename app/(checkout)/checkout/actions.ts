@@ -259,29 +259,32 @@ export async function createMpPixPaymentAction(input: {
   customerCpf: string;
   customerName: string;
 }) {
+  // Em modo teste, a API do MP rejeita emails/CPFs reais com "Invalid users involved".
+  // Retornamos um PIX mock para poder estudar o fluxo sem precisar de usuários de teste MP.
+  // Em produção (token APP_USR-*) esse bloco nunca executa.
+  if (isTestMode()) {
+    const supabase = await createAdminClient();
+    await supabase.from("orders").update({ notes: `MP:sandbox-${input.orderId}` }).eq("id", input.orderId);
+    return {
+      error: null,
+      qrCode: `00020126580014BR.GOV.BCB.PIX0136${input.orderId}5204000053039865802BR5925EDITORA JOCUM TESTE6009SAO PAULO62070503***6304FAKE`,
+      qrCodeBase64: null,
+    };
+  }
+
   try {
     const paymentClient = new Payment(getMpClient());
     const [firstName, ...rest] = input.customerName.trim().split(" ");
-
-    // No sandbox do MP, o email do pagador precisa ser um usuário de teste.
-    // Em produção, o email real do cliente é usado normalmente.
-    const payerEmail = isTestMode()
-      ? await getSandboxPayerEmail()
-      : input.customerEmail;
-    // No sandbox o CPF precisa ser um valor de teste aceito pelo MP
-    const payerCpf = isTestMode()
-      ? (process.env.MERCADOPAGO_TEST_CPF ?? "12345678909")
-      : input.customerCpf;
 
     const pixBody = {
       transaction_amount: Math.round(input.amount * 100) / 100,
       description: `Pedido ${input.orderNumber} - Editora JOCUM`,
       payment_method_id: "pix",
       payer: {
-        email: payerEmail,
+        email: input.customerEmail,
         first_name: firstName,
         last_name: rest.join(" ") || firstName,
-        identification: { type: "CPF", number: payerCpf },
+        identification: { type: "CPF", number: input.customerCpf },
       },
       external_reference: input.orderId,
       ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mp-webhook` }),
