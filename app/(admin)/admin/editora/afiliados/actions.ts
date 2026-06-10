@@ -23,6 +23,37 @@ interface CreateAffiliateInput {
   requires_review: boolean;
 }
 
+/** Busca usuário existente pelo e-mail para pré-preencher o formulário */
+export async function lookupUserByEmailAction(email: string) {
+  const supabase = await createAdminClient();
+  const { data: { users } } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  const user = users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+  if (!user) return { user: null };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profile } = await (supabase as any)
+    .from("profiles")
+    .select("full_name, cpf, phone")
+    .eq("user_id", user.id)
+    .maybeSingle() as { data: { full_name?: string; cpf?: string; phone?: string } | null };
+
+  // Verifica se já é afiliado
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingAffiliate } = await (supabase as any)
+    .from("affiliates").select("id").eq("user_id", user.id).maybeSingle();
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email ?? "",
+      name: profile?.full_name ?? (user.user_metadata?.full_name as string) ?? "",
+      cpf: profile?.cpf ?? "",
+      phone: profile?.phone ?? "",
+      alreadyAffiliate: !!existingAffiliate,
+    },
+  };
+}
+
 export async function createAffiliateWithAccountAction(input: CreateAffiliateInput & { password: string }) {
   const supabase = await createAdminClient();
   const now = new Date();

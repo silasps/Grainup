@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { MessageCircle, CheckCircle2, Copy } from "lucide-react";
-import { createAffiliateWithAccountAction } from "./actions";
+import { MessageCircle, CheckCircle2, Copy, Search, UserCheck } from "lucide-react";
+import { createAffiliateWithAccountAction, lookupUserByEmailAction } from "./actions";
 
 const TYPE_LABELS = { geral: "Parceiro Geral", jocum: "JOCUM", diretor: "Diretor Acadêmico" } as const;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://editorajocum.com.br";
@@ -55,6 +55,7 @@ export function CreateAffiliateDialog({
   onOpenChange: (o: boolean) => void;
   onCreated: (a: unknown) => void;
 }) {
+  const [mode, setMode] = useState<"new" | "existing">("new");
   const [saving, setSaving] = useState(false);
   const [type, setType] = useState<"geral" | "jocum" | "diretor">("geral");
   const [requiresReview, setRequiresReview] = useState(false);
@@ -62,6 +63,11 @@ export function CreateAffiliateDialog({
   const [phoneDisplay, setPhoneDisplay] = useState("");
   const [phoneDdi, setPhoneDdi] = useState("+55");
   const [cpfDisplay, setCpfDisplay] = useState("");
+  // Modo "usuário existente"
+  const [lookupEmail, setLookupEmail] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [foundUser, setFoundUser] = useState<{ id: string; email: string; name: string; cpf: string; phone: string; alreadyAffiliate: boolean } | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
 
   function buildWppMsg(d: typeof done) {
     if (!d) return "";
@@ -118,11 +124,22 @@ export function CreateAffiliateDialog({
     }
   }
 
+  async function handleLookup() {
+    if (!lookupEmail.trim()) return;
+    setLookupLoading(true); setLookupError(null); setFoundUser(null);
+    const res = await lookupUserByEmailAction(lookupEmail.trim());
+    setLookupLoading(false);
+    if (!res.user) { setLookupError("Nenhum usuário encontrado com esse e-mail."); return; }
+    if (res.user.alreadyAffiliate) { setLookupError("Este usuário já é afiliado."); return; }
+    setFoundUser(res.user);
+    setPhoneDisplay(res.user.phone ?? "");
+    setCpfDisplay(applyCpfMask(res.user.cpf ?? ""));
+  }
+
   function handleClose() {
-    setDone(null);
-    setType("geral");
-    setRequiresReview(false);
+    setDone(null); setMode("new"); setType("geral"); setRequiresReview(false);
     setPhoneDisplay(""); setPhoneDdi("+55"); setCpfDisplay("");
+    setLookupEmail(""); setFoundUser(null); setLookupError(null);
     onOpenChange(false);
   }
 
@@ -132,6 +149,18 @@ export function CreateAffiliateDialog({
         <DialogHeader>
           <DialogTitle>{done ? "Afiliado criado!" : "Criar afiliado"}</DialogTitle>
         </DialogHeader>
+
+        {/* ── Toggle de modo ── */}
+        {!done && (
+          <div className="flex gap-1 p-1 bg-secondary rounded-lg">
+            {(["new", "existing"] as const).map((m) => (
+              <button key={m} onClick={() => { setMode(m); setFoundUser(null); setLookupError(null); }}
+                className={`flex-1 text-sm py-1.5 rounded-md transition-colors font-medium ${mode === m ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                {m === "new" ? "Novo usuário" : "Usuário existente"}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ── Tela de sucesso ── */}
         {done ? (
@@ -171,9 +200,81 @@ export function CreateAffiliateDialog({
               <Button variant="outline" onClick={handleClose}>Fechar</Button>
             </div>
           </div>
+        ) : mode === "existing" ? (
+
+        /* ── Modo: usuário existente ── */
+        <div className="flex flex-col gap-4 py-1">
+          <div className="flex gap-2">
+            <Input value={lookupEmail} onChange={(e) => { setLookupEmail(e.target.value); setLookupError(null); }}
+              placeholder="E-mail do usuário cadastrado"
+              onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+              className={lookupError ? "border-destructive" : ""}
+            />
+            <Button type="button" variant="outline" onClick={handleLookup} disabled={lookupLoading} className="shrink-0">
+              <Search className="h-4 w-4" />
+            </Button>
+          </div>
+          {lookupError && <p className="text-xs text-destructive">{lookupError}</p>}
+
+          {foundUser && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                <UserCheck className="h-5 w-5 text-blue-600 shrink-0" />
+                <div>
+                  <p className="font-semibold text-blue-800 text-sm">{foundUser.name || "(sem nome)"}</p>
+                  <p className="text-xs text-blue-600">{foundUser.email}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label>Tipo de participação</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {(["geral", "jocum", "diretor"] as const).map((v) => (
+                    <label key={v} className={`flex-1 border rounded-lg px-3 py-2 text-sm cursor-pointer text-center transition-colors min-w-[100px] ${type === v ? "border-brand bg-brand-50 text-brand font-medium" : "border-border text-muted-foreground"}`}>
+                      <input type="radio" className="sr-only" checked={type === v} onChange={() => setType(v)} />
+                      {TYPE_LABELS[v]}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {type === "jocum" && (
+                <Input name="serving_location_ex" placeholder="Base / Local de serviço" />
+              )}
+
+              <Button className="bg-brand hover:bg-brand-700 text-white w-full" disabled={saving}
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    const result = await createAffiliateWithAccountAction({
+                      name: foundUser.name || foundUser.email,
+                      email: foundUser.email,
+                      phone: foundUser.phone || "",
+                      cpf: foundUser.cpf || "",
+                      password: "",
+                      type,
+                      commission_rate: type === "geral" ? 30 : 50,
+                      serving_location: null,
+                      leader_name: null,
+                      leader_email: null,
+                      requires_review: false,
+                    });
+                    toast.success("Afiliado criado com sucesso");
+                    onCreated(result.affiliate);
+                    setDone({ name: foundUser.name || foundUser.email, email: foundUser.email, phone: foundUser.phone || "", password: "", type, code: result.code, accountCreated: false });
+                  } catch (err: unknown) {
+                    toast.error((err as Error).message ?? "Erro");
+                  } finally { setSaving(false); }
+                }}>
+                {saving ? "Promovendo…" : "Tornar afiliado"}
+              </Button>
+            </div>
+          )}
+        </div>
+
         ) : (
 
-        /* ── Formulário ── */
+        /* ── Formulário (novo usuário) ── */
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-1">
           {/* Nome */}
           <div className="flex flex-col gap-1.5">
