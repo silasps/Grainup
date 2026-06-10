@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { revalidateBookPages } from "@/app/(admin)/admin/editora/livros/actions";
+import { revalidateBookPages, lookupBlingSkuAction } from "@/app/(admin)/admin/editora/livros/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,6 +67,7 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
   const [pages, setPages] = useState(String(book?.pages ?? ""));
   const [isbn, setIsbn] = useState(book?.isbn ?? "");
   const [sku, setSku] = useState(book?.sku ?? "");
+  const [blingStatus, setBlingStatus] = useState<"idle" | "found" | "not_found">("idle");
   const [publisher, setPublisher] = useState(book?.publisher ?? "");
   const [weightGrams, setWeightGrams] = useState(String(book?.weight_grams ?? ""));
   const [isActive, setIsActive] = useState(book?.is_active ?? true);
@@ -549,8 +550,21 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
                   <Input id="isbn" value={isbn} onChange={(e) => setIsbn(e.target.value)} placeholder="978-..." />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sku">SKU</Label>
-                  <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="LIV-001" />
+                  <Label htmlFor="sku">SKU (código Bling)</Label>
+                  <Input
+                    id="sku" value={sku}
+                    onChange={(e) => { setSku(e.target.value); setBlingStatus("idle"); }}
+                    onBlur={async () => {
+                      if (!sku.trim()) return;
+                      const res = await lookupBlingSkuAction(sku.trim());
+                      setBlingStatus(res.found ? "found" : "not_found");
+                      if (res.found && res.stock !== undefined) setStock(String(res.stock));
+                    }}
+                    placeholder="LIV-001"
+                  />
+                  {blingStatus === "found" && <p className="text-xs text-emerald-600">✓ Produto encontrado no Bling — estoque sincronizado</p>}
+                  {blingStatus === "not_found" && <p className="text-xs text-orange-500">Produto não encontrado no Bling — cadastre lá também</p>}
+                  {blingStatus === "idle" && <p className="text-xs text-muted-foreground">Usado para sincronizar estoque com o Bling ERP</p>}
                 </div>
                 <div className="space-y-1.5 col-span-3">
                   <Label htmlFor="publisher">Editora</Label>
