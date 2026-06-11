@@ -132,7 +132,7 @@ export default async function AdminOrderDetailPage({
 
         <AdminOrderStatusPoller
           orderId={order.id}
-          hasPending={order.status === "aguardando_pagamento" && order.payment_status !== "recusado" && (order.notes?.startsWith("MP:") ?? false)}
+          hasPending={order.status === "aguardando_pagamento" && (order.notes?.startsWith("MP:") ?? false)}
         />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: items + totals */}
@@ -243,6 +243,12 @@ export default async function AdminOrderDetailPage({
             {/* Status card */}
             <div className="bg-white rounded-xl border border-border p-5 space-y-3">
               <h3 className="text-sm font-semibold">Status</h3>
+              {order.payment_status === "recusado" && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+                  <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                  Pagamento recusado pelo MP
+                </div>
+              )}
               <OrderStatusSelect orderId={order.id} initialStatus={order.status} />
               <div className="grid grid-cols-2 gap-3 text-sm pt-2">
                 <div>
@@ -253,7 +259,7 @@ export default async function AdminOrderDetailPage({
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Status pagto</p>
-                  <p className="font-medium capitalize">{order.payment_status ?? "—"}</p>
+                  <p className={`font-medium capitalize ${order.payment_status === "recusado" ? "text-red-600" : ""}`}>{order.payment_status ?? "—"}</p>
                 </div>
               </div>
               {order.status === "aguardando_pagamento" && order.payment_status !== "recusado" && order.notes?.startsWith("MP:") && (

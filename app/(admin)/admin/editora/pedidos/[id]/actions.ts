@@ -19,6 +19,15 @@ export async function adminSyncPaymentAction(orderId: string): Promise<{
   if (!order) return { status: "erro", message: "Pedido não encontrado." };
   if (order.payment_status === "aprovado") return { status: "aprovado", message: "Pagamento já estava aprovado." };
 
+  // Consistência: payment_status já recusado mas status ainda não cancelado
+  if (order.payment_status === "recusado" && order.status !== "cancelado") {
+    await supabase.from("orders").update({ status: "cancelado" }).eq("id", orderId);
+    return { status: "recusado", message: "Pedido cancelado." };
+  }
+  if (order.payment_status === "recusado") {
+    return { status: "recusado", message: "Pagamento já recusado." };
+  }
+
   const mpId = typeof order.notes === "string" && order.notes.startsWith("MP:")
     ? order.notes.slice(3)
     : null;
