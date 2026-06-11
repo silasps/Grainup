@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
-import { Search, X, ChevronUp, ChevronDown, Eye, Send, Package, Check, Pencil, Truck, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, X, ChevronUp, ChevronDown, Send, Package, Check, Pencil, Truck, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
@@ -111,6 +111,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
   onRefresh: () => Promise<OrderRow[]>;
   onRefreshStats: () => Promise<StatRow[]>;
 }) {
+  const router = useRouter();
   const [orders, setOrders] = useState(initialOrders);
   const [allStats, setAllStats] = useState(initialStats);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -310,7 +311,6 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Rastreio</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Envio / Pgto</th>
                 <SortTh label="Total" sortKey="total" sorts={sorts} onSort={handleSort} className="text-right" />
-                <th className="px-3 py-3 bg-white w-10" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -330,7 +330,11 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                   const isEditingTracking = editingTracking === order.id;
 
                   return (
-                    <tr key={order.id} className="hover:bg-secondary/30 transition-colors">
+                    <tr
+                      key={order.id}
+                      className="hover:bg-secondary/30 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/admin/editora/pedidos/${order.id}`)}
+                    >
                       {/* Pedido */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <p className="font-medium">#{order.order_number}</p>
@@ -393,7 +397,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                               <Check className="h-3 w-3" /> NF emitida
                             </span>
                             {order.invoice_url && (
-                              <a href={order.invoice_url} target="_blank" rel="noopener noreferrer" title="Ver DANFE" className="text-muted-foreground hover:text-foreground">
+                              <a href={order.invoice_url} target="_blank" rel="noopener noreferrer" title="Ver DANFE" className="text-muted-foreground hover:text-foreground" onClick={(e) => e.stopPropagation()}>
                                 <FileText className="h-3.5 w-3.5" />
                               </a>
                             )}
@@ -404,7 +408,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                           </span>
                         ) : order.status === "pago" ? (
                           <button
-                            onClick={() => handleSendToBling(order.id)}
+                            onClick={(e) => { e.stopPropagation(); handleSendToBling(order.id); }}
                             disabled={blingLoading === order.id}
                             className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
                           >
@@ -417,7 +421,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                       </td>
 
                       {/* Rastreio inline */}
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         {isEditingTracking ? (
                           <div className="flex items-center gap-1">
                             <input
@@ -466,16 +470,6 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                       {/* Total */}
                       <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">{formatCurrency(order.total)}</td>
 
-                      {/* Ações */}
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <Link
-                          href={`/admin/editora/pedidos/${order.id}`}
-                          className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground inline-flex"
-                          title="Ver detalhes"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </td>
                     </tr>
                   );
                 })
