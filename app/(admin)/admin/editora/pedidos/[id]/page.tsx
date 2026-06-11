@@ -14,6 +14,7 @@ import { InvoiceField } from "@/components/admin/invoice-field";
 import { OrderStatusSelect } from "@/components/admin/order-status-select";
 import { BlingSyncCard } from "@/components/admin/bling-sync-card";
 import { PaymentSyncButton } from "@/components/admin/payment-sync-button";
+import { AdminOrderStatusPoller } from "@/components/admin/order-status-poller";
 
 export const metadata: Metadata = { title: "Detalhe do Pedido — Admin" };
 
@@ -129,6 +130,10 @@ export default async function AdminOrderDetailPage({
           </Link>
         </Button>
 
+        <AdminOrderStatusPoller
+          orderId={order.id}
+          hasPending={order.status === "aguardando_pagamento" && (order.notes?.startsWith("MP:") ?? false)}
+        />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: items + totals */}
           <div className="lg:col-span-2 space-y-5">
