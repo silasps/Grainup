@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
   } else if (payment.status === "rejected" || payment.status === "cancelled") {
     await supabase
       .from("orders")
-      .update({ payment_status: "recusado", notes: `MP:${paymentId}` })
+      .update({ status: "cancelado", payment_status: "recusado", notes: `MP:${paymentId}` })
       .eq("id", orderId);
   }
 

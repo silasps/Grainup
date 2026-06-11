@@ -49,9 +49,9 @@ export async function adminSyncPaymentAction(orderId: string): Promise<{
   if (payment.status === "rejected" || payment.status === "cancelled") {
     await supabase
       .from("orders")
-      .update({ payment_status: "recusado" })
+      .update({ status: "cancelado", payment_status: "recusado" })
       .eq("id", orderId);
-    return { status: "recusado", message: "Pagamento recusado pelo MP. Status do pedido mantido para revisão manual." };
+    return { status: "recusado", message: "Pagamento recusado. Pedido cancelado automaticamente." };
   }
 
   return { status: "pendente", message: `Status no MP: ${payment.status ?? "desconhecido"}` };

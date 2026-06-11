@@ -132,7 +132,7 @@ export default async function AdminOrderDetailPage({
 
         <AdminOrderStatusPoller
           orderId={order.id}
-          hasPending={order.status === "aguardando_pagamento" && (order.notes?.startsWith("MP:") ?? false)}
+          hasPending={order.status === "aguardando_pagamento" && order.payment_status !== "recusado" && (order.notes?.startsWith("MP:") ?? false)}
         />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: items + totals */}
@@ -256,7 +256,7 @@ export default async function AdminOrderDetailPage({
                   <p className="font-medium capitalize">{order.payment_status ?? "—"}</p>
                 </div>
               </div>
-              {order.status === "aguardando_pagamento" && order.notes?.startsWith("MP:") && (
+              {order.status === "aguardando_pagamento" && order.payment_status !== "recusado" && order.notes?.startsWith("MP:") && (
                 <PaymentSyncButton orderId={order.id} />
               )}
             </div>
