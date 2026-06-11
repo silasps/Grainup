@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency, formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, MapPin, Package, CreditCard } from "lucide-react";
+import { ArrowLeft, MapPin, Package, CreditCard, FileText } from "lucide-react";
 import { OrderStatusPoller } from "@/components/conta/order-status-poller";
+import { CancelOrderButton } from "@/components/conta/cancel-order-button";
+import { ReturnRequestButton } from "@/components/conta/return-request-button";
+import type { OrderStatus } from "@/types/database";
 
 const STATUS_LABELS: Record<string, string> = {
   aguardando_pagamento: "Aguardando pagamento",
@@ -18,6 +21,7 @@ const STATUS_LABELS: Record<string, string> = {
   entregue: "Entregue",
   cancelado: "Cancelado",
   reembolsado: "Reembolsado",
+  cancelamento_solicitado: "Cancelamento solicitado",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -28,7 +32,11 @@ const STATUS_COLORS: Record<string, string> = {
   entregue: "bg-emerald-100 text-emerald-700",
   cancelado: "bg-red-100 text-red-700",
   reembolsado: "bg-gray-100 text-gray-600",
+  cancelamento_solicitado: "bg-orange-100 text-orange-700",
 };
+
+const CANCELLABLE: OrderStatus[] = ["aguardando_pagamento", "pago", "separando"];
+const RETURNABLE: OrderStatus[] = ["enviado", "entregue"];
 
 const PAYMENT_LABELS: Record<string, string> = {
   pix: "PIX",
@@ -50,7 +58,7 @@ export default async function PedidoDetalhesPage({
 
   const { data: order } = await supabase
     .from("orders")
-    .select("*, order_items(id, title, quantity, unit_price, total_price, books(cover_url))")
+    .select("*, invoice_number, invoice_url, order_items(id, title, quantity, unit_price, total_price, books(cover_url))")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -61,7 +69,7 @@ export default async function PedidoDetalhesPage({
   type OrderDetail = {
     id: string; order_number: string; status: string; total: number; subtotal: number;
     shipping_cost: number; discount: number; payment_method: string | null;
-    payment_status: string | null; tracking_code: string | null; created_at: string;
+    payment_status: string | null; tracking_code: string | null; invoice_number: string | null; invoice_url: string | null; created_at: string;
     shipping_address: Record<string, string> | null;
     order_items: OrderItem[];
   };
@@ -198,6 +206,49 @@ export default async function PedidoDetalhesPage({
         <div className="bg-brand-50 border border-brand/20 rounded-xl p-5">
           <p className="text-sm font-semibold text-brand mb-0.5">Código de rastreio</p>
           <p className="text-sm font-mono text-foreground">{o.tracking_code}</p>
+        </div>
+      )}
+
+      {o.invoice_url && (
+        <div className="bg-white rounded-xl border border-border p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <h2 className="font-semibold text-sm">Nota Fiscal Eletrônica</h2>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            A NF-e inclui todos os itens do pedido e o valor do frete.
+          </p>
+          <a
+            href={o.invoice_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-medium text-brand hover:underline"
+          >
+            <FileText className="h-4 w-4" />
+            Visualizar / Imprimir DANFE
+          </a>
+        </div>
+      )}
+
+      {/* Cancelamento / Devolução */}
+      {CANCELLABLE.includes(o.status as OrderStatus) && (
+        <div className="bg-white rounded-xl border border-border p-5 flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Deseja cancelar este pedido?</p>
+          <CancelOrderButton orderId={o.id} status={o.status as OrderStatus} />
+        </div>
+      )}
+
+      {o.status === "cancelamento_solicitado" && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-orange-800">Cancelamento em análise</p>
+          <p className="text-xs text-orange-600 mt-1">Nossa equipe está analisando sua solicitação e retornará em até 1 dia útil.</p>
+        </div>
+      )}
+
+      {RETURNABLE.includes(o.status as OrderStatus) && (
+        <div className="bg-white rounded-xl border border-border p-5 flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Precisa devolver ou trocar?</p>
+          <ReturnRequestButton orderId={o.id} />
         </div>
       )}
     </div>

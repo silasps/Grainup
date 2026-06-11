@@ -15,7 +15,12 @@ export type OrderStatus =
   | "enviado"
   | "entregue"
   | "cancelado"
-  | "reembolsado";
+  | "reembolsado"
+  | "cancelamento_solicitado";
+
+export type CancellationInitiatedBy = "customer" | "admin";
+export type CancellationStatus = "pendente" | "aprovado" | "negado";
+export type RefundStatus = "nao_aplicavel" | "pendente" | "processado" | "falhou";
 
 export type PaymentStatus =
   | "pendente"
@@ -397,6 +402,28 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["leads"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["leads"]["Insert"]>;
+        Relationships: never[];
+      };
+      order_cancellations: {
+        Row: {
+          id: string;
+          order_id: string;
+          initiated_by: CancellationInitiatedBy;
+          initiated_by_id: string | null;
+          previous_status: OrderStatus;
+          reason: string;
+          status: CancellationStatus;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          refund_amount: number | null;
+          refund_status: RefundStatus;
+          refund_transaction_id: string | null;
+          admin_notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["order_cancellations"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["order_cancellations"]["Insert"]>;
         Relationships: never[];
       };
       support_tickets: {

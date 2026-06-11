@@ -355,6 +355,83 @@ export async function sendContactConfirmationEmail(to: string, name: string, mes
   await sendEmail(to, "Recebemos sua mensagem — Editora JOCUM", html, "contact_confirmation");
 }
 
+// ─── Cancelamentos ────────────────────────────────────────────────────────────
+
+export async function sendCancellationRequestedEmail(to: string, name: string, orderNumber: string) {
+  const html = baseHtml(
+    "Solicitação de cancelamento recebida",
+    `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px;">
+      Olá, <strong>${name.split(" ")[0]}</strong>! Recebemos sua solicitação de cancelamento do pedido <strong>#${orderNumber}</strong>.
+    </p>
+    <p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 20px;">
+      Nossa equipe analisará o pedido e você receberá um retorno em até <strong>1 dia útil</strong>.
+    </p>
+    <a href="${SITE}/minha-conta/pedidos" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">
+      Acompanhar pedidos →
+    </a>`
+  );
+  await sendEmail(to, `Cancelamento do pedido #${orderNumber} em análise`, html, "cancellation_requested");
+}
+
+export async function sendCancellationApprovedEmail(
+  to: string, name: string, orderNumber: string, refundAmount: number,
+) {
+  const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const html = baseHtml(
+    "Cancelamento aprovado",
+    `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px;">
+      Olá, <strong>${name.split(" ")[0]}</strong>! O cancelamento do pedido <strong>#${orderNumber}</strong> foi aprovado.
+    </p>
+    ${refundAmount > 0 ? `
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+      <p style="margin:0;font-size:14px;color:#166534;">
+        Reembolso de <strong>${fmt(refundAmount)}</strong> iniciado. O valor será estornado na forma de pagamento original em até <strong>5 dias úteis</strong>.
+      </p>
+    </div>` : ""}
+    <a href="${SITE}/minha-conta/pedidos" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">
+      Meus pedidos →
+    </a>`
+  );
+  await sendEmail(to, `Pedido #${orderNumber} cancelado`, html, "cancellation_approved");
+}
+
+export async function sendCancellationDeniedEmail(
+  to: string, name: string, orderNumber: string, adminNotes?: string,
+) {
+  const html = baseHtml(
+    "Cancelamento não autorizado",
+    `<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 12px;">
+      Olá, <strong>${name.split(" ")[0]}</strong>. Infelizmente não foi possível cancelar o pedido <strong>#${orderNumber}</strong>.
+    </p>
+    ${adminNotes ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:20px;">
+      <p style="margin:0;font-size:13px;color:#991b1b;">${adminNotes}</p>
+    </div>` : ""}
+    <p style="font-size:14px;color:#555;margin:0 0 20px;">Precisa de ajuda? Entre em contato com nossa equipe.</p>
+    <a href="${SITE}/editora/contato" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">
+      Falar com suporte →
+    </a>`
+  );
+  await sendEmail(to, `Pedido #${orderNumber}: cancelamento não aprovado`, html, "cancellation_denied");
+}
+
+export async function sendCancellationAdminNotifyEmail(
+  orderNumber: string, customerName: string, reason: string,
+) {
+  const adminEmail = process.env.ADMIN_EMAIL ?? "contato@editorajocum.com.br";
+  const html = baseHtml(
+    "Nova solicitação de cancelamento",
+    `<p style="font-size:14px;color:#555;margin:0 0 16px;">
+      <strong>Pedido:</strong> #${orderNumber}<br>
+      <strong>Cliente:</strong> ${customerName}<br>
+      <strong>Motivo:</strong> ${reason}
+    </p>
+    <a href="${SITE}/admin/editora/pedidos" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;">
+      Ver no painel →
+    </a>`
+  );
+  await sendEmail(adminEmail, `[Cancelamento] Pedido #${orderNumber} — ${customerName}`, html, "cancellation_admin_notify");
+}
+
 // ─── Formulário de contato — notificação ao admin ─────────────────────────────
 
 export async function sendContactNotificationEmail(name: string, email: string, message: string, subject?: string) {

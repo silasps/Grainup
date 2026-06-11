@@ -15,6 +15,7 @@ import { OrderStatusSelect } from "@/components/admin/order-status-select";
 import { BlingSyncCard } from "@/components/admin/bling-sync-card";
 import { PaymentSyncButton } from "@/components/admin/payment-sync-button";
 import { AdminOrderStatusPoller } from "@/components/admin/order-status-poller";
+import { CancellationReviewCard } from "@/components/admin/cancellation-review-card";
 
 export const metadata: Metadata = { title: "Detalhe do Pedido — Admin" };
 
@@ -105,16 +106,33 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
   return data as unknown as OrderDetail | null;
 }
 
+async function getPendingCancellation(orderId: string) {
+  const supabase = await createAdminClient();
+  const { data } = await supabase
+    .from("order_cancellations")
+    .select("id, reason, created_at")
+    .eq("order_id", orderId)
+    .eq("status", "pendente")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data as { id: string; reason: string; created_at: string } | null;
+}
+
 export default async function AdminOrderDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const order = await getOrder(id);
+  const [order, pendingCancellation] = await Promise.all([
+    getOrder(id),
+    getPendingCancellation(id),
+  ]);
   if (!order) notFound();
 
   const addr = order.shipping_address;
+  const isPaid = ["pago", "separando", "enviado", "entregue"].includes(order.status);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -297,6 +315,14 @@ export default async function AdminOrderDetailPage({
 
             {/* Tracking code */}
             <TrackingCodeForm orderId={order.id} initialCode={order.tracking_code} />
+
+            {/* Cancelamento */}
+            <CancellationReviewCard
+              orderId={order.id}
+              orderStatus={order.status}
+              pendingCancellation={pendingCancellation}
+              isPaid={isPaid}
+            />
           </div>
         </div>
       </main>
