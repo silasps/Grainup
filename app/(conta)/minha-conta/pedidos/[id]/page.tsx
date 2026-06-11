@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -48,14 +49,14 @@ export default async function PedidoDetalhesPage({
 
   const { data: order } = await supabase
     .from("orders")
-    .select("*, order_items(id, title, quantity, unit_price, total_price)")
+    .select("*, order_items(id, title, quantity, unit_price, total_price, books(cover_url))")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
 
   if (!order) notFound();
 
-  type OrderItem = { id: string; title: string; quantity: number; unit_price: number; total_price: number };
+  type OrderItem = { id: string; title: string; quantity: number; unit_price: number; total_price: number; books: { cover_url: string | null } | null };
   type OrderDetail = {
     id: string; order_number: string; status: string; total: number; subtotal: number;
     shipping_cost: number; discount: number; payment_method: string | null;
@@ -99,8 +100,21 @@ export default async function PedidoDetalhesPage({
         </div>
         <div className="flex flex-col divide-y divide-border">
           {items.map((item) => (
-            <div key={item.id} className="flex justify-between items-center py-3 first:pt-0 last:pb-0">
-              <div className="flex-1 min-w-0 pr-4">
+            <div key={item.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+              <div className="relative h-14 w-10 rounded overflow-hidden border border-border bg-muted shrink-0">
+                {item.books?.cover_url ? (
+                  <Image
+                    src={item.books.cover_url}
+                    alt={item.title}
+                    fill
+                    className="object-cover"
+                    sizes="40px"
+                  />
+                ) : (
+                  <div className="h-full w-full bg-muted" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground line-clamp-2">{item.title}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {item.quantity}× {formatCurrency(item.unit_price)}

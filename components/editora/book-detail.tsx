@@ -510,7 +510,7 @@ export function BookDetail({ book, relatedBooks, reviews }: BookDetailProps) {
                   value: `${book.height_cm} × ${book.width_cm} × ${book.length_cm} cm`,
                 },
                 author         && { label: "Autor",    value: author.name, href: `/editora/autores/${author.slug}` },
-                               { label: "Editora",   value: "Jocum Brasil" },
+                               { label: "Editora",   value: "Editora Jocum" },
               ].filter(Boolean).map((item) => {
                 const i = item as { label: string; value: string; href?: string };
                 return (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { sendOrderConfirmationEmail } from "@/lib/email";
+import { pushOrderToBling } from "@/lib/bling";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -214,6 +215,9 @@ export async function POST(request: NextRequest) {
 
     // E-mail de confirmação (fire-and-forget)
     sendOrderConfirmationEmail(orderId).catch(console.error);
+
+    // Cria pedido no Bling (fire-and-forget)
+    pushOrderToBling(orderId).catch((err) => console.error("[Bling]", err));
   } else if (payment.status === "rejected" || payment.status === "cancelled") {
     await supabase
       .from("orders")

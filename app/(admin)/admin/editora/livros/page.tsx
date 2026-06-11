@@ -25,13 +25,15 @@ interface BookRow {
   rating_avg: number;
   rating_count: number;
   authors: { name: string } | null;
+  sku: string | null;
+  bling_product_id: number | null;
 }
 
 async function getBooks(): Promise<BookRow[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("books")
-    .select("id, title, slug, cover_url, price, price_promotional, stock, is_active, is_bestseller, is_new, sales_count, rating_avg, rating_count, authors(name)")
+    .select("id, title, slug, cover_url, price, price_promotional, stock, is_active, is_bestseller, is_new, sales_count, rating_avg, rating_count, sku, bling_product_id, authors(name)")
     .order("title");
   return (data ?? []) as unknown as BookRow[];
 }

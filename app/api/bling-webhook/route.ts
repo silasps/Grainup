@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { syncStockFromBling } from "@/lib/bling/sync";
 
 // Bling assina os webhooks com HMAC-SHA256 no header "X-Bling-Signature"
@@ -61,9 +62,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Outros eventos (expansão futura) ───────────────────────────────────
-    // if (event === "pedido") { ... }
-    // if (event === "notafiscal") { ... }
+    // ── Nota Fiscal autorizada ─────────────────────────────────────────────
+    if (event === "notafiscal") {
+      const nf = payload.data as Record<string, unknown> | undefined;
+      const blingOrderId = (nf?.pedidoVenda as Record<string, unknown> | undefined)?.id as number | undefined;
+      const chaveAcesso = nf?.chaveAcesso as string | undefined;
+      const linkDanfe = nf?.linkDanfe as string | undefined;
+
+      if (blingOrderId && chaveAcesso) {
+        const supabase = await createAdminClient();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from("orders")
+          .update({ invoice_number: chaveAcesso, ...(linkDanfe ? { invoice_url: linkDanfe } : {}) })
+          .eq("bling_order_id", blingOrderId);
+      }
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

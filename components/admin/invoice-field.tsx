@@ -9,9 +9,11 @@ import { toast } from "sonner";
 export function InvoiceField({
   orderId,
   initialValue,
+  invoiceUrl,
 }: {
   orderId: string;
   initialValue: string | null;
+  invoiceUrl?: string | null;
 }) {
   const [value, setValue] = useState(initialValue ?? "");
   const [editing, setEditing] = useState(false);
@@ -112,6 +114,18 @@ export function InvoiceField({
             Clique para inserir
           </span>
         </button>
+      )}
+
+      {invoiceUrl && (
+        <a
+          href={invoiceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Baixar DANFE (PDF)
+        </a>
       )}
 
       <p className="text-xs text-muted-foreground">

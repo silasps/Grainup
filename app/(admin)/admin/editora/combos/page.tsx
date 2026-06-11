@@ -875,9 +875,16 @@ export default function CombosAdminPage() {
                         className="hover:bg-secondary/30 transition-colors"
                       >
                         <td className="px-5 py-3">
-                          <p className="font-medium text-foreground line-clamp-1">
-                            {combo.name}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-foreground line-clamp-1">
+                              {combo.name}
+                            </p>
+                            {!combo.bling_product_id && (
+                              <span className="inline-flex items-center text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5" title="Combo ainda não enviado ao Bling">
+                                ⚠ Pendente Bling
+                              </span>
+                            )}
+                          </div>
                           <Link
                             href={`/editora/combos/${combo.slug}`}
                             target="_blank"

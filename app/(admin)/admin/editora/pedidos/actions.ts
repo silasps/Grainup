@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendReviewRequestEmail } from "@/lib/email";
+import { getBlingOrderDetails, getBlingNfeByOrder } from "@/lib/bling";
 import type { OrderRow } from "@/components/admin/pedidos-table";
 import type { OrderStatus } from "@/types/database";
 
@@ -17,7 +18,7 @@ export async function fetchOrdersAction(): Promise<OrderRow[]> {
   const supabase = await createAdminClient();
   const { data } = await supabase
     .from("orders")
-    .select("id, order_number, status, total, payment_method, shipping_cost, created_at, customer_name, shipping_address, order_items(id, title, quantity, combo_id, books(sku), combos(combo_items(books(sku, title))))")
+    .select("id, order_number, status, total, payment_method, shipping_cost, created_at, customer_name, invoice_number, bling_order_id, shipping_address, order_items(id, title, quantity, combo_id, books(sku), combos(combo_items(books(sku, title))))")
     .order("created_at", { ascending: false })
     .limit(200);
   return (data ?? []) as unknown as OrderRow[];
@@ -80,6 +81,47 @@ export async function updateInvoiceNumberAction(
     .update({ invoice_number: invoiceNumber || null } as any)
     .eq("id", orderId);
   return { error: error?.message ?? null };
+}
+
+export async function syncBlingOrderAction(orderId: string): Promise<{
+  situacao: string | null;
+  invoiceNumber: string | null;
+  invoiceUrl: string | null;
+  error: string | null;
+}> {
+  const supabase = await createAdminClient();
+
+  const { data: row } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("id", orderId)
+    .single();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const blingOrderId: number | null = (row as any)?.bling_order_id ?? null;
+  if (!blingOrderId) {
+    return { situacao: null, invoiceNumber: null, invoiceUrl: null, error: "Pedido ainda não foi enviado ao Bling." };
+  }
+
+  const blingOrder = await getBlingOrderDetails(blingOrderId);
+  if (!blingOrder) {
+    return { situacao: null, invoiceNumber: null, invoiceUrl: null, error: "Pedido não encontrado no Bling." };
+  }
+
+  const nfe = await getBlingNfeByOrder(blingOrderId);
+  const invoiceNumber = nfe?.chaveAcesso || null;
+  const invoiceUrl = nfe?.linkDanfe || null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: any = {};
+  if (invoiceNumber) updates.invoice_number = invoiceNumber;
+  if (invoiceUrl) updates.invoice_url = invoiceUrl;
+  if (Object.keys(updates).length > 0) {
+    await supabase.from("orders").update(updates).eq("id", orderId);
+  }
+
+  revalidatePath(`/admin/editora/pedidos/${orderId}`);
+  return { situacao: blingOrder.situacao?.nome ?? null, invoiceNumber, invoiceUrl, error: null };
 }
 
 export async function updateTrackingCodeAction(

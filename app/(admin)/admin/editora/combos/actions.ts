@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
+import { createBlingProduct } from "@/lib/bling/client";
 
 type ComboInsert = Database["public"]["Tables"]["combos"]["Insert"];
 type ComboItemInsert = Database["public"]["Tables"]["combo_items"]["Insert"];
@@ -41,6 +42,16 @@ export async function saveCombo(
       .from("combo_items")
       .insert(items.map((item) => ({ combo_id: comboId!, ...item })));
     if (error) return { error: error.message };
+  }
+
+  // Push para Bling se novo combo (sem bling_product_id)
+  if (!id && comboId) {
+    const { data: combo } = await supabase.from("combos").select("id, name, bling_product_id").eq("id", comboId).single();
+    if (combo && !(combo as any).bling_product_id) {
+      createBlingProduct({ nome: combo.name, tipo: "K", situacao: "A" })
+        .then((result) => supabase.from("combos").update({ bling_product_id: result.id } as any).eq("id", comboId!))
+        .catch((e) => console.error("[Bling combo]", e));
+    }
   }
 
   return { error: null };

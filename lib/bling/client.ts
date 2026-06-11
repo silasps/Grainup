@@ -1,29 +1,21 @@
 /**
- * Bling ERP v3 — cliente HTTP
- *
- * Docs: https://developer.bling.com.br/
- *
- * Autenticação: API Key (header "apikey") OU OAuth2 Bearer token.
- * Preencha BLING_API_KEY no .env.local para usar API Key direta.
- * Para OAuth2, preencha BLING_CLIENT_ID + BLING_CLIENT_SECRET e
- * implemente o fluxo de token em lib/bling/auth.ts (a fazer).
+ * Bling ERP v3 — cliente HTTP com OAuth2
+ * Tokens gerenciados em lib/bling/auth.ts (tabela bling_tokens no Supabase)
  */
+
+import { getAccessToken } from "./auth";
 
 const BASE_URL = "https://www.bling.com.br/Api/v3";
 
-function getHeaders(): HeadersInit {
-  const apiKey = process.env.BLING_API_KEY;
-  if (!apiKey) throw new Error("BLING_API_KEY não configurada.");
-  return {
-    "Content-Type": "application/json",
-    apikey: apiKey,
-  };
-}
-
 async function blingFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = await getAccessToken();
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
-    headers: { ...getHeaders(), ...(options?.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options?.headers ?? {}),
+    },
   });
   if (!res.ok) {
     const body = await res.text();
@@ -32,17 +24,20 @@ async function blingFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-// ── Produtos / Estoque ──────────────────────────────────────────────────────
+// ── Produtos ─────────────────────────────────────────────────────────────────
 
 export interface BlingProduct {
   id: number;
-  codigo: string; // SKU
+  codigo: string;
   nome: string;
   preco: number;
+  pesoBruto?: number | null;
+  largura?: number | null;
+  altura?: number | null;
+  profundidade?: number | null;
   estoque: { saldoFisico: number; saldoVirtual: number } | null;
 }
 
-/** Busca produto pelo SKU (código) */
 export async function getBlingProductBySku(sku: string): Promise<BlingProduct | null> {
   try {
     const data = await blingFetch<{ data: BlingProduct[] }>(`/produtos?codigo=${encodeURIComponent(sku)}`);
@@ -52,41 +47,104 @@ export async function getBlingProductBySku(sku: string): Promise<BlingProduct | 
   }
 }
 
-/** Atualiza estoque de um produto no Bling pelo ID interno */
-export async function updateBlingStock(blingProductId: number, quantity: number): Promise<void> {
-  await blingFetch(`/estoques`, {
+export async function getAllBlingProducts(): Promise<BlingProduct[]> {
+  const all: BlingProduct[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const data = await blingFetch<{ data: BlingProduct[] }>(`/produtos?pagina=${page}&limite=100`);
+    const items = data.data ?? [];
+    all.push(...items);
+    if (items.length < 100) break;
+  }
+  return all;
+}
+
+export interface BlingProductPayload {
+  nome: string;
+  codigo?: string;
+  preco?: number;
+  tipo?: "P" | "K"; // P = produto simples, K = kit/combo
+  situacao?: "A" | "I";
+}
+
+export async function createBlingProduct(payload: BlingProductPayload): Promise<{ id: number; codigo: string }> {
+  const data = await blingFetch<{ data: { id: number; codigo: string } }>("/produtos", {
     method: "POST",
-    body: JSON.stringify({
-      produto: { id: blingProductId },
-      quantidade: quantity,
-      operacao: "B", // B = Balanço (define o saldo absoluto)
-    }),
+    body: JSON.stringify(payload),
+  });
+  return data.data;
+}
+
+export async function updateBlingProduct(blingProductId: number, payload: Partial<BlingProductPayload>): Promise<void> {
+  await blingFetch(`/produtos/${blingProductId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
   });
 }
 
-// ── Pedidos ─────────────────────────────────────────────────────────────────
+export async function updateBlingStock(blingProductId: number, quantity: number): Promise<void> {
+  await blingFetch(`/estoques`, {
+    method: "POST",
+    body: JSON.stringify({ produto: { id: blingProductId }, quantidade: quantity, operacao: "B" }),
+  });
+}
+
+// ── Pedidos ───────────────────────────────────────────────────────────────────
 
 export interface BlingOrderPayload {
-  numero_loja: string; // ID do pedido na loja
-  data: string;        // YYYY-MM-DD
+  numero_loja: string;
+  data: string;
   contato: { nome: string; email: string };
   itens: Array<{ codigo: string; descricao: string; quantidade: number; valor_unitario: number }>;
-  parcelas: Array<{ valor: number; forma_pagamento: { id: number } }>; // 1 = Dinheiro
+  parcelas: Array<{ valor: number; forma_pagamento: { id: number } }>;
   transporte: {
-    frete_por_conta: string; // "D" = destinatário
+    frete_por_conta: string;
     valor_frete: number;
-    endereco: {
-      endereco: string; numero: string; complemento?: string;
-      bairro: string; municipio: string; uf: string; cep: string;
-    };
+    endereco: { endereco: string; numero: string; complemento?: string; bairro: string; municipio: string; uf: string; cep: string };
   };
 }
 
-/** Envia um pedido para o Bling */
 export async function createBlingOrder(payload: BlingOrderPayload): Promise<{ id: number }> {
   const data = await blingFetch<{ data: { id: number } }>("/pedidos/vendas", {
     method: "POST",
     body: JSON.stringify(payload),
   });
   return data.data;
+}
+
+// ── Consultas ─────────────────────────────────────────────────────────────────
+
+export interface BlingOrderDetails {
+  id: number;
+  numero: number;
+  situacao: { id: number; nome: string };
+}
+
+export interface BlingNfe {
+  id: number;
+  numero: string;
+  serie: string;
+  chaveAcesso: string;
+  linkDanfe?: string | null;
+  situacao?: { id: number; nome: string } | null;
+}
+
+export async function getBlingOrderDetails(blingOrderId: number): Promise<BlingOrderDetails | null> {
+  try {
+    const data = await blingFetch<{ data: BlingOrderDetails }>(`/pedidos/vendas/${blingOrderId}`);
+    return data.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getBlingNfeByOrder(blingOrderId: number): Promise<BlingNfe | null> {
+  try {
+    const list = await blingFetch<{ data: BlingNfe[] }>(`/nfe?pedidoVendaId=${blingOrderId}`);
+    const first = list.data?.[0];
+    if (!first) return null;
+    const detail = await blingFetch<{ data: BlingNfe }>(`/nfe/${first.id}`);
+    return detail.data ?? null;
+  } catch {
+    return null;
+  }
 }

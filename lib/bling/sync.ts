@@ -30,9 +30,7 @@ export async function pushOrderToBling(orderId: string) {
     .from("orders")
     .select(`
       id, order_number, created_at, subtotal, shipping_cost,
-      customer_name, customer_email,
-      shipping_street, shipping_number, shipping_complement,
-      shipping_neighborhood, shipping_city, shipping_state, shipping_cep,
+      customer_name, customer_email, shipping_address,
       order_items(title, quantity, unit_price, book_id, combo_id, books(sku))
     `)
     .eq("id", orderId)
@@ -99,6 +97,8 @@ export async function pushOrderToBling(orderId: string) {
     }
   }
 
+  const addr = (order.shipping_address ?? {}) as Record<string, string>;
+
   const payload: BlingOrderPayload = {
     numero_loja: String(order.order_number),
     data: new Date(order.created_at as string).toISOString().slice(0, 10),
@@ -109,13 +109,13 @@ export async function pushOrderToBling(orderId: string) {
       frete_por_conta: "D",
       valor_frete: order.shipping_cost as number || 0,
       endereco: {
-        endereco: order.shipping_street as string,
-        numero: order.shipping_number as string,
-        complemento: order.shipping_complement as string | undefined,
-        bairro: order.shipping_neighborhood as string,
-        municipio: order.shipping_city as string,
-        uf: order.shipping_state as string,
-        cep: (order.shipping_cep as string).replace(/\D/g, ""),
+        endereco: addr.street ?? "",
+        numero: addr.number ?? "S/N",
+        complemento: addr.complement || undefined,
+        bairro: addr.neighborhood ?? "",
+        municipio: addr.city ?? "",
+        uf: addr.state ?? "",
+        cep: (addr.cep ?? addr.zip_code ?? "").replace(/\D/g, ""),
       },
     },
   };

@@ -130,6 +130,26 @@ function SortableList({
 }) {
   const dragIndex = useRef<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
+  const tbodyRef = useRef<HTMLTableSectionElement | null>(null);
+
+  // Non-passive touchmove needed to preventDefault (block page scroll during drag)
+  useEffect(() => {
+    const el = tbodyRef.current;
+    if (!el) return;
+    function onTouchMove(e: TouchEvent) {
+      if (dragIndex.current === null) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      const row = target?.closest<HTMLElement>("[data-idx]");
+      if (row) {
+        const idx = parseInt(row.dataset.idx ?? "-1", 10);
+        if (idx >= 0 && idx < 10) setDragOver(idx);
+      }
+    }
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onTouchMove);
+  }, [books.length]);
 
   if (books.length === 0) {
     return (
@@ -150,21 +170,30 @@ function SortableList({
     dragIndex.current = null;
   }
 
+  function handleTouchEnd() {
+    if (dragIndex.current !== null && dragOver !== null) handleDrop(dragOver);
+    dragIndex.current = null;
+    setDragOver(null);
+  }
+
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
       <table className="w-full text-sm">
-        <tbody>
+        <tbody ref={tbodyRef}>
           {books.map((book, i) => {
             const draggable = i < 10;
             const isDragOver = dragOver === i;
             return (
               <tr
                 key={book.id}
+                data-idx={i}
                 draggable={draggable}
                 onDragStart={draggable ? () => { dragIndex.current = i; } : undefined}
                 onDragOver={draggable ? (e) => { e.preventDefault(); setDragOver(i); } : undefined}
                 onDrop={draggable ? (e) => { e.preventDefault(); handleDrop(i); } : undefined}
                 onDragEnd={() => setDragOver(null)}
+                onTouchStart={draggable ? () => { dragIndex.current = i; } : undefined}
+                onTouchEnd={draggable ? handleTouchEnd : undefined}
                 className={`border-b border-border last:border-0 transition-colors ${isDragOver ? "bg-brand/5 border-brand/30" : "hover:bg-secondary/20"}`}
               >
                 <td className="pl-3 pr-1 py-3 w-6">

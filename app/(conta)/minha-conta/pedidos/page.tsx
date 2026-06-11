@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
@@ -106,13 +107,38 @@ export default async function MeusOrdensPage() {
                   </Badge>
                 </div>
 
-                <div className="text-sm text-muted-foreground mb-3">
-                  {items[0] && (
-                    <p className="line-clamp-1">{items[0].books?.title ?? items[0].title}</p>
-                  )}
-                  {items.length > 1 && (
-                    <p className="text-xs">+ {items.length - 1} item(ns)</p>
-                  )}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex -space-x-2">
+                    {items.slice(0, 4).map((item, i) => (
+                      <div
+                        key={item.id}
+                        className="relative h-12 w-9 rounded overflow-hidden border-2 border-white shadow-sm bg-muted shrink-0"
+                        style={{ zIndex: 4 - i }}
+                      >
+                        {item.books?.cover_url ? (
+                          <Image
+                            src={item.books.cover_url}
+                            alt={item.books.title}
+                            fill
+                            className="object-cover"
+                            sizes="36px"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-muted" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground line-clamp-1">
+                      {items[0]?.books?.title ?? items[0]?.title}
+                    </p>
+                    {items.length > 1 && (
+                      <p className="text-xs text-muted-foreground">
+                        + {items.length - 1} item{items.length > 2 ? "s" : ""}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {order.tracking_code && (

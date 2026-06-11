@@ -12,6 +12,7 @@ import { ArrowLeft } from "lucide-react";
 import { TrackingCodeForm } from "@/components/admin/tracking-code-form";
 import { InvoiceField } from "@/components/admin/invoice-field";
 import { OrderStatusSelect } from "@/components/admin/order-status-select";
+import { BlingSyncCard } from "@/components/admin/bling-sync-card";
 
 export const metadata: Metadata = { title: "Detalhe do Pedido — Admin" };
 
@@ -76,6 +77,8 @@ interface OrderDetail {
   shipping_address: Record<string, string> | null;
   tracking_code: string | null;
   invoice_number: string | null;
+  invoice_url: string | null;
+  bling_order_id: number | null;
   created_at: string;
   updated_at: string;
   order_items: OrderItem[];
@@ -88,7 +91,8 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
     .select(
       `id, order_number, status, payment_status, payment_method,
        subtotal, discount, shipping_cost, total,
-       customer_name, customer_email, shipping_address, tracking_code, invoice_number,
+       customer_name, customer_email, shipping_address, tracking_code,
+       invoice_number, invoice_url, bling_order_id,
        created_at, updated_at,
        order_items(id, quantity, unit_price, total_price, title, book_id, combo_id, books(title, cover_url, sku), combos(name, combo_items(quantity, books(title, cover_url, sku))))`
     )
@@ -266,8 +270,14 @@ export default async function AdminOrderDetailPage({
               </div>
             )}
 
+            {/* Bling ERP */}
+            <BlingSyncCard
+              orderId={order.id}
+              blingOrderId={order.bling_order_id}
+            />
+
             {/* Nota Fiscal */}
-            <InvoiceField orderId={order.id} initialValue={order.invoice_number} />
+            <InvoiceField orderId={order.id} initialValue={order.invoice_number} invoiceUrl={order.invoice_url} />
 
             {/* Tracking code */}
             <TrackingCodeForm orderId={order.id} initialCode={order.tracking_code} />

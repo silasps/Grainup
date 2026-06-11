@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { revalidateBookPages, lookupBlingSkuAction } from "@/app/(admin)/admin/editora/livros/actions";
+import { revalidateBookPages, lookupBlingSkuAction, pushBookToBlingAction } from "@/app/(admin)/admin/editora/livros/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,7 @@ interface BookData {
   is_featured: boolean;
   is_new: boolean;
   is_bestseller: boolean;
+  bling_product_id?: number | null;
 }
 
 interface Props {
@@ -68,7 +69,7 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
   const [isbn, setIsbn] = useState(book?.isbn ?? "");
   const [sku, setSku] = useState(book?.sku ?? "");
   const [blingStatus, setBlingStatus] = useState<"idle" | "found" | "not_found">("idle");
-  const [publisher, setPublisher] = useState(book?.publisher ?? "");
+  const [publisher, setPublisher] = useState(book?.publisher ?? "Editora Jocum");
   const [weightGrams, setWeightGrams] = useState(String(book?.weight_grams ?? ""));
   const [heightCm, setHeightCm] = useState(String(book?.height_cm ?? ""));
   const [widthCm, setWidthCm] = useState(String(book?.width_cm ?? ""));
@@ -245,10 +246,20 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
         const { error } = await supabase.from("books").update(payload).eq("id", book.id);
         if (error) { toast.error(error.message); return; }
         toast.success("Livro atualizado!");
+        if (!book.bling_product_id) {
+          pushBookToBlingAction(book.id).then((r) => {
+            if (!r.error) toast.success("Produto criado no Bling!");
+          });
+        }
       } else {
-        const { error } = await supabase.from("books").insert(payload);
+        const { data: inserted, error } = await supabase.from("books").insert(payload).select("id").single();
         if (error) { toast.error(error.message); return; }
         toast.success("Livro criado!");
+        if (inserted?.id) {
+          pushBookToBlingAction(inserted.id).then((r) => {
+            if (!r.error) toast.success("Produto criado no Bling!");
+          });
+        }
       }
       await revalidateBookPages();
       router.back();
@@ -582,13 +593,35 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
                       if (!sku.trim()) return;
                       const res = await lookupBlingSkuAction(sku.trim());
                       setBlingStatus(res.found ? "found" : "not_found");
-                      if (res.found && res.stock !== undefined) setStock(String(res.stock));
+                      if (res.found) {
+                        if (res.stock !== undefined) setStock(String(res.stock));
+                        if (res.weightGrams) setWeightGrams(String(res.weightGrams));
+                        if (res.widthCm)    setWidthCm(String(res.widthCm));
+                        if (res.heightCm)   setHeightCm(String(res.heightCm));
+                        if (res.lengthCm)   setLengthCm(String(res.lengthCm));
+                      }
                     }}
                     placeholder="LIV-001"
                   />
                   {blingStatus === "found" && <p className="text-xs text-emerald-600">✓ Produto encontrado no Bling — estoque sincronizado</p>}
                   {blingStatus === "not_found" && <p className="text-xs text-orange-500">Produto não encontrado no Bling — cadastre lá também</p>}
                   {blingStatus === "idle" && <p className="text-xs text-muted-foreground">Usado para sincronizar estoque com o Bling ERP</p>}
+                  {book && !book.bling_product_id && (
+                    <div className="flex items-center gap-2 mt-1 p-2 rounded-lg bg-orange-50 border border-orange-200">
+                      <span className="text-[11px] text-orange-700 flex-1">⚠ Não vinculado ao Bling</span>
+                      <button
+                        type="button"
+                        className="text-[11px] font-medium text-orange-700 underline underline-offset-2 hover:text-orange-900"
+                        onClick={async () => {
+                          const res = await pushBookToBlingAction(book.id);
+                          if (res.error) toast.error(res.error);
+                          else toast.success("Vinculado ao Bling!");
+                        }}
+                      >
+                        Vincular agora
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label htmlFor="publisher">Editora</Label>

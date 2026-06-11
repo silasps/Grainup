@@ -36,6 +36,8 @@ export interface OrderRow {
   shipping_cost: number;
   created_at: string;
   customer_name: string;
+  invoice_number: string | null;
+  bling_order_id: number | null;
   shipping_address: Record<string, string> | null;
   order_items: Array<{
     id: string;
@@ -303,6 +305,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                 <SortTh label="Cliente" sortKey="customer_name" sorts={sorts} onSort={handleSort} className="text-left" />
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Produtos / SKU</th>
                 <SortTh label="Status" sortKey="status" sorts={sorts} onSort={handleSort} className="text-left" />
+                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">NF-e</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Envio / Pgto</th>
                 <SortTh label="Total" sortKey="total" sorts={sorts} onSort={handleSort} className="text-right" />
               </tr>
@@ -310,7 +313,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
             <tbody className="divide-y divide-border">
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-muted-foreground text-sm">
+                  <td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
                     {hasFilter ? "Nenhum pedido encontrado para os filtros aplicados." : "Nenhum pedido ainda."}
                   </td>
                 </tr>
@@ -372,6 +375,19 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                         </Badge>
                       </td>
                       <td className="px-5 py-3 whitespace-nowrap">
+                        {order.invoice_number ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+                            ✓ Emitida
+                          </span>
+                        ) : order.status === "paid" && !order.bling_order_id ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-0.5" title="Pedido ainda não enviado ao Bling">
+                            ⚠ Pendente Bling
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground/60">Aguardando</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 whitespace-nowrap">
                         <p className="text-xs text-muted-foreground capitalize">{order.payment_method?.replace(/_/g, " ") ?? "—"}</p>
                         <p className="text-xs text-muted-foreground">{shippingMethod ?? (order.shipping_cost === 0 ? "Frete grátis" : "—")}</p>
                       </td>
@@ -382,7 +398,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
               )}
               {visibleCount < sorted.length && (
                 <tr>
-                  <td colSpan={6} className="text-center py-3 text-xs text-muted-foreground">
+                  <td colSpan={7} className="text-center py-3 text-xs text-muted-foreground">
                     Mostrando {visibleCount} de {sorted.length} — role para carregar mais
                   </td>
                 </tr>

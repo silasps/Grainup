@@ -187,6 +187,9 @@ export function ConfigDashboard({ contact, legalPages }: Props) {
           <TabsTrigger value="legal" className="text-xs px-4">
             Páginas Legais
           </TabsTrigger>
+          <TabsTrigger value="integracoes" className="text-xs px-4">
+            Integrações
+          </TabsTrigger>
         </TabsList>
       </div>
 
@@ -481,6 +484,30 @@ export function ConfigDashboard({ contact, legalPages }: Props) {
               </div>
             );
           })}
+        </div>
+      </TabsContent>
+
+      {/* ─── Integrações ─────────────────────────────────────── */}
+      <TabsContent value="integracoes" className="min-h-0 overflow-y-auto p-4 md:p-6">
+        <div className="max-w-2xl space-y-6 pb-16">
+          <div className="bg-white rounded-xl border border-border p-5 space-y-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <span className="text-muted-foreground">🔗</span>
+              Bling ERP
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Conecte sua conta Bling para sincronizar pedidos, notas fiscais e estoque automaticamente.
+            </p>
+            <a
+              href="/api/bling/auth"
+              className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+            >
+              Conectar ao Bling
+            </a>
+            <p className="text-xs text-muted-foreground">
+              Você será redirecionado ao Bling para autorizar o acesso. Após autorizar, volta aqui automaticamente.
+            </p>
+          </div>
         </div>
       </TabsContent>
     </Tabs>
