@@ -80,7 +80,7 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/auth/destino`,
       },
     });
     if (error) setAlert({ type: "error", message: "Erro ao iniciar login com Google." });

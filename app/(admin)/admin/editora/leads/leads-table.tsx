@@ -279,7 +279,7 @@ function exportCSV(leads: Lead[]) {
     originLabel(l.origin),
     (l.books as { title: string } | null)?.title ?? "",
     l.marketing_consent ? "Sim" : "Não",
-    new Intl.DateTimeFormat("pt-BR").format(new Date(l.created_at)),
+    new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(l.created_at)),
   ]);
   const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -423,7 +423,7 @@ export function LeadsTable({ leads, origins }: { leads: Lead[]; origins: string[
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Origem</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white hidden lg:table-cell">Livro</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white">Marketing</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white hidden lg:table-cell">Data</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white hidden lg:table-cell">Captado em</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -474,7 +474,10 @@ export function LeadsTable({ leads, origins }: { leads: Lead[]; origins: string[
                         )}
                       </td>
                       <td className="px-5 py-3 text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">
-                        {new Intl.DateTimeFormat("pt-BR").format(new Date(lead.created_at))}
+                        <span>{new Intl.DateTimeFormat("pt-BR").format(new Date(lead.created_at))}</span>
+                        <span className="block text-muted-foreground/60">
+                          {new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(lead.created_at))}
+                        </span>
                       </td>
                     </tr>
                   );

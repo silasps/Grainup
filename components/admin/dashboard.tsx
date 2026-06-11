@@ -84,7 +84,7 @@ function buildMonthlyChart(movements: AnyRecord[]) {
     if (key in months) months[key] += m.amount as number;
   }
 
-  return Object.entries(months).map(([mes, receita]) => ({ mes, receita, isMock: false }));
+  return Object.entries(months).map(([mes, receita]) => ({ mes, receita }));
 }
 
 function buildStatusPie(orders: AnyRecord[]) {
@@ -159,11 +159,7 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
     ["novo", "em_atendimento", "aguardando_cliente"].includes(t.status as string)
   ).length;
 
-  const rawChartData = buildMonthlyChart(data.movements);
-  const MOCK_VALUES = [4200, 7800, 5100, 9300, 6700, 11200];
-  const chartData = rawChartData.every((d) => d.receita === 0)
-    ? rawChartData.map((d, i) => ({ ...d, receita: MOCK_VALUES[i] ?? 0, isMock: true }))
-    : rawChartData;
+  const chartData = buildMonthlyChart(data.movements);
   const pieData = buildStatusPie(data.orders);
 
   return (
@@ -238,7 +234,7 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
             <div>
               <h2 className="font-semibold text-foreground text-sm">Receita mensal</h2>
               <p className="text-xs text-muted-foreground">
-                Últimos 6 meses{chartData[0]?.isMock ? " · visualização de exemplo" : ""}
+                Últimos 6 meses
               </p>
             </div>
             <Button variant="ghost" size="sm" asChild className="text-xs text-brand h-7">
