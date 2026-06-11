@@ -19,6 +19,9 @@ export function PaymentSyncButton({ orderId }: { orderId: string }) {
     if (result.status === "aprovado") {
       toast.success(result.message);
       router.refresh();
+    } else if (result.status === "recusado") {
+      toast.error(result.message);
+      router.refresh();
     } else if (result.status === "sem_id") {
       toast.warning(result.message);
     } else {

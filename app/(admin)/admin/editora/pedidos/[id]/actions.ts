@@ -5,7 +5,7 @@ import { sendOrderConfirmationEmail } from "@/lib/email";
 import { pushOrderToBling } from "@/lib/bling";
 
 export async function adminSyncPaymentAction(orderId: string): Promise<{
-  status: "aprovado" | "pendente" | "sem_id" | "erro";
+  status: "aprovado" | "recusado" | "pendente" | "sem_id" | "erro";
   message: string;
 }> {
   const supabase = await createAdminClient();
@@ -44,6 +44,14 @@ export async function adminSyncPaymentAction(orderId: string): Promise<{
     pushOrderToBling(orderId).catch((err) => console.error("[Bling]", err));
 
     return { status: "aprovado", message: "Pagamento confirmado e pedido atualizado." };
+  }
+
+  if (payment.status === "rejected" || payment.status === "cancelled") {
+    await supabase
+      .from("orders")
+      .update({ payment_status: "recusado" })
+      .eq("id", orderId);
+    return { status: "recusado", message: "Pagamento recusado pelo MP. Status do pedido mantido para revisão manual." };
   }
 
   return { status: "pendente", message: `Status no MP: ${payment.status ?? "desconhecido"}` };

@@ -425,6 +425,7 @@ export async function checkOrderPaymentStatusAction(orderId: string) {
   if (mpId) {
     const res = await fetch(`https://api.mercadopago.com/v1/payments/${mpId}`, {
       headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
+      cache: "no-store",
     });
     if (res.ok) {
       const payment = await res.json() as { status?: string };
@@ -434,6 +435,13 @@ export async function checkOrderPaymentStatusAction(orderId: string) {
           .update({ status: "pago", payment_status: "aprovado" })
           .eq("id", orderId);
         return { paymentStatus: "aprovado" };
+      }
+      if (payment.status === "rejected" || payment.status === "cancelled") {
+        await supabase
+          .from("orders")
+          .update({ payment_status: "recusado" })
+          .eq("id", orderId);
+        return { paymentStatus: "recusado" };
       }
     }
   }

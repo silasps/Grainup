@@ -26,7 +26,7 @@ export function OrderStatusPoller({
 
       if (orderId) {
         const result = await checkOrderPaymentStatusAction(orderId);
-        if (result.paymentStatus === "aprovado") {
+        if (result.paymentStatus === "aprovado" || result.paymentStatus === "recusado") {
           clearInterval(id);
           router.refresh();
           return;
