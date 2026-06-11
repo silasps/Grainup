@@ -422,7 +422,13 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["order_cancellations"]["Row"], "id" | "created_at" | "updated_at">;
+        Insert: Omit<Database["public"]["Tables"]["order_cancellations"]["Row"], "id" | "created_at" | "updated_at" | "reviewed_by" | "reviewed_at" | "refund_amount" | "refund_transaction_id" | "admin_notes"> & {
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          refund_amount?: number | null;
+          refund_transaction_id?: string | null;
+          admin_notes?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["order_cancellations"]["Insert"]>;
         Relationships: never[];
       };

@@ -107,6 +107,7 @@ export async function requestReturnAction(
     user_id: user.id,
     customer_name: order.customer_name as string,
     customer_email: order.customer_email as string,
+    customer_phone: null,
     order_id: orderId,
     category: type === "reembolso" ? "devolucao" : "troca",
     subject,

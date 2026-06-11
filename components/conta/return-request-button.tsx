@@ -96,7 +96,7 @@ export function ReturnRequestButton({ orderId }: Props) {
 
             <div>
               <p className="text-sm text-muted-foreground mb-2">Motivo</p>
-              <Select value={reason} onValueChange={setReason}>
+              <Select value={reason} onValueChange={(v) => v && setReason(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um motivo" />
                 </SelectTrigger>

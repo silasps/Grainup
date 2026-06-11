@@ -182,7 +182,7 @@ export function CancellationReviewCard({ orderId, orderStatus, pendingCancellati
           <div className="flex flex-col gap-3 py-2">
             <div>
               <p className="text-sm text-muted-foreground mb-2">Motivo do cancelamento</p>
-              <Select value={cancelReason} onValueChange={setCancelReason}>
+              <Select value={cancelReason} onValueChange={(v) => v && setCancelReason(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um motivo" />
                 </SelectTrigger>
