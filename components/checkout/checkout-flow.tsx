@@ -873,7 +873,7 @@ export function CheckoutFlow() {
   if (step === "sucesso") {
     return (
       <div className="flex-1 overflow-y-auto">
-      <OrderStatusPoller hasPending={cardPaymentPending} />
+      <OrderStatusPoller hasPending={cardPaymentPending} orderId={orderId} />
       <div className="flex flex-col items-center justify-center px-6 py-16 gap-6 text-center bg-white min-h-full">
         <div className={`w-20 h-20 rounded-full flex items-center justify-center ${cardPaymentPending ? "bg-yellow-400" : "bg-brand"}`}>
           <PackageCheck className="h-10 w-10 text-white" />

@@ -71,7 +71,7 @@ export default async function PedidoDetalhesPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <OrderStatusPoller hasPending={o.status === "aguardando_pagamento"} />
+      <OrderStatusPoller hasPending={o.status === "aguardando_pagamento"} orderId={o.id} />
       <div className="bg-white rounded-xl border border-border p-5 flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild className="h-8 w-8 shrink-0">
           <Link href="/minha-conta/pedidos">
