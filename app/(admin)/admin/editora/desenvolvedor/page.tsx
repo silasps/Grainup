@@ -5,6 +5,7 @@ import { getMyRole } from "@/lib/actions/get-my-role";
 import { getBetaFeedbackList } from "@/lib/actions/beta-feedback";
 import { AdminHeader } from "@/components/admin/header";
 import { FeedbackTable } from "./feedback-table";
+import { ServiceLimits } from "./service-limits";
 
 export const metadata: Metadata = { title: "Desenvolvedor — Admin Editora Jocum" };
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export default async function DesenvolvedorPage() {
         subtitle={`${feedbacks.length} sugestões beta`}
       />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        <ServiceLimits />
         <FeedbackTable feedbacks={feedbacks} renderedAt={renderedAt} />
       </main>
     </div>

@@ -152,20 +152,16 @@ export async function sendOrderConfirmationEmail(orderId: string) {
       `CEP ${address.cep}`,
     ].join("<br>");
 
-    const { Resend } = await import("resend");
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
     const items = ((order.order_items ?? []) as any[]).map((i: any) => ({
       title: i.title as string,
       quantity: i.quantity as number,
       totalPrice: i.total_price as number,
     }));
 
-    await resend.emails.send({
-      from: `Editora JOCUM <${process.env.EMAIL_FROM ?? "noreply@editorajocum.com.br"}>`,
-      to: order.customer_email,
-      subject: `Pedido ${order.order_number} confirmado ✓`,
-      html: buildOrderEmailHtml({
+    await sendEmail(
+      order.customer_email,
+      `Pedido ${order.order_number} confirmado ✓`,
+      buildOrderEmailHtml({
         customerName: order.customer_name,
         orderNumber: order.order_number,
         total: order.total,
@@ -176,9 +172,8 @@ export async function sendOrderConfirmationEmail(orderId: string) {
         items,
         address: addressText,
       }),
-    });
-
-    console.log(`[Email] Confirmação enviada para ${order.customer_email} — pedido ${order.order_number}`);
+      "order_confirmation"
+    );
   } catch (err) {
     console.error("[Email] Erro ao enviar confirmação:", err);
   }
@@ -186,7 +181,16 @@ export async function sendOrderConfirmationEmail(orderId: string) {
 
 // ─── Helper ────────────────────────────────────────────────────────────────────
 
-async function sendEmail(to: string, subject: string, html: string) {
+async function logEmail(type: string) {
+  try {
+    const supabase = await createAdminClient();
+    await supabase.from("email_logs").insert({ email_type: type });
+  } catch {
+    // non-critical — never block email sending
+  }
+}
+
+async function sendEmail(to: string, subject: string, html: string, type = "unknown") {
   if (!process.env.RESEND_API_KEY) {
     console.log(`[Email] RESEND_API_KEY não configurado — e-mail para ${to} ignorado`);
     return;
@@ -197,6 +201,7 @@ async function sendEmail(to: string, subject: string, html: string) {
   try {
     await resend.emails.send({ from, to, subject, html });
     console.log(`[Email] "${subject}" → ${to}`);
+    logEmail(type).catch(() => null);
   } catch (err) {
     console.error(`[Email] Erro ao enviar "${subject}":`, err);
   }
@@ -236,7 +241,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
       Acessar a loja →
     </a>`
   );
-  await sendEmail(to, "Bem-vindo à Editora JOCUM!", html);
+  await sendEmail(to, "Bem-vindo à Editora JOCUM!", html, "welcome");
 }
 
 // ─── Afiliado aprovado ─────────────────────────────────────────────────────────
@@ -254,7 +259,7 @@ export async function sendAffiliateApprovedEmail(to: string, name: string, affil
       Acessar painel de afiliado →
     </a>`
   );
-  await sendEmail(to, "Você foi aprovado como afiliado da Editora JOCUM!", html);
+  await sendEmail(to, "Você foi aprovado como afiliado da Editora JOCUM!", html, "affiliate_approved");
 }
 
 // ─── Saque processado / recusado ───────────────────────────────────────────────
@@ -279,7 +284,7 @@ export async function sendWithdrawalStatusEmail(
       Ver meu painel →
     </a>`
   );
-  await sendEmail(to, isPaid ? `Saque de ${fmt(amount)} confirmado` : "Seu saque foi recusado", html);
+  await sendEmail(to, isPaid ? `Saque de ${fmt(amount)} confirmado` : "Seu saque foi recusado", html, "withdrawal_status");
 }
 
 // ─── SAC — resposta do admin ───────────────────────────────────────────────────
@@ -298,7 +303,7 @@ export async function sendSacReplyEmail(to: string, customerName: string, ticket
       Minha conta →
     </a>`
   );
-  await sendEmail(to, `Re: ${ticketSubject}`, html);
+  await sendEmail(to, `Re: ${ticketSubject}`, html, "sac_reply");
 }
 
 // ─── Solicitação de avaliação após entrega ────────────────────────────────────
@@ -332,7 +337,7 @@ export async function sendReviewRequestEmail(
     </table>
     <p style="font-size:12px;color:#aaa;text-align:center;">Leva menos de 1 minuto ✨</p>`
   );
-  await sendEmail(to, `Como foi o pedido #${orderNumber}? Deixe sua avaliação`, html);
+  await sendEmail(to, `Como foi o pedido #${orderNumber}? Deixe sua avaliação`, html, "review_request");
 }
 
 // ─── Formulário de contato — confirmação ao visitante ─────────────────────────
@@ -347,7 +352,7 @@ export async function sendContactConfirmationEmail(to: string, name: string, mes
       ${message.substring(0, 300).replace(/\n/g, "<br>")}${message.length > 300 ? "…" : ""}
     </div>`
   );
-  await sendEmail(to, "Recebemos sua mensagem — Editora JOCUM", html);
+  await sendEmail(to, "Recebemos sua mensagem — Editora JOCUM", html, "contact_confirmation");
 }
 
 // ─── Formulário de contato — notificação ao admin ─────────────────────────────
@@ -364,5 +369,5 @@ export async function sendContactNotificationEmail(name: string, email: string, 
       ${message.replace(/\n/g, "<br>")}
     </div>`
   );
-  await sendEmail(adminEmail, `[Contato] ${name}: ${subject ?? message.substring(0, 50)}`, html);
+  await sendEmail(adminEmail, `[Contato] ${name}: ${subject ?? message.substring(0, 50)}`, html, "contact_admin_notification");
 }

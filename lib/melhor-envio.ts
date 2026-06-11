@@ -2,7 +2,7 @@ const BASE = process.env.MELHOR_ENVIO_SANDBOX === "true"
   ? "https://sandbox.melhorenvio.com.br"
   : "https://melhorenvio.com.br";
 
-const USER_AGENT = "GrainUp/1.0 (grainupp@gmail.com)";
+const USER_AGENT = "EditoraJocum/1.0 (contato@editorajocum.com.br)";
 
 function getToken(): string {
   const token = process.env.MELHOR_ENVIO_TOKEN;

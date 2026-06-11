@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
+import { sendWelcomeEmail } from "@/lib/email";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -42,7 +43,8 @@ export async function GET(request: Request) {
           .eq("user_id", user.id)
           .maybeSingle();
 
-        if (!profile || (!profile.full_name && fullName) || (!profile.phone && phone) || (!profile.cpf && cpf)) {
+        const isNewUser = !profile;
+        if (isNewUser || (!profile.full_name && fullName) || (!profile.phone && phone) || (!profile.cpf && cpf)) {
           await supabase.from("profiles").upsert(
             {
               id: profile?.id ?? crypto.randomUUID(),
@@ -54,6 +56,10 @@ export async function GET(request: Request) {
             },
             { onConflict: "user_id" }
           );
+        }
+        if (isNewUser && user.email) {
+          const name = fullName ?? user.email.split("@")[0];
+          sendWelcomeEmail(user.email, name).catch(console.error);
         }
       }
       return NextResponse.redirect(`${origin}${next}`);
