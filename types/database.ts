@@ -665,6 +665,28 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["beta_feedback"]["Insert"]>;
         Relationships: never[];
       };
+      bling_tokens: {
+        Row: {
+          id: number;
+          access_token: string;
+          refresh_token: string;
+          expires_at: string;
+          updated_at: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["bling_tokens"]["Row"], "id">;
+        Update: Partial<Database["public"]["Tables"]["bling_tokens"]["Insert"]>;
+        Relationships: never[];
+      };
+      email_logs: {
+        Row: {
+          id: string;
+          email_type: string;
+          sent_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["email_logs"]["Row"], "id" | "sent_at"> & { sent_at?: string };
+        Update: Partial<Database["public"]["Tables"]["email_logs"]["Insert"]>;
+        Relationships: never[];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
