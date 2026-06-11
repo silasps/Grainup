@@ -19,7 +19,16 @@ async function blingFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Bling ${res.status}: ${body}`);
+    if (res.status === 403) throw new Error("Permissão insuficiente no Bling. Adicione os módulos 'Contatos' e 'Pedidos de Venda' nas permissões do app e reconecte em Configurações.");
+    if (res.status === 401) throw new Error("Token Bling expirado ou inválido. Reconecte em Configurações → Bling ERP.");
+    let msg = body;
+    try {
+      const parsed = JSON.parse(body);
+      const fields = parsed?.error?.fields;
+      if (fields?.length) msg = fields.map((f: { msg: string }) => f.msg).join(" | ");
+      else msg = parsed?.error?.description || parsed?.error?.message || body;
+    } catch {}
+    throw new Error(`Bling: ${msg}`);
   }
   return res.json() as Promise<T>;
 }
@@ -88,14 +97,34 @@ export async function updateBlingStock(blingProductId: number, quantity: number)
   });
 }
 
+// ── Contatos ─────────────────────────────────────────────────────────────────
+
+export async function findOrCreateBlingContact(nome: string, email: string): Promise<number> {
+  try {
+    const found = await blingFetch<{ data: Array<{ id: number }> }>(`/contatos?email=${encodeURIComponent(email)}&situacao=A`);
+    if (found.data?.[0]?.id) return found.data[0].id;
+  } catch {}
+  const created = await blingFetch<{ data: { id: number } }>("/contatos", {
+    method: "POST",
+    body: JSON.stringify({ nome, email, tipoPessoa: "F", situacao: "A" }),
+  });
+  return created.data.id;
+}
+
 // ── Pedidos ───────────────────────────────────────────────────────────────────
 
 export interface BlingOrderPayload {
   numero_loja: string;
   data: string;
-  contato: { nome: string; email: string };
-  itens: Array<{ codigo: string; descricao: string; quantidade: number; valor_unitario: number }>;
-  parcelas: Array<{ valor: number; forma_pagamento: { id: number } }>;
+  contato: { id: number };
+  itens: Array<{
+    produto?: { id: number };
+    codigo?: string;
+    descricao: string;
+    quantidade: number;
+    valor: number;
+  }>;
+  parcelas: Array<{ valor: number; dataVencimento: string }>;
   transporte: {
     frete_por_conta: string;
     valor_frete: number;

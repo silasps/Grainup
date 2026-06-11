@@ -6,7 +6,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { getBlingProductBySku, createBlingOrder, type BlingOrderPayload } from "./client";
+import { getBlingProductBySku, createBlingOrder, findOrCreateBlingContact, type BlingOrderPayload } from "./client";
 
 /** Chamado pelo webhook do Bling quando estoque muda */
 export async function syncStockFromBling(blingProductId: number, sku: string, newStock: number) {
@@ -29,7 +29,7 @@ export async function pushOrderToBling(orderId: string) {
   const { data: order } = await supabase
     .from("orders")
     .select(`
-      id, order_number, created_at, subtotal, shipping_cost,
+      id, order_number, created_at, total, subtotal, shipping_cost,
       customer_name, customer_email, shipping_address,
       order_items(title, quantity, unit_price, book_id, combo_id, books(sku))
     `)
@@ -46,22 +46,23 @@ export async function pushOrderToBling(orderId: string) {
 
   const rawItems = order.order_items as RawItem[];
 
-  // Expande combos em linhas individuais de livro com desconto proporcional
-  type BlingItem = { codigo: string; descricao: string; quantidade: number; valor_unitario: number };
+  type BlingItem = { produto?: { id: number }; codigo?: string; descricao: string; quantidade: number; valor: number };
   const blingItems: BlingItem[] = [];
+
+  async function resolveItem(sku: string | null, title: string): Promise<Pick<BlingItem, "produto" | "codigo">> {
+    const code = sku ?? title;
+    const blingProduct = await getBlingProductBySku(code);
+    if (blingProduct) return { produto: { id: blingProduct.id } };
+    return { codigo: code };
+  }
 
   for (const item of rawItems) {
     if (!item.combo_id) {
-      blingItems.push({
-        codigo: item.books?.sku ?? item.title,
-        descricao: item.title,
-        quantidade: item.quantity,
-        valor_unitario: item.unit_price,
-      });
+      const ref = await resolveItem(item.books?.sku ?? null, item.title);
+      blingItems.push({ ...ref, descricao: item.title, quantidade: item.quantity, valor: item.unit_price });
       continue;
     }
 
-    // Busca os livros do combo com título, SKU e preço individual
     const { data: comboBooks } = await supabase
       .from("combo_items")
       .select("quantity, books(title, sku, price)")
@@ -70,17 +71,10 @@ export async function pushOrderToBling(orderId: string) {
       };
 
     if (!comboBooks || comboBooks.length === 0) {
-      // Fallback: envia o combo como linha única se não tiver estrutura
-      blingItems.push({
-        codigo: item.combo_id,
-        descricao: item.title,
-        quantidade: item.quantity,
-        valor_unitario: item.unit_price,
-      });
+      blingItems.push({ codigo: item.combo_id, descricao: item.title, quantidade: item.quantity, valor: item.unit_price });
       continue;
     }
 
-    // Distribui o preço do combo proporcionalmente entre os livros
     const somaPrecos = comboBooks.reduce((acc, cb) => acc + (cb.books?.price ?? 0) * cb.quantity, 0);
     for (const cb of comboBooks) {
       if (!cb.books) continue;
@@ -88,26 +82,37 @@ export async function pushOrderToBling(orderId: string) {
       const precoUnitarioProporcional = somaPrecos > 0
         ? (item.unit_price * fator) / cb.quantity
         : item.unit_price / comboBooks.length;
+      const ref = await resolveItem(cb.books.sku, cb.books.title);
       blingItems.push({
-        codigo: cb.books.sku ?? cb.books.title,
+        ...ref,
         descricao: cb.books.title,
         quantidade: item.quantity * cb.quantity,
-        valor_unitario: Math.round(precoUnitarioProporcional * 100) / 100,
+        valor: Math.round(precoUnitarioProporcional * 100) / 100,
       });
     }
   }
 
+  const contatoId = await findOrCreateBlingContact(
+    order.customer_name as string,
+    order.customer_email as string,
+  );
+
+  const orderDate = new Date(order.created_at as string).toISOString().slice(0, 10);
+  const frete = (order.shipping_cost as number) || 0;
+  const itensTotal = Math.round(blingItems.reduce((s, i) => s + i.valor * i.quantidade, 0) * 100) / 100;
+  // frete_por_conta "R" = remetente cobra o frete e aparece na NF-e. Parcelas = itens + frete.
+  const parcelaTotal = Math.round((itensTotal + frete) * 100) / 100;
   const addr = (order.shipping_address ?? {}) as Record<string, string>;
 
   const payload: BlingOrderPayload = {
     numero_loja: String(order.order_number),
-    data: new Date(order.created_at as string).toISOString().slice(0, 10),
-    contato: { nome: order.customer_name as string, email: order.customer_email as string },
+    data: orderDate,
+    contato: { id: contatoId },
     itens: blingItems,
-    parcelas: [{ valor: (order.subtotal as number) + (order.shipping_cost as number || 0), forma_pagamento: { id: 1 } }],
+    parcelas: [{ valor: parcelaTotal, dataVencimento: orderDate }],
     transporte: {
-      frete_por_conta: "D",
-      valor_frete: order.shipping_cost as number || 0,
+      frete_por_conta: "R",
+      valor_frete: frete,
       endereco: {
         endereco: addr.street ?? "",
         numero: addr.number ?? "S/N",

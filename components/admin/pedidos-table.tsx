@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Search, X, ChevronUp, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { Search, X, ChevronUp, ChevronDown, Eye, Send, Package, Check, Pencil, Truck, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
+import { pushOrderToBlingAction, updateTrackingCodeAction } from "@/app/(admin)/admin/editora/pedidos/actions";
+import { toast } from "sonner";
 
 const PAGE_SIZE = 30;
 
@@ -37,7 +39,9 @@ export interface OrderRow {
   created_at: string;
   customer_name: string;
   invoice_number: string | null;
+  invoice_url: string | null;
   bling_order_id: number | null;
+  tracking_code: string | null;
   shipping_address: Record<string, string> | null;
   order_items: Array<{
     id: string;
@@ -82,7 +86,7 @@ function SortTh({ label, sortKey, sorts, onSort, className }: {
   return (
     <th
       onClick={(e) => onSort(sortKey, e.ctrlKey)}
-      className={cn("px-5 py-3 text-xs font-semibold bg-white cursor-pointer select-none group", active ? "text-foreground" : "text-muted-foreground hover:text-foreground", className)}
+      className={cn("px-4 py-3 text-xs font-semibold bg-white cursor-pointer select-none group", active ? "text-foreground" : "text-muted-foreground hover:text-foreground", className)}
     >
       <span className="inline-flex items-center gap-0.5">
         {label}
@@ -107,7 +111,6 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
   onRefresh: () => Promise<OrderRow[]>;
   onRefreshStats: () => Promise<StatRow[]>;
 }) {
-  const router = useRouter();
   const [orders, setOrders] = useState(initialOrders);
   const [allStats, setAllStats] = useState(initialStats);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -131,6 +134,13 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
   const [sorts, setSorts] = useState<SortEntry[]>([{ key: "created_at", dir: "desc" }]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Inline tracking edit
+  const [editingTracking, setEditingTracking] = useState<string | null>(null);
+  const [trackingDraft, setTrackingDraft] = useState("");
+
+  // Bling loading
+  const [blingLoading, setBlingLoading] = useState<string | null>(null);
 
   const carriers = useMemo(() => {
     const set = new Set<string>();
@@ -167,7 +177,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
       .filter((o) => !["cancelado", "aguardando_pagamento"].includes(o.status))
       .reduce((s, o) => s + o.total, 0),
     frete: allStats
-      .filter((o) => o.status !== "cancelado")
+      .filter((o) => !["cancelado", "aguardando_pagamento"].includes(o.status))
       .reduce((s, o) => s + (o.shipping_cost ?? 0), 0),
   }), [allStats]);
 
@@ -195,6 +205,24 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
       if (idx === 0 && prev.length === 1) return [{ key, dir: prev[0].dir === "asc" ? "desc" : "asc" }];
       return [{ key, dir: "asc" }];
     });
+  }
+
+  async function handleSendToBling(orderId: string) {
+    setBlingLoading(orderId);
+    const result = await pushOrderToBlingAction(orderId);
+    setBlingLoading(null);
+    if (result.error) { toast.error(result.error); return; }
+    toast.success("Pedido enviado ao Bling");
+    const fresh = await onRefresh();
+    setOrders(fresh);
+  }
+
+  async function handleSaveTracking(orderId: string, value: string) {
+    const result = await updateTrackingCodeAction(orderId, value);
+    if (result.error) { toast.error(result.error); return; }
+    toast.success("Rastreio salvo");
+    setEditingTracking(null);
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, tracking_code: value || null } : o));
   }
 
   const hasFilter = search || filterStatus !== "all" || filterCarrier !== "all" || dateFrom || dateTo;
@@ -235,59 +263,32 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {/* Search */}
             <div className="flex items-center gap-1.5 h-8 rounded-md border border-border bg-secondary/40 px-2 flex-1 min-w-40 focus-within:ring-1 focus-within:ring-brand focus-within:border-brand">
               <Search className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <input
-                type="text"
-                placeholder="Nome ou nº do pedido"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-full bg-transparent text-xs focus:outline-none w-full"
-              />
-              {search && (
-                <button onClick={() => setSearch("")} className="text-muted-foreground hover:text-foreground flex-shrink-0">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+              <input type="text" placeholder="Nome ou nº do pedido" value={search} onChange={(e) => setSearch(e.target.value)} className="h-full bg-transparent text-xs focus:outline-none w-full" />
+              {search && <button onClick={() => setSearch("")} className="text-muted-foreground hover:text-foreground flex-shrink-0"><X className="h-3.5 w-3.5" /></button>}
             </div>
-
-            {/* Status */}
             <div className={`flex items-center h-8 rounded-md border text-xs focus-within:ring-1 focus-within:ring-brand ${filterStatus !== "all" ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="h-full bg-transparent pl-2 pr-1 focus:outline-none cursor-pointer">
                 <option value="all">Status</option>
                 {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
-              {filterStatus !== "all" && (
-                <button onClick={() => setFilterStatus("all")} className="ml-0.5 text-brand hover:text-brand-700">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+              {filterStatus !== "all" && <button onClick={() => setFilterStatus("all")} className="ml-0.5 text-brand hover:text-brand-700"><X className="h-3.5 w-3.5" /></button>}
             </div>
-
-            {/* Transportadora */}
             {carriers.length > 0 && (
               <div className={`flex items-center h-8 rounded-md border text-xs focus-within:ring-1 focus-within:ring-brand ${filterCarrier !== "all" ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
                 <select value={filterCarrier} onChange={(e) => setFilterCarrier(e.target.value)} className="h-full bg-transparent pl-2 pr-1 focus:outline-none cursor-pointer">
                   <option value="all">Transportadora</option>
                   {carriers.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-                {filterCarrier !== "all" && (
-                  <button onClick={() => setFilterCarrier("all")} className="ml-0.5 text-brand hover:text-brand-700">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
+                {filterCarrier !== "all" && <button onClick={() => setFilterCarrier("all")} className="ml-0.5 text-brand hover:text-brand-700"><X className="h-3.5 w-3.5" /></button>}
               </div>
             )}
-
-            {/* De */}
             <div className={`flex items-center h-8 rounded-md border text-xs focus-within:ring-1 focus-within:ring-brand ${dateFrom ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
               <span className="pl-2 pr-1 text-muted-foreground">De</span>
               <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="h-full bg-transparent pr-1 text-xs focus:outline-none cursor-pointer" />
               {dateFrom && <button onClick={() => setDateFrom("")} className="ml-0.5 text-brand hover:text-brand-700"><X className="h-3.5 w-3.5" /></button>}
             </div>
-
-            {/* Até */}
             <div className={`flex items-center h-8 rounded-md border text-xs focus-within:ring-1 focus-within:ring-brand ${dateTo ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
               <span className="pl-2 pr-1 text-muted-foreground">Até</span>
               <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="h-full bg-transparent pr-1 text-xs focus:outline-none cursor-pointer" />
@@ -303,17 +304,19 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
               <tr className="border-b border-border shadow-sm">
                 <SortTh label="Pedido" sortKey="order_number" sorts={sorts} onSort={handleSort} className="text-left" />
                 <SortTh label="Cliente" sortKey="customer_name" sorts={sorts} onSort={handleSort} className="text-left" />
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Produtos / SKU</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Produtos / SKU</th>
                 <SortTh label="Status" sortKey="status" sorts={sorts} onSort={handleSort} className="text-left" />
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">NF-e</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Envio / Pgto</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Bling / NF-e</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Rastreio</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground bg-white whitespace-nowrap">Envio / Pgto</th>
                 <SortTh label="Total" sortKey="total" sorts={sorts} onSort={handleSort} className="text-right" />
+                <th className="px-3 py-3 bg-white w-10" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
+                  <td colSpan={9} className="text-center py-12 text-muted-foreground text-sm">
                     {hasFilter ? "Nenhum pedido encontrado para os filtros aplicados." : "Nenhum pedido ainda."}
                   </td>
                 </tr>
@@ -324,17 +327,24 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                   const cityState = addr?.city && addr?.state ? `${addr.city} / ${addr.state}` : addr?.city ?? null;
                   const shippingMethod = addr?.method ?? null;
                   const extraItems = items.length > 4 ? items.length - 4 : 0;
+                  const isEditingTracking = editingTracking === order.id;
+
                   return (
-                    <tr key={order.id} onClick={() => router.push(`/admin/editora/pedidos/${order.id}`)} className="hover:bg-secondary/50 transition-colors cursor-pointer">
-                      <td className="px-5 py-3 whitespace-nowrap">
+                    <tr key={order.id} className="hover:bg-secondary/30 transition-colors">
+                      {/* Pedido */}
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <p className="font-medium">#{order.order_number}</p>
                         <p className="text-xs text-muted-foreground">{formatDate(order.created_at)}</p>
                       </td>
-                      <td className="px-5 py-3">
+
+                      {/* Cliente */}
+                      <td className="px-4 py-3">
                         <p className="text-sm whitespace-nowrap">{order.customer_name ?? "—"}</p>
                         {cityState && <p className="text-xs text-muted-foreground whitespace-nowrap">{cityState}</p>}
                       </td>
-                      <td className="px-5 py-3">
+
+                      {/* Produtos */}
+                      <td className="px-4 py-3">
                         {items.length === 0 ? (
                           <span className="text-xs text-muted-foreground">—</span>
                         ) : (
@@ -345,9 +355,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                               return (
                                 <div key={item.id} className="mb-1">
                                   <div className="flex items-baseline gap-1.5">
-                                    {isCombo && (
-                                      <span className="text-[9px] font-bold uppercase tracking-wide bg-violet-100 text-violet-700 rounded px-1 py-0.5 leading-none flex-shrink-0">Kit</span>
-                                    )}
+                                    {isCombo && <span className="text-[9px] font-bold uppercase tracking-wide bg-violet-100 text-violet-700 rounded px-1 py-0.5 leading-none flex-shrink-0">Kit</span>}
                                     <p className="text-xs text-muted-foreground whitespace-nowrap">{item.quantity}× {item.title}</p>
                                     {!isCombo && item.books?.sku && <p className="text-xs font-mono text-muted-foreground/70 whitespace-nowrap">{item.books.sku}</p>}
                                   </div>
@@ -369,36 +377,112 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-3 whitespace-nowrap">
+
+                      {/* Status */}
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <Badge variant="outline" className={cn("text-xs", STATUS_COLORS[order.status])}>
                           {STATUS_LABELS[order.status] ?? order.status}
                         </Badge>
                       </td>
-                      <td className="px-5 py-3 whitespace-nowrap">
+
+                      {/* Bling / NF-e */}
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {order.invoice_number ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
-                            ✓ Emitida
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+                              <Check className="h-3 w-3" /> NF emitida
+                            </span>
+                            {order.invoice_url && (
+                              <a href={order.invoice_url} target="_blank" rel="noopener noreferrer" title="Ver DANFE" className="text-muted-foreground hover:text-foreground">
+                                <FileText className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        ) : order.bling_order_id ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <Package className="h-3 w-3" /> #{order.bling_order_id}
                           </span>
-                        ) : order.status === "paid" && !order.bling_order_id ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-0.5" title="Pedido ainda não enviado ao Bling">
-                            ⚠ Pendente Bling
-                          </span>
+                        ) : order.status === "pago" ? (
+                          <button
+                            onClick={() => handleSendToBling(order.id)}
+                            disabled={blingLoading === order.id}
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                          >
+                            <Send className={`h-3 w-3 ${blingLoading === order.id ? "animate-pulse" : ""}`} />
+                            {blingLoading === order.id ? "Enviando…" : "Enviar Bling"}
+                          </button>
                         ) : (
-                          <span className="text-[11px] text-muted-foreground/60">Aguardando</span>
+                          <span className="text-[11px] text-muted-foreground/40">—</span>
                         )}
                       </td>
-                      <td className="px-5 py-3 whitespace-nowrap">
+
+                      {/* Rastreio inline */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {isEditingTracking ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              value={trackingDraft}
+                              onChange={(e) => setTrackingDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveTracking(order.id, trackingDraft);
+                                if (e.key === "Escape") setEditingTracking(null);
+                              }}
+                              placeholder="BR123…"
+                              className="text-xs border border-border rounded px-2 py-1 w-28 focus:outline-none focus:ring-1 focus:ring-brand"
+                            />
+                            <button onClick={() => handleSaveTracking(order.id, trackingDraft)} className="text-emerald-600 hover:text-emerald-700 p-0.5">
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => setEditingTracking(null)} className="text-muted-foreground hover:text-foreground p-0.5">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : order.tracking_code ? (
+                          <button
+                            onClick={() => { setEditingTracking(order.id); setTrackingDraft(order.tracking_code ?? ""); }}
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground group"
+                          >
+                            <Truck className="h-3 w-3 flex-shrink-0" />
+                            <span className="font-mono truncate max-w-[96px]">{order.tracking_code}</span>
+                            <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 flex-shrink-0" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { setEditingTracking(order.id); setTrackingDraft(""); }}
+                            className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                          >
+                            + Rastreio
+                          </button>
+                        )}
+                      </td>
+
+                      {/* Envio / Pgto */}
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <p className="text-xs text-muted-foreground capitalize">{order.payment_method?.replace(/_/g, " ") ?? "—"}</p>
                         <p className="text-xs text-muted-foreground">{shippingMethod ?? (order.shipping_cost === 0 ? "Frete grátis" : "—")}</p>
                       </td>
-                      <td className="px-5 py-3 text-right font-semibold whitespace-nowrap">{formatCurrency(order.total)}</td>
+
+                      {/* Total */}
+                      <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">{formatCurrency(order.total)}</td>
+
+                      {/* Ações */}
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <Link
+                          href={`/admin/editora/pedidos/${order.id}`}
+                          className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground inline-flex"
+                          title="Ver detalhes"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </td>
                     </tr>
                   );
                 })
               )}
               {visibleCount < sorted.length && (
                 <tr>
-                  <td colSpan={7} className="text-center py-3 text-xs text-muted-foreground">
+                  <td colSpan={9} className="text-center py-3 text-xs text-muted-foreground">
                     Mostrando {visibleCount} de {sorted.length} — role para carregar mais
                   </td>
                 </tr>
