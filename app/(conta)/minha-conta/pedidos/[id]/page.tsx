@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { formatCurrency, formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, MapPin, Package, CreditCard } from "lucide-react";
+import { OrderStatusPoller } from "@/components/conta/order-status-poller";
 
 const STATUS_LABELS: Record<string, string> = {
   aguardando_pagamento: "Aguardando pagamento",
@@ -70,6 +71,7 @@ export default async function PedidoDetalhesPage({
 
   return (
     <div className="flex flex-col gap-4">
+      <OrderStatusPoller hasPending={o.status === "aguardando_pagamento"} />
       <div className="bg-white rounded-xl border border-border p-5 flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild className="h-8 w-8 shrink-0">
           <Link href="/minha-conta/pedidos">
