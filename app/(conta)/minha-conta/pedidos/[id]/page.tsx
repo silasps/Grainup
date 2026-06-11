@@ -202,6 +202,21 @@ export default async function PedidoDetalhesPage({
         </p>
       </div>
 
+      {o.payment_status === "recusado" && o.status === "aguardando_pagamento" && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5 flex flex-col gap-3">
+          <div>
+            <p className="text-sm font-semibold text-red-800">Pagamento recusado</p>
+            <p className="text-xs text-red-600 mt-1">
+              Seu pagamento foi recusado. Você pode tentar novamente com outro cartão ou via PIX.
+              Este pedido ficará disponível por 24 horas.
+            </p>
+          </div>
+          <Button asChild className="bg-red-700 hover:bg-red-800 text-white w-full sm:w-auto">
+            <Link href={`/checkout/retry/${o.id}`}>Tentar outro pagamento</Link>
+          </Button>
+        </div>
+      )}
+
       {o.tracking_code && (
         <div className="bg-brand-50 border border-brand/20 rounded-xl p-5">
           <p className="text-sm font-semibold text-brand mb-0.5">Código de rastreio</p>

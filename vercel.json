@@ -3,6 +3,10 @@
     {
       "path": "/api/admin/bling-sync",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/admin/cancel-expired-orders",
+      "schedule": "0 * * * *"
     }
   ]
 }

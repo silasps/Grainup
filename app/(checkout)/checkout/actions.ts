@@ -439,7 +439,7 @@ export async function checkOrderPaymentStatusAction(orderId: string) {
       if (payment.status === "rejected" || payment.status === "cancelled") {
         await supabase
           .from("orders")
-          .update({ status: "cancelado", payment_status: "recusado" })
+          .update({ payment_status: "recusado" })
           .eq("id", orderId);
         return { paymentStatus: "recusado" };
       }
