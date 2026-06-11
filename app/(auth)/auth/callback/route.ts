@@ -11,6 +11,11 @@ export async function GET(request: Request) {
 
   if (code) {
     const cookieStore = await cookies();
+    // Create the redirect response first so session cookies are written directly onto it.
+    // Using cookieStore.set() here would write to an internal buffer that doesn't carry
+    // over to a new NextResponse object, causing the session to be lost after the redirect.
+    const response = NextResponse.redirect(`${origin}${next}`);
+
     const supabase = createServerClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,7 +24,7 @@ export async function GET(request: Request) {
           getAll() { return cookieStore.getAll(); },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              response.cookies.set(name, value, options)
             );
           },
         },
@@ -44,7 +49,7 @@ export async function GET(request: Request) {
           .maybeSingle();
 
         const isNewUser = !profile;
-        if (isNewUser || (!profile.full_name && fullName) || (!profile.phone && phone) || (!profile.cpf && cpf)) {
+        if (isNewUser || (!profile?.full_name && fullName) || (!profile?.phone && phone) || (!profile?.cpf && cpf)) {
           await supabase.from("profiles").upsert(
             {
               id: profile?.id ?? crypto.randomUUID(),
@@ -62,7 +67,7 @@ export async function GET(request: Request) {
           sendWelcomeEmail(user.email, name).catch(console.error);
         }
       }
-      return NextResponse.redirect(`${origin}${next}`);
+      return response;
     }
   }
 
