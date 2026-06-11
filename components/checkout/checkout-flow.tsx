@@ -27,6 +27,7 @@ import {
   validateCouponAction,
 } from "@/app/(checkout)/checkout/actions";
 import { MpCardForm, type CardPaymentData } from "@/components/checkout/mp-card-form";
+import { OrderStatusPoller } from "@/components/conta/order-status-poller";
 import { formatCurrency } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 
@@ -157,6 +158,7 @@ export function CheckoutFlow() {
   const [coupon, setCoupon] = useState<{ code: string; discountPercent: number; discountAmount: number } | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
+  const [cardPaymentPending, setCardPaymentPending] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topConfirmRef = useRef<HTMLButtonElement>(null);
@@ -670,7 +672,11 @@ export function CheckoutFlow() {
       handleActionError(result.error);
       return;
     }
-    if (result.status === "approved" || result.status === "pending") {
+    if (result.status === "approved") {
+      setCardPaymentPending(false);
+      setStep("sucesso");
+    } else if (result.status === "pending") {
+      setCardPaymentPending(true);
       setStep("sucesso");
     } else {
       toast.error("Pagamento recusado. Verifique os dados e tente novamente.");
@@ -867,19 +873,26 @@ export function CheckoutFlow() {
   if (step === "sucesso") {
     return (
       <div className="flex-1 overflow-y-auto">
+      <OrderStatusPoller hasPending={cardPaymentPending} />
       <div className="flex flex-col items-center justify-center px-6 py-16 gap-6 text-center bg-white min-h-full">
-        <div className="w-20 h-20 rounded-full bg-brand flex items-center justify-center">
+        <div className={`w-20 h-20 rounded-full flex items-center justify-center ${cardPaymentPending ? "bg-yellow-400" : "bg-brand"}`}>
           <PackageCheck className="h-10 w-10 text-white" />
         </div>
         <div>
           <h1 className="font-heading text-2xl font-bold text-foreground mb-2">
-            Pedido realizado!
+            {cardPaymentPending ? "Pagamento em análise" : "Pedido realizado!"}
           </h1>
           <p className="text-muted-foreground mb-1">
-            Seu pedido <strong>{orderNumber}</strong> foi confirmado.
+            {cardPaymentPending
+              ? <>Seu pedido <strong>{orderNumber}</strong> foi recebido e o pagamento está sendo analisado.</>
+              : <>Seu pedido <strong>{orderNumber}</strong> foi confirmado.</>
+            }
           </p>
           <p className="text-sm text-muted-foreground">
-            Em breve você receberá um e-mail com a confirmação e os detalhes da entrega.
+            {cardPaymentPending
+              ? "Você receberá um e-mail assim que o pagamento for aprovado."
+              : "Em breve você receberá um e-mail com a confirmação e os detalhes da entrega."
+            }
           </p>
         </div>
         <div className="w-full max-w-sm bg-secondary rounded-xl p-5 text-left">
