@@ -18,7 +18,6 @@ interface BookFull {
   price: number;
   price_promotional: number | null;
   isbn: string | null;
-  sku: string | null;
   pages: number | null;
   weight_grams: number | null;
   height_cm: number | null;
@@ -43,7 +42,7 @@ async function getBook(slug: string): Promise<BookFull | null> {
     .from("books")
     .select(`
       id, title, slug, description_full, description_short,
-      cover_url, price, price_promotional, isbn, sku,
+      cover_url, price, price_promotional, isbn,
       pages, weight_grams, height_cm, width_cm, length_cm, stock,
       rating_avg, rating_count, is_bestseller, is_new, is_featured, is_active,
       authors(id, name, slug, bio, photo_url),

@@ -66,7 +66,6 @@ interface BookDetailProps {
     price: number;
     price_promotional: number | null;
     isbn: string | null;
-    sku: string | null;
     pages: number | null;
     weight_grams: number | null;
     height_cm: number | null;
