@@ -1,0 +1,9 @@
+INSERT INTO legal_pages (type, title, content)
+VALUES (
+  'cancellation',
+  'Política de Cancelamento',
+  E'## Cancelamento de Pedidos\n\nNa Editora Jocum, queremos garantir uma experiência de compra tranquila e transparente. Esta política explica como funciona o processo de cancelamento de pedidos.\n\n---\n\n## Pagamento não concluído\n\nCaso o pagamento de um pedido seja **recusado** pelo banco ou pela operadora de cartão, o pedido **não é cancelado imediatamente**. Você terá **24 horas** para tentar realizar o pagamento novamente.\n\nDurante esse período, você pode:\n\n- Acessar o pedido em **Minha Conta → Meus Pedidos**\n- Clicar em **"Tentar outro pagamento"**\n- Escolher pagar via **PIX** ou com um **cartão diferente**\n\nSe nenhuma nova tentativa for realizada dentro de 24 horas, o pedido é **cancelado automaticamente** pelo sistema.\n\n---\n\n## Cancelamento solicitado pelo cliente\n\nPedidos que ainda não foram enviados podem ser cancelados a pedido do cliente. Para solicitar o cancelamento:\n\n1. Acesse **Minha Conta → Meus Pedidos**\n2. Abra o pedido desejado\n3. Clique em **"Cancelar pedido"**\n\nA solicitação será analisada pela nossa equipe em até **1 dia útil**. Pedidos já em processo de separação ou envio podem não ser elegíveis para cancelamento.\n\n---\n\n## Reembolso\n\nEm caso de cancelamento de um pedido já pago, o reembolso será processado pelo mesmo meio de pagamento utilizado na compra:\n\n- **PIX:** estorno em até 5 dias úteis\n- **Cartão de crédito:** estorno na fatura em até 2 ciclos de cobrança, conforme a operadora\n- **Cartão de débito:** estorno em até 5 dias úteis\n\n---\n\n## Dúvidas\n\nEm caso de dúvidas sobre cancelamentos ou reembolsos, entre em contato conosco pelo e-mail **contato@editorajocum.com.br**.'
+)
+ON CONFLICT (type) DO UPDATE SET
+  title   = EXCLUDED.title,
+  content = EXCLUDED.content;

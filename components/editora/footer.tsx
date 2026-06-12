@@ -58,6 +58,7 @@ const LINKS_LEGAL = [
   { href: "/editora/politica-de-privacidade", label: "Privacidade" },
   { href: "/editora/termos-de-uso", label: "Termos de uso" },
   { href: "/editora/trocas-e-devolucoes", label: "Política de devoluções" },
+  { href: "/editora/politica-de-cancelamento", label: "Política de cancelamento" },
 ];
 
 export function EditoraFooter({ contact }: { contact?: ContactInfo | null }) {

@@ -70,7 +70,7 @@ function parseSchedule(raw: string | null): WeekSchedule {
 
 type LegalPage = {
   id: string;
-  type: "privacy" | "terms" | "returns" | "shipping" | "cookies";
+  type: "privacy" | "terms" | "returns" | "shipping" | "cookies" | "cancellation";
   title: string;
   content: string;
   updated_at: string;
@@ -82,6 +82,7 @@ const LEGAL_LABELS: Record<LegalPage["type"], string> = {
   returns: "Política de Devoluções",
   shipping: "Política de Frete",
   cookies: "Política de Cookies",
+  cancellation: "Política de Cancelamento",
 };
 
 // Parse stored value like "+55 (41) 99999-9999" → { countryCode: "BR", localValue: "(41) 99999-9999" }

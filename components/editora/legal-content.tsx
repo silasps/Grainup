@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LegalPageLayout, type LegalPageConfig } from "./legal-page-layout";
 
 interface Props {
-  type: "privacy" | "terms" | "returns" | "shipping" | "cookies";
+  type: "privacy" | "terms" | "returns" | "shipping" | "cookies" | "cancellation";
   config: LegalPageConfig;
 }
 

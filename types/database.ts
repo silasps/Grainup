@@ -630,7 +630,7 @@ export type Database = {
       legal_pages: {
         Row: {
           id: string;
-          type: "privacy" | "terms" | "returns" | "shipping" | "cookies";
+          type: "privacy" | "terms" | "returns" | "shipping" | "cookies" | "cancellation";
           title: string;
           content: string;
           updated_at: string;
