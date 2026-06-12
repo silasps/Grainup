@@ -16,7 +16,7 @@ export default async function OfertasPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("books")
-    .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_new, is_bestseller, authors(name)")
+    .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_new, is_bestseller, stock, authors(name)")
     .eq("is_active", true)
     .not("price_promotional", "is", null)
     .order("price_promotional", { ascending: true });
@@ -35,6 +35,7 @@ export default async function OfertasPage() {
     isNew: b.is_new as boolean,
     isBestseller: b.is_bestseller as boolean,
     isOffer: true,
+    stock: b.stock as number,
   }));
 
   return (

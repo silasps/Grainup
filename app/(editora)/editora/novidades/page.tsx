@@ -16,7 +16,7 @@ export default async function NovididadesPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("books")
-    .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_new, is_bestseller, authors(name)")
+    .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_new, is_bestseller, stock, authors(name)")
     .eq("is_active", true)
     .eq("is_new", true)
     .order("created_at", { ascending: false });
@@ -34,6 +34,7 @@ export default async function NovididadesPage() {
     ratingCount: b.rating_count as number,
     isNew: b.is_new as boolean,
     isBestseller: b.is_bestseller as boolean,
+    stock: b.stock as number,
   }));
 
   return (

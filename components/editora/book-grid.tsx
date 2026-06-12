@@ -45,6 +45,7 @@ interface BookRow {
   is_featured: boolean;
   category_id: string | null;
   authors: { name: string } | null;
+  stock: number;
 }
 
 interface BookGridProps {
@@ -84,6 +85,7 @@ function normalizeBook(b: BookRow): BookCardData {
     ratingCount: b.rating_count,
     isNew: b.is_new,
     isBestseller: b.is_bestseller,
+    stock: b.stock,
   };
 }
 

@@ -27,6 +27,7 @@ export interface BookCardData {
   isBestseller?: boolean;
   isOffer?: boolean;
   isFreeShipping?: boolean;
+  stock?: number;
 }
 
 interface BookCardProps {
@@ -40,6 +41,7 @@ export function BookCard({ book, className }: BookCardProps) {
   const setBuyNow = useCartStore((s) => s.setBuyNow);
   const router = useRouter();
 
+  const outOfStock = typeof book.stock === "number" && book.stock === 0;
   const hasDiscount = book.pricePromotional && book.pricePromotional < book.price;
   const displayPrice = book.pricePromotional ?? book.price;
   const discountPct = hasDiscount
@@ -130,15 +132,17 @@ export function BookCard({ book, className }: BookCardProps) {
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100 hidden sm:flex">
           <button
             onClick={handleAddToCart}
-            className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-foreground text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg hover:bg-white transition-colors"
+            disabled={outOfStock}
+            className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-foreground text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ShoppingCart className="h-3.5 w-3.5" />
-            Adicionar
+            {outOfStock ? "Sem estoque" : "Adicionar"}
           </button>
         </div>
         <button
           onClick={handleAddToCart}
-          className="sm:hidden absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm text-foreground p-2 rounded-full shadow-lg active:scale-95 transition-transform"
+          disabled={outOfStock}
+          className="sm:hidden absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm text-foreground p-2 rounded-full shadow-lg active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
           aria-label="Adicionar ao carrinho"
         >
           <ShoppingCart className="h-4 w-4" />
@@ -181,11 +185,12 @@ export function BookCard({ book, className }: BookCardProps) {
           {/* Botão principal */}
           <Button
             size="sm"
-            className="w-full mt-1 bg-brand hover:bg-brand-700 text-white h-9 text-xs font-semibold rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer"
+            disabled={outOfStock}
+            className="w-full mt-1 bg-brand hover:bg-brand-700 text-white h-9 text-xs font-semibold rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={handleBuyNow}
           >
             <Zap className="h-3.5 w-3.5 mr-1.5" />
-            Comprar agora
+            {outOfStock ? "Sem estoque" : "Comprar agora"}
           </Button>
         </div>
       )}
