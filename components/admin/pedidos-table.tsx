@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X, ChevronUp, ChevronDown, Send, Package, Check, Pencil, Truck, FileText } from "lucide-react";
+import { Search, X, ChevronUp, ChevronDown, Send, Package, Check, Pencil, Truck, FileText, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
@@ -406,13 +406,14 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                             <Package className="h-3 w-3" /> #{order.bling_order_id}
                           </span>
-                        ) : order.status === "pago" ? (
+                        ) : ["pago", "separando", "enviado", "entregue"].includes(order.status) ? (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleSendToBling(order.id); }}
                             disabled={blingLoading === order.id}
-                            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 font-medium"
+                            title="Pedido pago sem registro no Bling — clique para enviar"
                           >
-                            <Send className={`h-3 w-3 ${blingLoading === order.id ? "animate-pulse" : ""}`} />
+                            <TriangleAlert className={`h-3 w-3 ${blingLoading === order.id ? "animate-pulse" : ""}`} />
                             {blingLoading === order.id ? "Enviando…" : "Enviar Bling"}
                           </button>
                         ) : (

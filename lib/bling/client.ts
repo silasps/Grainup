@@ -19,6 +19,7 @@ async function blingFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text();
+    console.error(`[Bling] ERRO ${res.status} em ${options?.method ?? "GET"} ${path}:`, body);
     if (res.status === 403) throw new Error("Permissão insuficiente no Bling. Adicione os módulos 'Contatos' e 'Pedidos de Venda' nas permissões do app e reconecte em Configurações.");
     if (res.status === 401) throw new Error("Token Bling expirado ou inválido. Reconecte em Configurações → Bling ERP.");
     let msg = body;
@@ -30,7 +31,8 @@ async function blingFetch<T>(path: string, options?: RequestInit): Promise<T> {
     } catch {}
     throw new Error(`Bling: ${msg}`);
   }
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : {}) as T;
 }
 
 // ── Produtos ─────────────────────────────────────────────────────────────────
@@ -99,22 +101,92 @@ export async function updateBlingStock(blingProductId: number, quantity: number)
 
 // ── Contatos ─────────────────────────────────────────────────────────────────
 
-export async function findOrCreateBlingContact(nome: string, email: string): Promise<number> {
+interface BlingEndereco {
+  rua: string;
+  numero: string;
+  bairro: string;
+  municipio: string;
+  uf: string;
+  cep: string;
+  complemento?: string;
+}
+
+export async function findOrCreateBlingContact(nome: string, email: string, endereco?: BlingEndereco, cpf?: string | null): Promise<number> {
+  let contatoId: number | null = null;
+
   try {
     const found = await blingFetch<{ data: Array<{ id: number }> }>(`/contatos?email=${encodeURIComponent(email)}&situacao=A`);
-    if (found.data?.[0]?.id) return found.data[0].id;
+    // Só reutiliza se o filtro por email funcionou (retornou exatamente 1 resultado).
+    if (found.data?.length === 1 && found.data[0]?.id) contatoId = found.data[0].id;
   } catch {}
-  const created = await blingFetch<{ data: { id: number } }>("/contatos", {
-    method: "POST",
-    body: JSON.stringify({ nome, email, tipoPessoa: "F", situacao: "A" }),
-  });
-  return created.data.id;
+
+  if (!contatoId) {
+    // Bling v3: POST usa "tipo" (GET responde como "tipoPessoa")
+    const payload: Record<string, unknown> = { nome, email, tipo: "F", situacao: "A" };
+    if (cpf) {
+      const digits = cpf.replace(/\D/g, "");
+      payload.numeroDocumento = digits.length === 11
+        ? `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9,11)}`
+        : digits;
+    }
+    if (endereco) {
+      payload.endereco = {
+        geral: {
+          endereco: endereco.rua,
+          numero: endereco.numero,
+          complemento: endereco.complemento ?? "",
+          bairro: endereco.bairro,
+          municipio: endereco.municipio,
+          uf: endereco.uf,
+          cep: endereco.cep,
+          pais: { id: 1058 },
+        },
+      };
+    }
+    const created = await blingFetch<{ data: { id: number } }>("/contatos", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    contatoId = created.data.id;
+  }
+
+  // Atualiza sempre CPF e endereço — garante dados corretos mesmo em contatos reutilizados
+  try {
+    const patchPayload: Record<string, unknown> = { nome, email, tipo: "F", situacao: "A" };
+    if (cpf) {
+      const d = cpf.replace(/\D/g, "");
+      patchPayload.numeroDocumento = d.length === 11
+        ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9,11)}`
+        : d;
+    }
+    if (endereco) {
+      patchPayload.endereco = {
+        geral: {
+          endereco: endereco.rua,
+          numero: endereco.numero,
+          complemento: endereco.complemento ?? "",
+          bairro: endereco.bairro,
+          municipio: endereco.municipio,
+          uf: endereco.uf,
+          cep: endereco.cep,
+          pais: { id: 1058 },
+        },
+      };
+    }
+    await blingFetch(`/contatos/${contatoId}`, { method: "PUT", body: JSON.stringify(patchPayload) });
+    console.log("[Bling] PUT /contatos ok — CPF atualizado");
+  } catch (e) { console.error("[Bling] PUT /contatos falhou:", e); }
+
+  return contatoId;
 }
 
 // ── Pedidos ───────────────────────────────────────────────────────────────────
 
 export interface BlingOrderPayload {
-  numero_loja: string;
+  // numero_loja omitido: quando enviado, o Bling classifica o pedido como "loja virtual"
+  // (e-commerce), tirando-o da lista de Pedidos de Venda. Sem o campo, o pedido aparece
+  // normalmente na seção Vendas > Pedidos de Venda do Bling.
+  observacoes?: string;
   data: string;
   contato: { id: number };
   itens: Array<{
@@ -126,9 +198,10 @@ export interface BlingOrderPayload {
   }>;
   parcelas: Array<{ valor: number; dataVencimento: string }>;
   transporte: {
-    frete_por_conta: string;
-    valor_frete: number;
-    endereco: { endereco: string; numero: string; complemento?: string; bairro: string; municipio: string; uf: string; cep: string };
+    fretePorConta: number;   // 1 = Remetente, 2 = Destinatário, 3 = Terceiros (inteiro no Bling v3)
+    frete: number;
+    contato?: { id: number };
+    etiqueta?: { nome?: string; endereco: string; numero: string; complemento?: string; bairro: string; municipio: string; uf: string; cep: string };
   };
 }
 
@@ -144,8 +217,12 @@ export async function createBlingOrder(payload: BlingOrderPayload): Promise<{ id
 
 export interface BlingOrderDetails {
   id: number;
-  numero: number;
+  numero: number;      // número sequencial visível na UI do Bling (ex: 7159)
+  numeroPedidoCompra?: string; // nosso order_number salvo em observacoes
   situacao: { id: number; nome: string };
+  // Bling v3 inclui a NF-e vinculada diretamente no objeto do pedido quando emitida
+  notaFiscal?: { id: number } | null;
+  notasFiscais?: Array<{ id: number }> | null;
 }
 
 export interface BlingNfe {
@@ -168,10 +245,14 @@ export async function getBlingOrderDetails(blingOrderId: number): Promise<BlingO
 
 export async function getBlingNfeByOrder(blingOrderId: number): Promise<BlingNfe | null> {
   try {
-    const list = await blingFetch<{ data: BlingNfe[] }>(`/nfe?pedidoVendaId=${blingOrderId}`);
-    const first = list.data?.[0];
-    if (!first) return null;
-    const detail = await blingFetch<{ data: BlingNfe }>(`/nfe/${first.id}`);
+    // Busca o pedido no Bling — a resposta inclui a NF-e vinculada diretamente.
+    // NUNCA usar GET /nfe?pedidoVendaId= pois esse parâmetro não existe no Bling v3
+    // e faz a API retornar todos os NF-e sem filtro, associando a NF errada ao pedido.
+    const orderRes = await blingFetch<{ data: BlingOrderDetails }>(`/pedidos/vendas/${blingOrderId}`);
+    const order = orderRes.data;
+    const nfeId = order?.notaFiscal?.id ?? order?.notasFiscais?.[0]?.id;
+    if (!nfeId) return null;
+    const detail = await blingFetch<{ data: BlingNfe }>(`/nfe/${nfeId}`);
     return detail.data ?? null;
   } catch {
     return null;

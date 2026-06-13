@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { revalidateBookPages, lookupBlingSkuAction, pushBookToBlingAction } from "@/app/(admin)/admin/editora/livros/actions";
+import { revalidateBookPages, lookupBlingSkuAction, pushBookToBlingAction, syncBookToBlingAction } from "@/app/(admin)/admin/editora/livros/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -249,6 +249,10 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
         if (!book.bling_product_id) {
           pushBookToBlingAction(book.id).then((r) => {
             if (!r.error) toast.success("Produto criado no Bling!");
+          });
+        } else {
+          syncBookToBlingAction(book.id).then((r) => {
+            if (r.error) toast.error(`Bling: ${r.error}`);
           });
         }
       } else {

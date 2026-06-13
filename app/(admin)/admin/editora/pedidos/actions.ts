@@ -79,14 +79,16 @@ export async function updateInvoiceNumberAction(
   const supabase = await createAdminClient();
   const { error } = await supabase
     .from("orders")
+    // Ao limpar o número da NF, limpa também o link do DANFE para evitar dado órfão
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .update({ invoice_number: invoiceNumber || null } as any)
+    .update({ invoice_number: invoiceNumber || null, ...(invoiceNumber ? {} : { invoice_url: null }) } as any)
     .eq("id", orderId);
   return { error: error?.message ?? null };
 }
 
 export async function syncBlingOrderAction(orderId: string): Promise<{
   situacao: string | null;
+  numeroBling: number | null;
   invoiceNumber: string | null;
   invoiceUrl: string | null;
   error: string | null;
@@ -95,19 +97,19 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
 
   const { data: row } = await supabase
     .from("orders")
-    .select("id")
+    .select("id, bling_order_id")
     .eq("id", orderId)
     .single();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blingOrderId: number | null = (row as any)?.bling_order_id ?? null;
   if (!blingOrderId) {
-    return { situacao: null, invoiceNumber: null, invoiceUrl: null, error: "Pedido ainda não foi enviado ao Bling." };
+    return { situacao: null, numeroBling: null, invoiceNumber: null, invoiceUrl: null, error: "Pedido ainda não foi enviado ao Bling." };
   }
 
   const blingOrder = await getBlingOrderDetails(blingOrderId);
   if (!blingOrder) {
-    return { situacao: null, invoiceNumber: null, invoiceUrl: null, error: "Pedido não encontrado no Bling." };
+    return { situacao: null, numeroBling: null, invoiceNumber: null, invoiceUrl: null, error: "Pedido não encontrado no Bling. Use 'Desvincular' e reenvie." };
   }
 
   const nfe = await getBlingNfeByOrder(blingOrderId);
@@ -123,7 +125,19 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
   }
 
   revalidatePath(`/admin/editora/pedidos/${orderId}`);
-  return { situacao: blingOrder.situacao?.nome ?? null, invoiceNumber, invoiceUrl, error: null };
+  return { situacao: blingOrder.situacao?.nome ?? null, numeroBling: blingOrder.numero ?? null, invoiceNumber, invoiceUrl, error: null };
+}
+
+export async function resetBlingLinkAction(orderId: string): Promise<{ error: string | null }> {
+  const supabase = await createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("orders")
+    .update({ bling_order_id: null, invoice_number: null, invoice_url: null })
+    .eq("id", orderId);
+  if (error) return { error: error.message };
+  revalidatePath(`/admin/editora/pedidos/${orderId}`);
+  return { error: null };
 }
 
 export async function pushOrderToBlingAction(orderId: string): Promise<{ error: string | null }> {

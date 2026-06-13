@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getBlingProductBySku, getAllBlingProducts, createBlingProduct } from "@/lib/bling/client";
+import { getBlingProductBySku, getAllBlingProducts, createBlingProduct, updateBlingProduct } from "@/lib/bling/client";
 
 function norm(s: string) {
   return s.toLowerCase()
@@ -158,6 +158,27 @@ export async function linkAllBlingProductIdsAction(): Promise<{ linked: number; 
   }
   revalidatePath("/admin/editora/livros");
   return { linked, error: null };
+}
+
+/** Após editar um livro, empurra preço e nome atualizados para o Bling */
+export async function syncBookToBlingAction(bookId: string): Promise<{ error: string | null }> {
+  const supabase = await createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: book } = await (supabase as any)
+    .from("books")
+    .select("title, price, bling_product_id")
+    .eq("id", bookId)
+    .single() as { data: { title: string; price: number; bling_product_id: number | null } | null };
+
+  if (!book) return { error: "Livro não encontrado." };
+  if (!book.bling_product_id) return { error: null }; // ainda não vinculado, ignora
+
+  try {
+    await updateBlingProduct(book.bling_product_id, { nome: book.title, preco: book.price });
+    return { error: null };
+  } catch (e) {
+    return { error: String(e) };
+  }
 }
 
 export async function updateBookStockAction(bookId: string, stock: number) {

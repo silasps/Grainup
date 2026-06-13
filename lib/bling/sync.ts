@@ -30,7 +30,7 @@ export async function pushOrderToBling(orderId: string) {
     .from("orders")
     .select(`
       id, order_number, created_at, total, subtotal, shipping_cost,
-      customer_name, customer_email, shipping_address,
+      customer_name, customer_email, customer_cpf, shipping_address,
       order_items(title, quantity, unit_price, book_id, combo_id, books(sku))
     `)
     .eq("id", orderId)
@@ -92,35 +92,68 @@ export async function pushOrderToBling(orderId: string) {
     }
   }
 
+  const addr = (order.shipping_address ?? {}) as Record<string, string>;
+  const cep = (addr.cep ?? addr.zip_code ?? "").replace(/\D/g, "");
+
   const contatoId = await findOrCreateBlingContact(
     order.customer_name as string,
     order.customer_email as string,
+    {
+      rua: addr.street ?? "",
+      numero: addr.number ?? "S/N",
+      bairro: addr.neighborhood ?? "",
+      municipio: addr.city ?? "",
+      uf: addr.state ?? "",
+      cep,
+      complemento: addr.complement || undefined,
+    },
+    order.customer_cpf as string | null,
   );
 
   const orderDate = new Date(order.created_at as string).toISOString().slice(0, 10);
-  const frete = (order.shipping_cost as number) || 0;
-  const itensTotal = Math.round(blingItems.reduce((s, i) => s + i.valor * i.quantidade, 0) * 100) / 100;
-  // frete_por_conta "R" = remetente cobra o frete e aparece na NF-e. Parcelas = itens + frete.
-  const parcelaTotal = Math.round((itensTotal + frete) * 100) / 100;
-  const addr = (order.shipping_address ?? {}) as Record<string, string>;
+  const frete = Math.round(((order.shipping_cost as number) || 0) * 100) / 100;
+  const orderTotal = Math.round((order.total as number) * 100) / 100;
+  const targetItemsTotal = Math.round((orderTotal - frete) * 100) / 100;
+  // Bling v3 valida: sum(parcelas) == sum(itens) + frete. Quando frete=0 era só itens, agora inclui frete.
+  const parcelaTotal = orderTotal;
+
+  if (blingItems.length > 0) {
+    for (const item of blingItems) {
+      item.valor = Math.round(item.valor * 100) / 100;
+    }
+    const rawTotal = blingItems.reduce((s, i) => s + i.valor * i.quantidade, 0);
+    let assigned = 0;
+    for (let i = 0; i < blingItems.length - 1; i++) {
+      const proportion = rawTotal > 0 ? (blingItems[i].valor * blingItems[i].quantidade) / rawTotal : 1 / blingItems.length;
+      const itemTotal = Math.round(targetItemsTotal * proportion * 100) / 100;
+      blingItems[i].valor = Math.round((itemTotal / blingItems[i].quantidade) * 100) / 100;
+      assigned = Math.round((assigned + blingItems[i].valor * blingItems[i].quantidade) * 100) / 100;
+    }
+    const last = blingItems[blingItems.length - 1];
+    const remaining = Math.round((targetItemsTotal - assigned) * 100) / 100;
+    last.valor = Math.round((remaining / last.quantidade) * 100) / 100;
+  }
 
   const payload: BlingOrderPayload = {
-    numero_loja: String(order.order_number),
+    observacoes: `Editora Jocum: ${order.order_number}`,
     data: orderDate,
     contato: { id: contatoId },
     itens: blingItems,
     parcelas: [{ valor: parcelaTotal, dataVencimento: orderDate }],
     transporte: {
-      frete_por_conta: "R",
-      valor_frete: frete,
-      endereco: {
+      fretePorConta: 1,  // 1 = Remetente (Bling v3 usa inteiro, não string "R")
+      frete,
+      // contato.id vincula o destinatário existente — evita que etiqueta.nome crie novo contato
+      contato: { id: contatoId },
+      etiqueta: {
+        nome: order.customer_name as string,
         endereco: addr.street ?? "",
         numero: addr.number ?? "S/N",
         complemento: addr.complement || undefined,
         bairro: addr.neighborhood ?? "",
         municipio: addr.city ?? "",
         uf: addr.state ?? "",
-        cep: (addr.cep ?? addr.zip_code ?? "").replace(/\D/g, ""),
+        cep,
       },
     },
   };

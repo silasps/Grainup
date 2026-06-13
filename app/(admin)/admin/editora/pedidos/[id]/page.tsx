@@ -308,6 +308,7 @@ export default async function AdminOrderDetailPage({
             <BlingSyncCard
               orderId={order.id}
               blingOrderId={order.bling_order_id}
+              orderStatus={order.status}
             />
 
             {/* Nota Fiscal */}
