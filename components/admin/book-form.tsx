@@ -537,7 +537,18 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
 
             {/* Preço e estoque */}
             <div className="bg-white rounded-xl border border-border p-5 space-y-4">
-              <h3 className="text-sm font-semibold">Preço e estoque</h3>
+              <div className="flex items-center justify-between gap-4">
+                <h3 className="text-sm font-semibold">Preço e estoque</h3>
+                {book?.bling_product_id ? (
+                  <span className="text-[11px] text-sky-700 bg-sky-50 border border-sky-200 rounded-md px-2 py-1">
+                    Plataforma é a fonte de verdade — preço e nome são enviados ao Bling ao salvar
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground bg-muted rounded-md px-2 py-1">
+                    Ao salvar, o produto será criado no Bling com este preço
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="price">Preço *</Label>
