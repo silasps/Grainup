@@ -48,7 +48,7 @@ export async function saveCombo(
   if (!id && comboId) {
     const { data: combo } = await supabase.from("combos").select("id, name, bling_product_id").eq("id", comboId).single();
     if (combo && !(combo as any).bling_product_id) {
-      createBlingProduct({ nome: combo.name, tipo: "K", situacao: "A" })
+      createBlingProduct({ nome: combo.name, tipo: "E", situacao: "A" })
         .then((result) => supabase.from("combos").update({ bling_product_id: result.id } as any).eq("id", comboId!))
         .catch((e) => console.error("[Bling combo]", e));
     }

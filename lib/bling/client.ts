@@ -73,7 +73,7 @@ export interface BlingProductPayload {
   nome: string;
   codigo?: string;
   preco?: number;
-  tipo?: "P" | "K"; // P = produto simples, K = kit/combo
+  tipo?: "S" | "E" | "V"; // S = Simples, E = Estrutura/Composição, V = Variação (Bling v3)
   situacao?: "A" | "I";
 }
 

@@ -126,7 +126,7 @@ export async function pushBookToBlingAction(bookId: string): Promise<{ blingProd
       nome: book.title,
       codigo: book.sku || undefined,
       preco: book.price,
-      tipo: "P",
+      tipo: "S",
       situacao: "A",
     });
     await (supabase as any).from("books").update({ bling_product_id: result.id }).eq("id", bookId);
