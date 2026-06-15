@@ -1011,6 +1011,18 @@ export type Database = {
         Args: { p_enrollment_id: string };
         Returns: number;
       };
+      search_books_quick: {
+        Args: { query: string };
+        Returns: {
+          id: string;
+          title: string;
+          slug: string;
+          cover_url: string | null;
+          price: number;
+          price_promotional: number | null;
+          author: string | null;
+        }[];
+      };
     };
     Enums: Record<string, never>;
   };
