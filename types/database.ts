@@ -291,7 +291,7 @@ export type Database = {
           customer_email: string;
           customer_name: string;
           customer_cpf: string | null;
-          shipping_address: Record<string, unknown>;
+          shipping_address: Record<string, unknown> | null;
           subtotal: number;
           discount: number;
           shipping_cost: number;
@@ -319,12 +319,17 @@ export type Database = {
           order_id: string;
           book_id: string | null;
           combo_id: string | null;
-          title: string;
+          ead_course_id: string | null;
+          title: string | null;
           quantity: number;
           unit_price: number;
           total_price: number;
         };
-        Insert: Omit<Database["public"]["Tables"]["order_items"]["Row"], "id">;
+        Insert: Omit<Database["public"]["Tables"]["order_items"]["Row"], "id" | "ead_course_id"> & {
+          book_id?: string | null;
+          combo_id?: string | null;
+          title?: string | null;
+        };
         Update: Partial<Database["public"]["Tables"]["order_items"]["Insert"]>;
         Relationships: never[];
       };
@@ -720,9 +725,293 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["email_logs"]["Insert"]>;
         Relationships: never[];
       };
+
+      // ─── EAD ───────────────────────────────────────────────────────────────
+
+      tenants: {
+        Row: {
+          id: string;
+          slug: string;
+          name: string;
+          custom_domain: string | null;
+          is_active: boolean;
+          plan: string;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["tenants"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["tenants"]["Insert"]>;
+        Relationships: never[];
+      };
+      tenant_settings: {
+        Row: {
+          tenant_id: string;
+          logo_url: string | null;
+          primary_color: string;
+          email_from_name: string | null;
+          email_from_domain: string | null;
+          bunny_library_id: string | null;
+          bunny_token_key: string | null;
+          bunny_cdn_hostname: string | null;
+          mp_access_token: string | null;
+          mp_public_key: string | null;
+          community_link: string | null;
+        };
+        Insert: Database["public"]["Tables"]["tenant_settings"]["Row"];
+        Update: Partial<Database["public"]["Tables"]["tenant_settings"]["Row"]>;
+        Relationships: never[];
+      };
+      tenant_admins: {
+        Row: { tenant_id: string; user_id: string };
+        Insert: Database["public"]["Tables"]["tenant_admins"]["Row"];
+        Update: never;
+        Relationships: never[];
+      };
+      ead_courses: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          title: string;
+          slug: string;
+          subtitle: string | null;
+          description_short: string | null;
+          description_full: string | null;
+          thumbnail_url: string | null;
+          cover_url: string | null;
+          trailer_video_id: string | null;
+          instructor_name: string | null;
+          instructor_bio: string | null;
+          instructor_photo_url: string | null;
+          price: number;
+          price_promotional: number | null;
+          access_days: number;
+          is_active: boolean;
+          is_featured: boolean;
+          is_free: boolean;
+          level: "iniciante" | "intermediario" | "avancado" | null;
+          language: string;
+          total_lessons: number;
+          total_duration_s: number;
+          certificate_enabled: boolean;
+          sort_order: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_courses"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_courses"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_modules: {
+        Row: {
+          id: string;
+          course_id: string;
+          title: string;
+          description: string | null;
+          position: number;
+          is_free_preview: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_modules"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_modules"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_lessons: {
+        Row: {
+          id: string;
+          module_id: string;
+          course_id: string;
+          title: string;
+          slug: string;
+          content_type: "video" | "texto" | "pdf" | "quiz" | "link_externo";
+          bunny_video_id: string | null;
+          duration_s: number | null;
+          content_body: string | null;
+          pdf_url: string | null;
+          external_url: string | null;
+          subtitle_url: string | null;
+          description: string | null;
+          is_free_preview: boolean;
+          publish_at: string | null;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_lessons"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_lessons"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_lesson_attachments: {
+        Row: {
+          id: string;
+          lesson_id: string;
+          label: string;
+          url: string;
+          type: string;
+          position: number;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_lesson_attachments"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_lesson_attachments"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_enrollments: {
+        Row: {
+          id: string;
+          user_id: string;
+          course_id: string;
+          order_id: string | null;
+          status: "ativa" | "expirada" | "suspensa" | "cancelada";
+          enrolled_at: string;
+          expires_at: string;
+          completed_at: string | null;
+          cancelled_at: string | null;
+          notes: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_enrollments"]["Row"], "id" | "enrolled_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_enrollments"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_lesson_progress: {
+        Row: {
+          id: string;
+          enrollment_id: string;
+          lesson_id: string;
+          user_id: string;
+          completed: boolean;
+          last_position_s: number;
+          watch_time_s: number;
+          completed_at: string | null;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_lesson_progress"]["Row"], "id" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_lesson_progress"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_certificates: {
+        Row: {
+          id: string;
+          enrollment_id: string;
+          user_id: string;
+          course_id: string;
+          certificate_code: string;
+          issued_at: string;
+          student_name: string;
+          course_title: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_certificates"]["Row"], "id" | "certificate_code" | "issued_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_certificates"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_reviews: {
+        Row: {
+          id: string;
+          course_id: string;
+          user_id: string;
+          rating: number;
+          body: string | null;
+          status: ReviewStatus;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_reviews"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_reviews"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_qa_questions: {
+        Row: {
+          id: string;
+          lesson_id: string;
+          user_id: string;
+          body: string;
+          is_pinned: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_qa_questions"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_qa_questions"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_qa_answers: {
+        Row: {
+          id: string;
+          question_id: string;
+          user_id: string;
+          body: string;
+          is_instructor: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_qa_answers"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_qa_answers"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_quizzes: {
+        Row: {
+          id: string;
+          module_id: string;
+          title: string;
+          passing_score: number;
+          blocks_next: boolean;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_quizzes"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_quizzes"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_quiz_questions: {
+        Row: {
+          id: string;
+          quiz_id: string;
+          body: string;
+          options: Array<{ text: string; correct: boolean }>;
+          position: number;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_quiz_questions"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["ead_quiz_questions"]["Insert"]>;
+        Relationships: never[];
+      };
+      ead_quiz_attempts: {
+        Row: {
+          id: string;
+          quiz_id: string;
+          user_id: string;
+          answers: Record<string, number>;
+          score: number;
+          passed: boolean;
+          attempted_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_quiz_attempts"]["Row"], "id" | "attempted_at">;
+        Update: never;
+        Relationships: never[];
+      };
+      ead_course_announcements: {
+        Row: {
+          id: string;
+          course_id: string;
+          title: string;
+          body: string;
+          sent_at: string;
+          sent_by: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ead_course_announcements"]["Row"], "id" | "sent_at">;
+        Update: never;
+        Relationships: never[];
+      };
+      ead_wishlists: {
+        Row: { user_id: string; course_id: string; created_at: string };
+        Insert: Omit<Database["public"]["Tables"]["ead_wishlists"]["Row"], "created_at">;
+        Update: never;
+        Relationships: never[];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      ead_course_progress: {
+        Args: { p_enrollment_id: string };
+        Returns: number;
+      };
+    };
     Enums: Record<string, never>;
   };
 }

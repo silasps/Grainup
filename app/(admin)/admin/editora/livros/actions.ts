@@ -174,7 +174,7 @@ export async function syncBookToBlingAction(bookId: string): Promise<{ error: st
   if (!book.bling_product_id) return { error: null }; // ainda não vinculado, ignora
 
   try {
-    await updateBlingProduct(book.bling_product_id, { nome: book.title, preco: book.price });
+    await updateBlingProduct(book.bling_product_id, { nome: book.title, preco: book.price, tipo: "P", formato: "S", situacao: "A" });
     return { error: null };
   } catch (e) {
     return { error: String(e) };

@@ -145,7 +145,7 @@ export function ContatoForm() {
         .in("status", ["pago", "entregue"])
         .order("created_at", { ascending: false });
 
-      setPedidos((data as Order[]) ?? []);
+      setPedidos((data as unknown as Order[]) ?? []);
       setCarregandoPedidos(false);
     }
     carregarPedidos();

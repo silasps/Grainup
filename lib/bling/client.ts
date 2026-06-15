@@ -6,22 +6,40 @@
 import { getAccessToken } from "./auth";
 
 const BASE_URL = "https://www.bling.com.br/Api/v3";
+const REQUEST_TIMEOUT_MS = 12_000;
+
+export class BlingError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = "BlingError";
+  }
+}
 
 async function blingFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = await getAccessToken();
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options?.headers ?? {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(options?.headers ?? {}),
+      },
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new BlingError(504, `O Bling não respondeu em ${REQUEST_TIMEOUT_MS / 1000}s. Aguarde alguns minutos e tente novamente.`);
+    }
+    throw err;
+  }
   if (!res.ok) {
     const body = await res.text();
     console.error(`[Bling] ERRO ${res.status} em ${options?.method ?? "GET"} ${path}:`, body);
-    if (res.status === 403) throw new Error("Permissão insuficiente no Bling. Adicione os módulos 'Contatos' e 'Pedidos de Venda' nas permissões do app e reconecte em Configurações.");
-    if (res.status === 401) throw new Error("Token Bling expirado ou inválido. Reconecte em Configurações → Bling ERP.");
+    if (res.status === 401) throw new BlingError(401, "Token Bling expirado ou inválido. Reconecte em Configurações → Bling ERP.");
+    if (res.status === 403) throw new BlingError(403, "Permissão insuficiente no Bling. Adicione os módulos 'Contatos' e 'Pedidos de Venda' nas permissões do app e reconecte em Configurações.");
+    if (res.status >= 500) throw new BlingError(res.status, "O Bling está temporariamente fora do ar (erro " + res.status + "). Aguarde alguns minutos e tente novamente.");
     let msg = body;
     try {
       const parsed = JSON.parse(body);
@@ -29,7 +47,7 @@ async function blingFetch<T>(path: string, options?: RequestInit): Promise<T> {
       if (fields?.length) msg = fields.map((f: { msg: string }) => f.msg).join(" | ");
       else msg = parsed?.error?.description || parsed?.error?.message || body;
     } catch {}
-    throw new Error(`Bling: ${msg}`);
+    throw new BlingError(res.status, `Bling: ${msg}`);
   }
   const text = await res.text();
   return (text ? JSON.parse(text) : {}) as T;
@@ -53,7 +71,10 @@ export async function getBlingProductBySku(sku: string): Promise<BlingProduct | 
   try {
     const data = await blingFetch<{ data: BlingProduct[] }>(`/produtos?codigo=${encodeURIComponent(sku)}`);
     return data.data?.[0] ?? null;
-  } catch {
+  } catch (err) {
+    // 5xx / timeout: Bling fora do ar — propaga para abortar o envio do pedido
+    if (err instanceof BlingError && err.status >= 500) throw err;
+    // 403 (sem scope de Produtos) ou 404 → produto não cadastrado no Bling, usa código livre
     return null;
   }
 }
@@ -73,8 +94,9 @@ export interface BlingProductPayload {
   nome: string;
   codigo?: string;
   preco?: number;
-  formato?: "S" | "E" | "V"; // S = Simples, E = Estrutura/Composição, V = Variação (Bling v3)
-  situacao?: "A" | "I";
+  tipo?: "P" | "S" | "N"; // P = Produto, S = Serviço, N = Serviço 06/21/22 (obrigatório no PUT)
+  formato?: "S" | "E" | "V"; // S = Simples, E = Estrutura/Composição, V = Variação (obrigatório no PUT)
+  situacao?: "A" | "I"; // obrigatório no PUT
 }
 
 export async function createBlingProduct(payload: BlingProductPayload): Promise<{ id: number; codigo: string }> {
@@ -118,7 +140,11 @@ export async function findOrCreateBlingContact(nome: string, email: string, ende
     const found = await blingFetch<{ data: Array<{ id: number }> }>(`/contatos?email=${encodeURIComponent(email)}&situacao=A`);
     // Só reutiliza se o filtro por email funcionou (retornou exatamente 1 resultado).
     if (found.data?.length === 1 && found.data[0]?.id) contatoId = found.data[0].id;
-  } catch {}
+  } catch (err) {
+    // 5xx / timeout: Bling fora do ar — não adianta tentar criar o contato
+    if (err instanceof BlingError && err.status >= 500) throw err;
+    // 4xx (ex: scope insuficiente): tenta criar o contato mesmo assim
+  }
 
   if (!contatoId) {
     // Bling v3: POST usa "tipo" (GET responde como "tipoPessoa")
@@ -196,7 +222,11 @@ export interface BlingOrderPayload {
     quantidade: number;
     valor: number;
   }>;
-  parcelas: Array<{ valor: number; dataVencimento: string }>;
+  parcelas: Array<{
+    valor: number;
+    dataVencimento: string;
+    formasPagamento?: Array<{ forma: { id: number }; valor: number }>;
+  }>;
   transporte: {
     fretePorConta: number;   // 1 = Remetente, 2 = Destinatário, 3 = Terceiros (inteiro no Bling v3)
     frete: number;

@@ -12,7 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <MobileMenuProvider>
       <div className="flex h-screen overflow-hidden bg-secondary">
-        <AdminSidebar superAdmin={role === "super_admin"} />
+        <AdminSidebar superAdmin={role === "super_admin"} userRole={role} />
         <MobileOverlay />
         <div className="flex-1 flex flex-col overflow-y-auto min-w-0">
           {children}

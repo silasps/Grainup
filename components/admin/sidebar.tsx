@@ -25,6 +25,8 @@ import {
   Ticket,
   UserCheck,
   ReceiptText,
+  GraduationCap,
+  BarChart2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/logo";
@@ -42,6 +44,7 @@ interface NavItem {
 interface NavGroup {
   label: string;
   items: NavItem[];
+  roles?: string[]; // Se definido, o grupo só aparece para essas roles
 }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -85,6 +88,20 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "FAQ",        href: "/admin/editora/faq",            icon: HelpCircle },
       { label: "Config.",    href: "/admin/editora/configuracoes",  icon: Settings },
+    ],
+  },
+];
+
+const EAD_NAV_GROUPS: NavGroup[] = [
+  {
+    label: "EAD",
+    roles: ["super_admin", "admin_ead"],
+    items: [
+      { label: "Dashboard",   href: "/admin/ead",              icon: LayoutDashboard, exact: true },
+      { label: "Cursos",      href: "/admin/ead/cursos",       icon: GraduationCap },
+      { label: "Alunos",      href: "/admin/ead/alunos",       icon: Users },
+      { label: "Relatórios",  href: "/admin/ead/relatorios",   icon: BarChart2 },
+      { label: "Config.",     href: "/admin/ead/configuracoes", icon: Settings },
     ],
   },
 ];
@@ -177,13 +194,24 @@ function NavGroup({
   );
 }
 
-export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
+export function AdminSidebar({
+  superAdmin = false,
+  userRole,
+}: {
+  superAdmin?: boolean;
+  userRole?: string | null;
+}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const { open: mobileOpen, close: mobileClose } = useMobileMenu();
 
-  // No mobile o menu nunca colapsa (sempre mostra labels)
   const isCollapsed = collapsed && !mobileOpen;
+  const isEadAdmin = superAdmin || userRole === "admin_ead";
+  const isEditoraAdmin = superAdmin || userRole === "admin_editora";
+
+  // Determina qual conjunto de grupos mostrar com base na rota atual
+  const showEad = pathname.startsWith("/admin/ead") || isEadAdmin;
+  const showEditora = pathname.startsWith("/admin/editora") || isEditoraAdmin || superAdmin;
 
   return (
     <aside
@@ -203,23 +231,40 @@ export function AdminSidebar({ superAdmin = false }: { superAdmin?: boolean }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {/* Dashboard — sempre visível, fora dos grupos */}
-        <Link
-          href="/admin/editora"
-          onClick={mobileClose}
-          title={isCollapsed ? "Dashboard" : undefined}
-          className={cn(
-            "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors mb-2",
-            pathname === "/admin/editora"
-              ? "bg-brand text-white"
-              : "text-sidebar-foreground/70 hover:bg-white/10 hover:text-white"
-          )}
-        >
-          <LayoutDashboard className="h-4 w-4 flex-shrink-0" />
-          {!isCollapsed && <span className="truncate">Dashboard</span>}
-        </Link>
+        {/* Dashboard Editora */}
+        {showEditora && (
+          <Link
+            href="/admin/editora"
+            onClick={mobileClose}
+            title={isCollapsed ? "Dashboard" : undefined}
+            className={cn(
+              "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors mb-2",
+              pathname === "/admin/editora"
+                ? "bg-brand text-white"
+                : "text-sidebar-foreground/70 hover:bg-white/10 hover:text-white"
+            )}
+          >
+            <LayoutDashboard className="h-4 w-4 flex-shrink-0" />
+            {!isCollapsed && <span className="truncate">Dashboard</span>}
+          </Link>
+        )}
 
-        {NAV_GROUPS.map((group) => (
+        {showEditora && NAV_GROUPS.map((group) => (
+          <NavGroup
+            key={group.label}
+            group={group}
+            collapsed={isCollapsed}
+            pathname={pathname}
+            onNavigate={mobileClose}
+          />
+        ))}
+
+        {/* Separador quando ambos os módulos estão visíveis */}
+        {showEditora && showEad && !isCollapsed && (
+          <div className="my-2 border-t border-white/10" />
+        )}
+
+        {showEad && EAD_NAV_GROUPS.map((group) => (
           <NavGroup
             key={group.label}
             group={group}

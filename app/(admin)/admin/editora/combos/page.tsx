@@ -685,7 +685,7 @@ export default function CombosAdminPage() {
         .eq("is_active", true)
         .order("title"),
     ]);
-    setCombos((combosData as ComboWithItems[]) ?? []);
+    setCombos((combosData as unknown as ComboWithItems[]) ?? []);
     setAllBooks((booksData as BookOption[]) ?? []);
     setLoading(false);
   }

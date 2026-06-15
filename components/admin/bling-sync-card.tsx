@@ -4,6 +4,7 @@ import { useState } from "react";
 import { RefreshCw, ExternalLink, CheckCircle2, AlertCircle, Package, Send, Unlink, TriangleAlert } from "lucide-react";
 import { syncBlingOrderAction, pushOrderToBlingAction, resetBlingLinkAction } from "@/app/(admin)/admin/editora/pedidos/actions";
 import { toast } from "sonner";
+import { toastErrorId } from "@/components/ui/error-toast";
 import {
   Dialog,
   DialogContent,
@@ -31,11 +32,12 @@ export function BlingSyncCard({ orderId, blingOrderId: initialBlingOrderId, orde
 
   async function handleSync() {
     setLoading(true);
+    const toastId = toast.loading("Sincronizando com o Bling…");
     const result = await syncBlingOrderAction(orderId);
     setLoading(false);
 
     if (result.error) {
-      toast.error(result.error);
+      toastErrorId(toastId, "Erro ao sincronizar com o Bling", result.error);
       return;
     }
 
@@ -44,23 +46,24 @@ export function BlingSyncCard({ orderId, blingOrderId: initialBlingOrderId, orde
     setSynced(true);
 
     if (result.invoiceNumber) {
-      toast.success("NF-e sincronizada com sucesso");
+      toast.success("NF-e sincronizada com sucesso", { id: toastId });
     } else {
-      toast.info("Sincronizado — NF-e ainda não emitida no Bling");
+      toast.info("Sincronizado — NF-e ainda não emitida no Bling", { id: toastId });
     }
   }
 
   async function handlePush() {
     setLoading(true);
+    const toastId = toast.loading("Enviando pedido ao Bling…");
     const result = await pushOrderToBlingAction(orderId);
     setLoading(false);
 
     if (result.error) {
-      toast.error(result.error);
+      toastErrorId(toastId, "Não foi possível enviar ao Bling", result.error);
       return;
     }
 
-    toast.success("Pedido enviado ao Bling com sucesso");
+    toast.success("Pedido enviado ao Bling com sucesso!", { id: toastId });
     window.location.reload();
   }
 

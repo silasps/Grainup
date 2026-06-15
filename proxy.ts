@@ -13,24 +13,33 @@ const PUBLIC_ROUTES = [
 const ADMIN_ROUTES = /^\/admin/;
 const AFILIADO_PAINEL = /^\/afiliados\/painel/;
 
+// Rotas EAD públicas (sem autenticação)
+const EAD_PUBLIC_ROUTES = /^\/(ead\/cursos|ead\/cursos\/[^/]+)$/;
+// Rotas EAD que exigem autenticação mas não papel específico (estudante comum)
+const EAD_AUTH_ROUTES = /^\/ead/;
+
 const ROLE_ROUTES: Record<string, RegExp> = {
   admin_editora: /^\/admin\/editora/,
-  admin_ead: /^\/admin\/ead/,
-  admin_eifol: /^\/admin\/eifol/,
+  admin_ead:     /^\/admin\/ead/,
+  admin_eifol:   /^\/admin\/eifol/,
 };
 
 export async function proxy(request: NextRequest) {
-  // Se o Supabase não estiver configurado, passa sem autenticação
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return NextResponse.next();
   }
 
   const { supabaseResponse, user, supabase } = await updateSession(request);
   const pathname = request.nextUrl.pathname;
+  const hostname = request.headers.get("host") ?? "";
+
+  // Injeta o hostname como header para que Server Components possam resolver o tenant
+  supabaseResponse.headers.set("x-tenant-hostname", hostname);
 
   const isPublic = PUBLIC_ROUTES.some(
     (r) => pathname === r || pathname.startsWith(r + "/")
   );
+
   if (
     isPublic ||
     pathname.startsWith("/editora") ||
@@ -38,7 +47,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/afiliados/inscricao") ||
     (pathname.startsWith("/afiliados") && !AFILIADO_PAINEL.test(pathname)) ||
-    pathname.startsWith("/api/")
+    pathname.startsWith("/api/") ||
+    EAD_PUBLIC_ROUTES.test(pathname)
   ) {
     return supabaseResponse;
   }
@@ -50,6 +60,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Rotas admin: verificação de role
   if (ADMIN_ROUTES.test(pathname)) {
     const { data: rolesData } = await supabase
       .from("user_roles")
@@ -71,6 +82,12 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(url);
       }
     }
+  }
+
+  // Rotas EAD autenticadas: qualquer usuário logado tem acesso
+  // (a verificação de matrícula é feita na Route Handler do token Bunny)
+  if (EAD_AUTH_ROUTES.test(pathname)) {
+    return supabaseResponse;
   }
 
   return supabaseResponse;

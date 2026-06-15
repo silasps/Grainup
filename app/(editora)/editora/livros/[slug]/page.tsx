@@ -66,7 +66,8 @@ async function getRelatedBooks(bookId: string, authorId?: string) {
     .neq("id", bookId)
     .limit(4);
 
-  return data ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []) as unknown as any[];
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

@@ -32,7 +32,8 @@ async function getCatalogData() {
   ]);
 
   return {
-    books: booksResult.data ?? [],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    books: (booksResult.data ?? []) as unknown as any[],
     categories: categoriesResult.data ?? [],
   };
 }
