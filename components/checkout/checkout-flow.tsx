@@ -1469,7 +1469,7 @@ export function CheckoutFlow() {
               {loadingShipping ? "—" : isFreeShipping && shippingPrice === 0 ? "Grátis" : formatCurrency(shippingPrice)}
             </span>
           </div>
-          <div className="px-4 pb-4">
+          <div className="px-4 pb-[max(16px,calc(env(safe-area-inset-bottom)+16px))]">
             <Button
               size="lg"
               className="bg-brand hover:bg-brand-700 text-white font-semibold w-full"
