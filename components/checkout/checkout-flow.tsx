@@ -979,7 +979,7 @@ export function CheckoutFlow() {
 
       {/* Step content */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-        <div className="max-w-lg mx-auto px-4 py-6">
+        <div className="max-w-lg mx-auto px-4 pt-6 pb-[max(96px,calc(env(safe-area-inset-bottom)+96px))]">
 
           {/* ── Faturamento ── */}
           {step === "faturamento" && (
@@ -1507,7 +1507,7 @@ export function CheckoutFlow() {
               )}
             </div>
           </div>
-          <div className="px-6 pb-6 pt-1">
+          <div className="px-6 pt-1 pb-[max(24px,env(safe-area-inset-bottom))]">
             <Button
               size="lg"
               className="bg-brand hover:bg-brand-700 text-white font-semibold w-full h-12 text-base"

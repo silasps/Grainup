@@ -37,6 +37,8 @@ export function BetaFeedbackButtonClient() {
     });
   }
 
+  if (pathname.startsWith("/contrato")) return null;
+
   return (
     <>
       <button
