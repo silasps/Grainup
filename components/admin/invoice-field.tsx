@@ -9,13 +9,14 @@ import { toast } from "sonner";
 export function InvoiceField({
   orderId,
   initialValue,
-  invoiceUrl,
+  invoiceUrl: initialInvoiceUrl,
 }: {
   orderId: string;
   initialValue: string | null;
   invoiceUrl?: string | null;
 }) {
   const [value, setValue] = useState(initialValue ?? "");
+  const [invoiceUrl, setInvoiceUrl] = useState(initialInvoiceUrl ?? "");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,12 +31,13 @@ export function InvoiceField({
   async function save() {
     if (draft.trim() === value) { setEditing(false); return; }
     setLoading(true);
-    const { error } = await updateInvoiceNumberAction(orderId, draft.trim());
+    const { error, invoiceUrl: newUrl } = await updateInvoiceNumberAction(orderId, draft.trim());
     setLoading(false);
     if (error) {
       toast.error("Erro ao salvar NF");
     } else {
       setValue(draft.trim());
+      if (newUrl) setInvoiceUrl(newUrl);
       setEditing(false);
       toast.success("Nota fiscal salva");
     }
@@ -45,6 +47,22 @@ export function InvoiceField({
     setEditing(false);
     setDraft("");
   }
+
+  const [fetchingDanfe, setFetchingDanfe] = useState(false);
+
+  async function fetchDanfeUrl() {
+    setFetchingDanfe(true);
+    const { invoiceUrl: newUrl } = await updateInvoiceNumberAction(orderId, value);
+    if (newUrl) { setInvoiceUrl(newUrl); toast.success("Link do DANFE encontrado"); }
+    else toast.error("DANFE não encontrado no Bling");
+    setFetchingDanfe(false);
+  }
+
+  const chave = value.replace(/\D/g, "");
+  const sefazUrl = chave.length === 44
+    ? `https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=resumo&tipoConteudo=7PhJ+gAVw2g=&nfe=${chave}`
+    : null;
+  const danfeUrl = invoiceUrl || null;
 
   return (
     <div className="bg-white rounded-xl border border-border p-5 space-y-3">
@@ -58,7 +76,12 @@ export function InvoiceField({
           <Input
             ref={inputRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => setDraft(e.target.value.replace(/\s/g, ""))}
+            onPaste={(e) => {
+              e.preventDefault();
+              const text = e.clipboardData.getData("text").replace(/\s/g, "");
+              setDraft(text);
+            }}
             onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
             placeholder="Número ou chave NF-e (44 dígitos)"
             className="font-mono text-sm h-9 flex-1"
@@ -88,18 +111,6 @@ export function InvoiceField({
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
-          {/* Link SEFAZ se for chave de 44 dígitos */}
-          {value.replace(/\D/g, "").length === 44 && (
-            <a
-              href={`https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=completa&tipoConteudo=XbSeqxE8pl8=&nfe=${value.replace(/\D/g, "")}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted text-muted-foreground"
-              title="Consultar na SEFAZ"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          )}
         </div>
       ) : (
         <button
@@ -116,9 +127,10 @@ export function InvoiceField({
         </button>
       )}
 
-      {invoiceUrl && (
+      {/* Links de acesso à NF-e — Bling tem prioridade, SEFAZ como fallback */}
+      {danfeUrl ? (
         <a
-          href={invoiceUrl}
+          href={danfeUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
@@ -126,7 +138,30 @@ export function InvoiceField({
           <ExternalLink className="h-3 w-3" />
           Baixar DANFE (PDF)
         </a>
-      )}
+      ) : chave.length === 44 ? (
+        <div className="flex items-center gap-3">
+          {sefazUrl && (
+            <a
+              href={sefazUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Consultar NF-e na SEFAZ
+            </a>
+          )}
+          <button
+            onClick={fetchDanfeUrl}
+            disabled={fetchingDanfe}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            title="Buscar link do DANFE no Bling"
+          >
+            {fetchingDanfe ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+            {fetchingDanfe ? "Buscando..." : "Buscar DANFE no Bling"}
+          </button>
+        </div>
+      ) : null}
 
       <p className="text-xs text-muted-foreground">
         {value

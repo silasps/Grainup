@@ -3,7 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendReviewRequestEmail, sendCancellationApprovedEmail, sendCancellationDeniedEmail } from "@/lib/email";
-import { getBlingOrderDetails, getBlingNfeByOrder } from "@/lib/bling";
+import { getBlingOrderDetails, getBlingNfeByOrder, getBlingNfe, sendBlingNfe, generateBlingNfeFromOrder, findBlingNfeByChave } from "@/lib/bling";
 import { pushOrderToBling } from "@/lib/bling/sync";
 import { issueMpRefund } from "@/lib/mp-refund";
 import type { OrderRow } from "@/components/admin/pedidos-table";
@@ -75,15 +75,30 @@ export async function updateOrderStatusAction(
 export async function updateInvoiceNumberAction(
   orderId: string,
   invoiceNumber: string
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; invoiceUrl: string | null }> {
   const supabase = await createAdminClient();
-  const { error } = await supabase
-    .from("orders")
-    // Ao limpar o número da NF, limpa também o link do DANFE para evitar dado órfão
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .update({ invoice_number: invoiceNumber || null, ...(invoiceNumber ? {} : { invoice_url: null }) } as any)
-    .eq("id", orderId);
-  return { error: error?.message ?? null };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: any = { invoice_number: invoiceNumber || null };
+  let invoiceUrl: string | null = null;
+
+  if (!invoiceNumber) {
+    updates.invoice_url = null;
+  } else {
+    const digits = invoiceNumber.replace(/\D/g, "");
+    if (digits.length === 44) {
+      // Chave de acesso: busca o linkDanfe no Bling extraindo a data e número da chave
+      try {
+        const nfe = await findBlingNfeByChave(digits);
+        if (nfe?.linkDanfe) { invoiceUrl = nfe.linkDanfe; updates.invoice_url = invoiceUrl; }
+      } catch (e) { console.error("[Bling] findBlingNfeByChave falhou:", e); }
+    }
+  }
+
+  const { error } = await supabase.from("orders").update(updates).eq("id", orderId);
+  revalidatePath(`/admin/editora/pedidos/${orderId}`);
+  revalidatePath("/admin/editora/pedidos");
+  return { error: error?.message ?? null, invoiceUrl };
 }
 
 export async function syncBlingOrderAction(orderId: string): Promise<{
@@ -112,7 +127,23 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
     return { situacao: null, numeroBling: null, invoiceNumber: null, invoiceUrl: null, error: "Pedido não encontrado no Bling. Use 'Desvincular' e reenvie." };
   }
 
-  const nfe = await getBlingNfeByOrder(blingOrderId);
+  let nfe = await getBlingNfeByOrder(blingOrderId);
+
+  // Fallback: quando notaFiscal.id=0 no pedido, gera NF-e pelo endpoint oficial do Bling.
+  // GET /nfe não filtra por idPedidoVenda — única forma de obter/criar NF-e vinculada ao pedido.
+  if (!nfe) {
+    try {
+      const generated = await generateBlingNfeFromOrder(blingOrderId);
+      if (generated) {
+        // Transmite ao SEFAZ e busca a chave de acesso
+        try { await sendBlingNfe(generated.id); } catch { /* já transmitida */ }
+        nfe = await getBlingNfe(generated.id);
+      }
+    } catch (genErr) {
+      console.error("[Bling] gerar-nfe falhou:", genErr);
+    }
+  }
+
   const invoiceNumber = nfe?.chaveAcesso || null;
   const invoiceUrl = nfe?.linkDanfe || null;
 

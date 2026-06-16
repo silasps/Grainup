@@ -1,2 +1,2 @@
-export { getBlingProductBySku, updateBlingStock, createBlingOrder, getBlingOrderDetails, getBlingNfeByOrder, getAllBlingProducts } from "./client";
+export { getBlingProductBySku, updateBlingStock, createBlingOrder, getBlingOrderDetails, getBlingNfeByOrder, getBlingNfe, sendBlingNfe, generateBlingNfeFromOrder, findBlingNfeByChave, getAllBlingProducts } from "./client";
 export { syncStockFromBling, pushOrderToBling } from "./sync";

@@ -40,7 +40,7 @@ export default async function AdminFinanceiroPage() {
         title="Financeiro"
         subtitle={`${movements.length} movimentações`}
       />
-      <FinanceiroDashboard movements={movements} />
+<FinanceiroDashboard movements={movements} />
     </div>
   );
 }

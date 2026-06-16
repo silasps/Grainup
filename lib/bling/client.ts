@@ -206,6 +206,25 @@ export async function findOrCreateBlingContact(nome: string, email: string, ende
   return contatoId;
 }
 
+// ── Formas de Pagamento ───────────────────────────────────────────────────────
+
+export interface BlingPaymentForm {
+  id: number;
+  descricao: string;
+  // tipoPagamento é o código SEFAZ: "03"=crédito, "04"=débito, "15"=boleto, "17"=PIX, "99"=outros
+  tipoPagamento: string;
+  situacao: string;
+}
+
+export async function getBlingPaymentForms(): Promise<BlingPaymentForm[]> {
+  try {
+    const data = await blingFetch<{ data: BlingPaymentForm[] }>("/formas-pagamentos");
+    return data.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // ── Pedidos ───────────────────────────────────────────────────────────────────
 
 export interface BlingOrderPayload {
@@ -233,6 +252,58 @@ export interface BlingOrderPayload {
     contato?: { id: number };
     etiqueta?: { nome?: string; endereco: string; numero: string; complemento?: string; bairro: string; municipio: string; uf: string; cep: string };
   };
+}
+
+export interface BlingNfePayload {
+  pedido?: { id: number };
+  contato: {
+    id: number;
+    nome?: string;
+    // Endereço do destinatário — Bling não herda do cadastro de contatos na NF-e via API
+    endereco?: {
+      municipio: string;
+      uf: string;
+      cep: string;
+      endereco: string;
+      numero: string;
+      bairro: string;
+      complemento?: string;
+    };
+  };
+  dataOperacao?: string;     // data de saída/operação da NF-e
+  itens: Array<{
+    produto?: { id: number };
+    codigo: string;           // obrigatório na NF-e mesmo quando produto.id é fornecido
+    descricao: string;
+    quantidade: number;
+    valor: number;
+    unidade?: string;         // "UN" — obrigatório para SEFAZ
+    cfop?: string;            // ex: "6101" para inter-estadual, "5101" para intra-estadual
+  }>;
+  parcelas: Array<{
+    valor: number;
+    data: string;             // NF-e usa "data", pedidos usam "dataVencimento"
+    formaPagamento?: { id: number }; // singular! campo confirmado via GET /nfe/{id}
+  }>;
+  transporte?: BlingOrderPayload["transporte"];
+  condicaoPagamentoId?: number;
+}
+
+export async function createBlingNfe(params: BlingNfePayload): Promise<{ id: number }> {
+  const { condicaoPagamentoId, ...rest } = params;
+  const body: Record<string, unknown> = {
+    tipo: 1,
+    finalidade: 1,
+    indicadorPresenca: 2,
+    ...rest,
+  };
+  if (condicaoPagamentoId) body.condicaoPagamento = { id: condicaoPagamentoId };
+  console.log("[Bling] POST /nfe body:", JSON.stringify(body).slice(0, 600));
+  const data = await blingFetch<{ data: { id: number } }>("/nfe", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return data.data;
 }
 
 export async function createBlingOrder(payload: BlingOrderPayload): Promise<{ id: number }> {
@@ -273,6 +344,52 @@ export async function getBlingOrderDetails(blingOrderId: number): Promise<BlingO
   }
 }
 
+export async function findBlingNfeByChave(chave: string): Promise<BlingNfe | null> {
+  // Extrai data de emissão e número da NF da chave de acesso (44 dígitos)
+  // Estrutura: cUF(2) + AAMM(4) + CNPJ(14) + mod(2) + serie(3) + nNF(9) + tpEmis(1) + cNF(8) + cDV(1)
+  const digits = chave.replace(/\D/g, "");
+  if (digits.length !== 44) return null;
+  const year = parseInt("20" + digits.slice(2, 4), 10);
+  const month = parseInt(digits.slice(4, 6), 10);
+  const nNF = parseInt(digits.slice(25, 34), 10);
+  // Último dia do mês correto (ex: junho tem 30 dias, não 31)
+  const lastDay = new Date(year, month, 0).getDate();
+  const mm = String(month).padStart(2, "0");
+  const dataInicial = `${year}-${mm}-01 00:00:00`;
+  const dataFinal = `${year}-${mm}-${lastDay} 23:59:59`;
+  console.log(`[Bling] findBlingNfeByChave: buscando NF ${nNF} em ${dataInicial} → ${dataFinal}`);
+  const data = await blingFetch<{ data: Array<{ id: number; numero: string }> }>(
+    `/nfe?dataEmissaoInicial=${encodeURIComponent(dataInicial)}&dataEmissaoFinal=${encodeURIComponent(dataFinal)}&limite=100`
+  );
+  const match = (data.data ?? []).find((n) => parseInt(n.numero, 10) === nNF);
+  if (!match) { console.warn(`[Bling] NF ${nNF} não encontrada na lista`); return null; }
+  const detail = await blingFetch<{ data: BlingNfe }>(`/nfe/${match.id}`);
+  return detail.data ?? null;
+}
+
+export async function generateBlingNfeFromOrder(blingOrderId: number): Promise<{ id: number } | null> {
+  // POST /pedidos/vendas/{id}/gerar-nfe — gera NF-e vinculada ao pedido (retorna idNotaFiscal)
+  // Requer que o pedido e os produtos estejam com dados fiscais completos no Bling
+  const data = await blingFetch<{ data: { idNotaFiscal: number } }>(
+    `/pedidos/vendas/${blingOrderId}/gerar-nfe`,
+    { method: "POST", body: "{}" }
+  );
+  const nfeId = data.data?.idNotaFiscal;
+  if (!nfeId) return null;
+  return { id: nfeId };
+}
+
+export async function sendBlingNfe(nfeId: number): Promise<void> {
+  await blingFetch(`/nfe/${nfeId}/enviar`, { method: "POST" });
+}
+
+export async function getBlingNfe(nfeId: number): Promise<BlingNfe | null> {
+  try {
+    const data = await blingFetch<{ data: BlingNfe }>(`/nfe/${nfeId}`);
+    return data.data ?? null;
+  } catch { return null; }
+}
+
 export async function getBlingNfeByOrder(blingOrderId: number): Promise<BlingNfe | null> {
   try {
     // Busca o pedido no Bling — a resposta inclui a NF-e vinculada diretamente.
@@ -280,8 +397,9 @@ export async function getBlingNfeByOrder(blingOrderId: number): Promise<BlingNfe
     // e faz a API retornar todos os NF-e sem filtro, associando a NF errada ao pedido.
     const orderRes = await blingFetch<{ data: BlingOrderDetails }>(`/pedidos/vendas/${blingOrderId}`);
     const order = orderRes.data;
-    const nfeId = order?.notaFiscal?.id ?? order?.notasFiscais?.[0]?.id;
-    if (!nfeId) return null;
+    const nfeId = order?.notaFiscal?.id || order?.notasFiscais?.[0]?.id;
+    // Bling retorna id=0 quando não há NF-e vinculada
+    if (!nfeId || nfeId === 0) return null;
     const detail = await blingFetch<{ data: BlingNfe }>(`/nfe/${nfeId}`);
     return detail.data ?? null;
   } catch {

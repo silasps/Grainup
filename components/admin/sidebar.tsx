@@ -27,6 +27,7 @@ import {
   ReceiptText,
   GraduationCap,
   BarChart2,
+  FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/logo";
@@ -79,8 +80,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Financeiro",
     items: [
-      { label: "Financeiro", href: "/admin/editora/financeiro", icon: TrendingUp },
-      { label: "Fiscal",     href: "/admin/editora/fiscal",     icon: ReceiptText },
+      { label: "Financeiro", href: "/admin/editora/financeiro",  icon: TrendingUp },
+      { label: "Fiscal",     href: "/admin/editora/fiscal",      icon: ReceiptText },
+      { label: "Contratos",  href: "/admin/editora/contratos",   icon: FileSignature },
     ],
   },
   {

@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X, ChevronUp, ChevronDown, Send, Package, Check, Pencil, Truck, FileText, TriangleAlert } from "lucide-react";
+import { Search, X, ChevronUp, ChevronDown, Send, Package, Check, Pencil, Truck, FileText, TriangleAlert, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
-import { pushOrderToBlingAction, updateTrackingCodeAction } from "@/app/(admin)/admin/editora/pedidos/actions";
+import { pushOrderToBlingAction, updateTrackingCodeAction, syncBlingOrderAction } from "@/app/(admin)/admin/editora/pedidos/actions";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 30;
@@ -142,6 +142,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
 
   // Bling loading
   const [blingLoading, setBlingLoading] = useState<string | null>(null);
+  const [blingSyncing, setBlingSyncing] = useState<string | null>(null);
 
   const carriers = useMemo(() => {
     const set = new Set<string>();
@@ -216,6 +217,22 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
     toast.success("Pedido enviado ao Bling");
     const fresh = await onRefresh();
     setOrders(fresh);
+  }
+
+  async function handleSyncBling(orderId: string) {
+    setBlingSyncing(orderId);
+    const result = await syncBlingOrderAction(orderId);
+    setBlingSyncing(null);
+    if (result.error) { toast.error(result.error); return; }
+    if (result.invoiceNumber) {
+      toast.success("NF-e sincronizada");
+      setOrders((prev) => prev.map((o) => o.id === orderId
+        ? { ...o, invoice_number: result.invoiceNumber, invoice_url: result.invoiceUrl }
+        : o
+      ));
+    } else {
+      toast.info("NF-e ainda não emitida no Bling");
+    }
   }
 
   async function handleSaveTracking(orderId: string, value: string) {
@@ -396,16 +413,31 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
                               <Check className="h-3 w-3" /> NF emitida
                             </span>
-                            {order.invoice_url && (
-                              <a href={order.invoice_url} target="_blank" rel="noopener noreferrer" title="Ver DANFE" className="text-muted-foreground hover:text-foreground" onClick={(e) => e.stopPropagation()}>
-                                <FileText className="h-3.5 w-3.5" />
-                              </a>
-                            )}
+                            {(() => {
+                              const chave = order.invoice_number?.replace(/\D/g, "") ?? "";
+                              const url = order.invoice_url
+                                ?? (chave.length === 44 ? `https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=resumo&tipoConteudo=7PhJ+gAVw2g=&nfe=${chave}` : null);
+                              return url ? (
+                                <a href={url} target="_blank" rel="noopener noreferrer" title="Ver DANFE / Consultar NF-e" className="text-muted-foreground hover:text-foreground" onClick={(e) => e.stopPropagation()}>
+                                  <FileText className="h-3.5 w-3.5" />
+                                </a>
+                              ) : null;
+                            })()}
                           </div>
                         ) : order.bling_order_id ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <Package className="h-3 w-3" /> #{order.bling_order_id}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <Package className="h-3 w-3" /> #{order.bling_order_id}
+                            </span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleSyncBling(order.id); }}
+                              disabled={blingSyncing === order.id}
+                              title="Sincronizar NF-e do Bling"
+                              className="text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                            >
+                              <RefreshCw className={`h-3 w-3 ${blingSyncing === order.id ? "animate-spin" : ""}`} />
+                            </button>
+                          </div>
                         ) : ["pago", "separando", "enviado", "entregue"].includes(order.status) ? (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleSendToBling(order.id); }}

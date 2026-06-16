@@ -78,14 +78,24 @@ function buildMonthlyChart(movements: AnyRecord[]) {
   }
 
   for (const m of movements) {
-    if (m.type !== "receita") continue;
+    if (m.status !== "pago") continue;
     const d = new Date(m.created_at as string);
     const key = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
-    if (key in months) months[key] += m.amount as number;
+    if (key in months) months[key] += m.net_amount as number;
   }
 
   return Object.entries(months).map(([mes, receita]) => ({ mes, receita }));
 }
+
+const STATUS_BAR_COLORS: Record<string, string> = {
+  aguardando_pagamento: "#ca8a04",
+  pago: "#16a34a",
+  separando: "#7c3aed",
+  enviado: "#2563eb",
+  entregue: "#059669",
+  cancelado: "#dc2626",
+  reembolsado: "#ea580c",
+};
 
 function buildStatusPie(orders: AnyRecord[]) {
   const counts: Record<string, number> = {};
@@ -93,11 +103,10 @@ function buildStatusPie(orders: AnyRecord[]) {
     const status = o.status as string;
     counts[status] = (counts[status] ?? 0) + 1;
   }
-  const COLORS = ["#16a34a", "#2563eb", "#7c3aed", "#ea580c", "#ca8a04", "#dc2626"];
-  return Object.entries(counts).map(([status, value], i) => ({
+  return Object.entries(counts).map(([status, value]) => ({
     name: ORDER_STATUS_LABELS[status] ?? status,
     value,
-    color: COLORS[i % COLORS.length],
+    color: STATUS_BAR_COLORS[status] ?? "#94a3b8",
   }));
 }
 

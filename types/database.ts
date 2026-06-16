@@ -107,6 +107,46 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["categories"]["Insert"]>;
         Relationships: never[];
       };
+      contratos: {
+        Row: {
+          id: string;
+          token: string;
+          client_name: string;
+          client_email: string;
+          contract_slug: string;
+          status: string;
+          otp_hash: string | null;
+          otp_expires_at: string | null;
+          signed_at: string | null;
+          signer_ip: string | null;
+          signer_user_agent: string | null;
+          signer_latitude: number | null;
+          signer_longitude: number | null;
+          evidence_json: Record<string, unknown> | null;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          client_name: string;
+          client_email: string;
+          contract_slug?: string;
+          status?: string;
+        };
+        Update: {
+          client_name?: string;
+          client_email?: string;
+          status?: string;
+          otp_hash?: string | null;
+          otp_expires_at?: string | null;
+          signed_at?: string | null;
+          signer_ip?: string | null;
+          signer_user_agent?: string | null;
+          signer_latitude?: number | null;
+          signer_longitude?: number | null;
+          evidence_json?: Record<string, unknown> | null;
+        };
+        Relationships: never[];
+      };
       books: {
         Row: {
           id: string;
