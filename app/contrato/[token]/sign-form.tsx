@@ -201,18 +201,30 @@ export function SignForm({
 
       <div className="mx-auto max-w-2xl px-4 pb-20">
         {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-3 -mt-4 mb-8">
+        <div className="grid grid-cols-2 gap-3 -mt-4 mb-6">
           {[
             { label: "Valor total", value: content.valor },
-            { label: "Pagamento", value: "100% no go-live" },
-            { label: "Prazo", value: "4 semanas" },
-            { label: "Suporte pós-entrega", value: "30 dias" },
+            { label: "Prazo de entrega", value: content.prazo.split(" ").slice(0, 3).join(" ") },
+            { label: "Forma de pagamento", value: "100% no go-live" },
+            { label: "Suporte pós-entrega", value: "30 dias incluídos" },
           ].map((item) => (
             <div key={item.label} className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3">
               <p className="text-xs text-slate-400 mb-0.5">{item.label}</p>
               <p className="text-sm font-bold text-slate-800">{item.value}</p>
             </div>
           ))}
+        </div>
+
+        {/* PIX card */}
+        <div className="bg-[#0f172a]/5 border border-[#0f172a]/10 rounded-xl px-4 py-3 mb-8 flex items-center gap-3">
+          <div className="shrink-0 h-8 w-8 rounded-lg bg-[#0f172a] flex items-center justify-center">
+            <span className="text-white text-xs font-bold">PIX</span>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Chave PIX (CPF)</p>
+            <p className="text-sm font-bold text-slate-800 tracking-wide">093.416.016-30</p>
+            <p className="text-xs text-slate-400">Silas Pereira Silva · pagamento integral no go-live</p>
+          </div>
         </div>
 
         {/* Partes */}
