@@ -45,6 +45,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/editora") ||
     pathname.startsWith("/r/") ||
     pathname.startsWith("/checkout") ||
+    pathname.startsWith("/contrato") ||
+    pathname.startsWith("/certificado") ||
     pathname.startsWith("/afiliados/inscricao") ||
     (pathname.startsWith("/afiliados") && !AFILIADO_PAINEL.test(pathname)) ||
     pathname.startsWith("/api/") ||
