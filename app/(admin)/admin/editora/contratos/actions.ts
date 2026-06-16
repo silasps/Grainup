@@ -24,12 +24,17 @@ async function sendContractLinkEmail(clientName: string, clientEmail: string, to
 <tr><td style="padding:36px 40px;">
   <p style="margin:0 0 16px;font-size:15px;color:#333;">Olá, <strong>${firstName}</strong>!</p>
   <p style="margin:0 0 24px;font-size:14px;color:#555;line-height:1.7;">
-    Segue o link para leitura e assinatura digital do contrato de prestação de serviços <strong>GrainUp – Módulo Editora</strong>. O processo é rápido e 100% online.
+    Segue o link para leitura e assinatura digital do contrato de prestação de serviços <strong>GrainUp – Módulo Editora</strong>. O processo é rápido e 100% online — leva menos de 3 minutos.
   </p>
   <div style="text-align:center;margin-bottom:28px;">
     <a href="${signingUrl}" style="display:inline-block;background:#0f172a;color:#fff;text-decoration:none;padding:14px 36px;border-radius:10px;font-size:15px;font-weight:700;letter-spacing:-0.3px;">
       ✍️ Ler e assinar contrato
     </a>
+  </div>
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:14px 18px;margin-bottom:20px;">
+    <p style="margin:0;font-size:13px;color:#166534;line-height:1.6;">
+      <strong>Após assinar</strong>, você receberá automaticamente neste e-mail uma cópia do comprovante de assinatura com data, horário e número de identificação do contrato — guarde para seus registros.
+    </p>
   </div>
   <div style="background:#f8fafc;border-radius:8px;padding:14px 18px;font-size:12px;color:#64748b;line-height:1.6;">
     Ou copie e cole este link no navegador:<br>
@@ -40,7 +45,7 @@ async function sendContractLinkEmail(clientName: string, clientEmail: string, to
   </p>
 </td></tr>
 <tr><td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #f0f0f0;">
-  <p style="margin:0;font-size:12px;color:#94a3b8;">GrainUp · Plataforma de Soluções Digitais · <a href="mailto:silaspereiras@gmail.com" style="color:#0f172a;">silaspereiras@gmail.com</a></p>
+  <p style="margin:0;font-size:12px;color:#94a3b8;">Dúvidas? <a href="mailto:silaspereiras@gmail.com" style="color:#0f172a;">silaspereiras@gmail.com</a> · GrainUp · Plataforma de Soluções Digitais</p>
 </td></tr>
 </table></td></tr></table>
 </body></html>`;
@@ -91,6 +96,28 @@ export async function deleteContratoAction(id: string): Promise<{ error?: string
     .neq("status", "assinado"); // nunca deleta contratos assinados
   if (error) return { error: error.message };
   revalidatePath("/admin/editora/contratos");
+  return {};
+}
+
+export async function updateAndResendContratoAction(
+  id: string,
+  newEmail: string,
+): Promise<{ error?: string }> {
+  const email = newEmail.trim().toLowerCase();
+  if (!email) return { error: "E-mail inválido." };
+
+  const supabase = await createAdminClient();
+  const { data, error } = await supabase
+    .from("contratos")
+    .update({ client_email: email })
+    .eq("id", id)
+    .neq("status", "assinado")
+    .select("client_name, token")
+    .single();
+
+  if (error || !data) return { error: error?.message ?? "Erro ao atualizar e-mail." };
+  revalidatePath("/admin/editora/contratos");
+  sendContractLinkEmail(data.client_name, email, data.token).catch(console.error);
   return {};
 }
 

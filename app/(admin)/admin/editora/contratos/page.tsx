@@ -2,8 +2,8 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { AdminHeader } from "@/components/admin/header";
-import { getContratosAction, createContratoAction, deleteContratoAction, type ContratoRow } from "./actions";
-import { Copy, Check, Plus, ExternalLink, X, Loader2, FileSignature, Trash2 } from "lucide-react";
+import { getContratosAction, createContratoAction, deleteContratoAction, updateAndResendContratoAction, type ContratoRow } from "./actions";
+import { Copy, Check, Plus, ExternalLink, X, Loader2, FileSignature, Trash2, Pencil, Send } from "lucide-react";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://editorajocum.com.br";
 
@@ -56,6 +56,76 @@ function EvidenceDialog({ contrato, onClose }: { contrato: ContratoRow; onClose:
             </pre>
           ) : (
             <p className="text-sm text-slate-400 text-center py-8">Contrato ainda não assinado.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditEmailDialog({
+  contrato,
+  onClose,
+  onSaved,
+}: {
+  contrato: ContratoRow;
+  onClose: () => void;
+  onSaved: (newEmail: string) => void;
+}) {
+  const [email, setEmail] = useState(contrato.client_email);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  function handleSend() {
+    setError("");
+    startTransition(async () => {
+      const res = await updateAndResendContratoAction(contrato.id, email);
+      if (res.error) { setError(res.error); return; }
+      setSent(true);
+      onSaved(email);
+      setTimeout(onClose, 1800);
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Editar e reenviar link</p>
+            <p className="text-xs text-slate-400">{contrato.client_name}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">E-mail do cliente</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+              autoFocus
+            />
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          {sent ? (
+            <div className="flex items-center gap-2 justify-center py-2 text-green-600 text-sm font-medium">
+              <Check className="h-4 w-4" />
+              E-mail atualizado e reenviado!
+            </div>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!email.trim() || isPending}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold bg-[#0f172a] text-white hover:bg-slate-800 disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {isPending ? "Enviando…" : "Salvar e reenviar link"}
+            </button>
           )}
         </div>
       </div>
@@ -181,6 +251,7 @@ export default function ContratosPage() {
   const [showNew, setShowNew] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [selectedEvidence, setSelectedEvidence] = useState<ContratoRow | null>(null);
+  const [editingContrato, setEditingContrato] = useState<ContratoRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -302,6 +373,15 @@ export default function ContratosPage() {
                             )}
                             {c.status !== "assinado" && (
                               <button
+                                onClick={() => setEditingContrato(c)}
+                                className="text-slate-300 hover:text-blue-500 transition-colors"
+                                title="Editar e-mail / reenviar"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                            )}
+                            {c.status !== "assinado" && (
+                              <button
                                 onClick={async () => {
                                   if (!confirm(`Excluir contrato de ${c.client_name}?`)) return;
                                   setDeletingId(c.id);
@@ -330,6 +410,17 @@ export default function ContratosPage() {
         </div>
       </div>
 
+      {editingContrato && (
+        <EditEmailDialog
+          contrato={editingContrato}
+          onClose={() => setEditingContrato(null)}
+          onSaved={(newEmail) => {
+            setContratos((prev) =>
+              prev.map((c) => c.id === editingContrato.id ? { ...c, client_email: newEmail } : c)
+            );
+          }}
+        />
+      )}
       {showNew && (
         <NewContratoDialog
           onClose={() => setShowNew(false)}
