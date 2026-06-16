@@ -434,6 +434,7 @@ export async function checkOrderPaymentStatusAction(orderId: string) {
           .from("orders")
           .update({ status: "pago", payment_status: "aprovado" })
           .eq("id", orderId);
+        sendOrderConfirmationEmail(orderId).catch(console.error);
         return { paymentStatus: "aprovado" };
       }
       if (payment.status === "rejected" || payment.status === "cancelled") {

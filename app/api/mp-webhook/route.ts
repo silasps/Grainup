@@ -22,6 +22,13 @@ export async function POST(request: NextRequest) {
   const supabase = await createAdminClient();
 
   if (payment.status === "approved") {
+    const { data: currentOrder } = await supabase
+      .from("orders")
+      .select("payment_status")
+      .eq("id", orderId)
+      .maybeSingle();
+    const wasAlreadyApproved = currentOrder?.payment_status === "aprovado";
+
     await supabase
       .from("orders")
       .update({ status: "pago", payment_status: "aprovado", notes: `MP:${paymentId}` })
@@ -213,8 +220,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // E-mail de confirmação (fire-and-forget)
-    sendOrderConfirmationEmail(orderId).catch(console.error);
+    // E-mail de confirmação — só na primeira aprovação (evita e-mail duplo com polling)
+    if (!wasAlreadyApproved) sendOrderConfirmationEmail(orderId).catch(console.error);
 
     // Cria pedido no Bling (fire-and-forget)
     pushOrderToBling(orderId).catch((err) => console.error("[Bling]", err));
