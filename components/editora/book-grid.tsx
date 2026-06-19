@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,11 @@ export function BookGrid({ books, categories, searchParams }: BookGridProps) {
     (searchParams.busca as string) ?? ""
   );
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Sync search input when URL param changes (e.g., user uses header search while on this page)
+  useEffect(() => {
+    setSearch((searchParams.busca as string) ?? "");
+  }, [searchParams.busca]);
 
   const currentSort = ((searchParams.ordenar as string) ?? "relevancia") as SortOption;
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(() => {

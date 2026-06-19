@@ -96,8 +96,11 @@ function AffiliateDetail({
   const [approveOpen, setApproveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [requiresReview, setRequiresReview] = useState(affiliate.requires_review ?? affiliate.type === "jocum");
+  const [requiresReview, setRequiresReview] = useState(affiliate.requires_review === true || affiliate.type === "jocum");
   const [approving, setApproving] = useState(false);
+  const [localRequiresReview, setLocalRequiresReview] = useState(affiliate.requires_review ?? false);
+  const [localNextReviewAt, setLocalNextReviewAt] = useState<string | null>(affiliate.next_review_at ?? null);
+  const [savingReview, setSavingReview] = useState(false);
   const [rejectNote, setRejectNote] = useState("");
   const [wdNote, setWdNote] = useState<Record<string, string>>({});
   const [processingWd, setProcessingWd] = useState<string | null>(null);
@@ -139,8 +142,8 @@ function AffiliateDetail({
   const margin = getMargin(affiliate);
   const tier = affiliate.type === "geral" ? getTier(affiliate.total_confirmed_sales ?? 0) : null;
 
-  const reviewDays = affiliate.requires_review && affiliate.next_review_at
-    ? Math.ceil((new Date(affiliate.next_review_at).getTime() - Date.now()) / 86_400_000) : null;
+  const reviewDays = localRequiresReview && localNextReviewAt
+    ? Math.ceil((new Date(localNextReviewAt).getTime() - Date.now()) / 86_400_000) : null;
   const reviewExpired = reviewDays !== null && reviewDays < 0;
   const reviewUrgent  = reviewDays !== null && reviewDays <= 30;
 
@@ -158,6 +161,21 @@ function AffiliateDetail({
     onStatusChange(affiliate.id, "ativo");
     setApproveOpen(false);
     toast.success("Afiliado aprovado ✓");
+  }
+
+  async function saveRequiresReview(val: boolean) {
+    setSavingReview(true);
+    const supabase = createClient();
+    const now = new Date();
+    const next_review_at = val ? addMonths(now, 6).toISOString() : null;
+    const { error } = await supabase.from("affiliates").update({
+      requires_review: val, next_review_at,
+    }).eq("id", affiliate.id);
+    setSavingReview(false);
+    if (error) { toast.error(error.message); return; }
+    setLocalRequiresReview(val);
+    setLocalNextReviewAt(next_review_at);
+    toast.success(val ? "Avaliação periódica ativada" : "Avaliação periódica desativada");
   }
 
   async function handleWd(wd: Withdrawal, status: "processando" | "pago" | "recusado") {
@@ -382,14 +400,31 @@ function AffiliateDetail({
             <div className="flex flex-col gap-2">
               <p className="text-sm text-muted-foreground">Margem fixa para {TYPE_LABEL[affiliate.type]}:</p>
               <p className="text-3xl font-bold text-brand">50%</p>
-              {affiliate.requires_review && affiliate.next_review_at && (
+              {localRequiresReview && localNextReviewAt && (
                 <div className={`text-xs p-2 rounded-lg ${reviewExpired ? "bg-red-50 text-red-600" : reviewUrgent ? "bg-orange-50 text-orange-600" : "bg-secondary text-muted-foreground"}`}>
                   Avaliação: {reviewExpired ? "⚠ Vencida" : reviewUrgent ? `⏰ em ${reviewDays}d` : `em ${reviewDays}d`}
-                  {affiliate.requires_review && (
+                  {localRequiresReview && (
                     <button onClick={() => onReviewTrigger(affiliate)} className="ml-2 underline">Renovar</button>
                   )}
                 </div>
               )}
+              <label className={`flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-secondary/50 transition-colors mt-1 ${savingReview ? "opacity-50 pointer-events-none" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={localRequiresReview}
+                  onChange={(e) => saveRequiresReview(e.target.checked)}
+                  disabled={savingReview}
+                  className="mt-0.5 accent-brand"
+                />
+                <div>
+                  <p className="text-sm font-medium">Avaliação periódica (6 meses)</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {localRequiresReview && localNextReviewAt
+                      ? `Próxima: ${new Date(localNextReviewAt).toLocaleDateString("pt-BR")}`
+                      : "Desativada"}
+                  </p>
+                </div>
+              </label>
             </div>
           )}
         </div>
