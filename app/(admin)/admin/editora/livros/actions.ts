@@ -694,7 +694,6 @@ export async function batchUpdatePriceByRuleAction(params: {
 export interface BookImportRow {
   id: string;
   title: string;
-  slug: string;
   price: number;
   price_promotional: number | null;
   pages: number | null;

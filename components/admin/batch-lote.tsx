@@ -29,9 +29,8 @@ const DEC = (v: number | null | undefined) =>
 
 function toXlsxRow(b: BookFull) {
   return {
-    id: b.id,
-    titulo: b.title,
     slug: b.slug,
+    titulo: b.title,
     preco: DEC(b.price),
     preco_promocional: DEC(b.price_promotional),
     paginas: NUM(b.pages),
@@ -58,9 +57,8 @@ async function exportXlsx(books: BookFull[]) {
 
   // Largura das colunas
   ws["!cols"] = [
-    { wch: 36 }, // id
-    { wch: 50 }, // titulo
     { wch: 40 }, // slug
+    { wch: 50 }, // titulo
     { wch: 10 }, // preco
     { wch: 16 }, // preco_promocional
     { wch: 10 }, // paginas
@@ -87,12 +85,12 @@ async function exportXlsx(books: BookFull[]) {
     ["INSTRUÇÕES DE IMPORTAÇÃO"],
     [""],
     ["Campos editáveis (podem ser alterados):"],
-    ["titulo, slug, preco, preco_promocional, paginas, relevancia"],
+    ["titulo, preco, preco_promocional, paginas, relevancia"],
     ["ativo, destaque, lancamento, mais_vendido"],
     ["isbn, sku, editora, peso_gramas, altura_cm, largura_cm, comprimento_cm, descricao_curta"],
     [""],
     ["Campos somente leitura (não altere):"],
-    ["id"],
+    ["slug  ← identificador da linha; alterar impede o import de encontrar o livro"],
     [""],
     ["ATENÇÃO — estoque NÃO está nesta planilha:"],
     ["O estoque é gerenciado diretamente no Bling ERP e sincronizado automaticamente."],
@@ -140,23 +138,24 @@ interface ParsedImport {
 }
 
 function parseImportRows(raw: unknown[], books: BookFull[]): ParsedImport {
-  const knownIds = new Set(books.map((b) => b.id));
+  const bySlug = new Map(books.map((b) => [b.slug, b]));
   const rows: BookImportRow[] = [];
   const unknownIds: string[] = [];
   const warnings: string[] = [];
 
   for (const r of raw as Record<string, unknown>[]) {
-    const id = String(r["id"] ?? "").trim();
-    if (!id) continue;
-    if (!knownIds.has(id)) { unknownIds.push(id); continue; }
+    const slug = String(r["slug"] ?? "").trim();
+    if (!slug) continue;
+    const book = bySlug.get(slug);
+    if (!book) { unknownIds.push(slug); continue; }
+    const id = book.id;
 
     const price = parseNum(r["preco"]) ?? 0;
-    if (price <= 0) { warnings.push(`ID ${id}: preço inválido → ignorado`); continue; }
+    if (price <= 0) { warnings.push(`"${book.title}": preço inválido → ignorado`); continue; }
 
     rows.push({
       id,
-      title: (String(r["titulo"] ?? "").trim() || books.find((b) => b.id === id)?.title) ?? "",
-      slug: (String(r["slug"] ?? "").trim() || books.find((b) => b.id === id)?.slug) ?? "",
+      title: (String(r["titulo"] ?? "").trim() || book.title) ?? "",
       price,
       price_promotional: parseNum(r["preco_promocional"]),
       pages: parseIntOrNull(r["paginas"]),
@@ -185,7 +184,6 @@ function parseImportRows(raw: unknown[], books: BookFull[]): ParsedImport {
 function diffCount(row: BookImportRow, current: BookFull): number {
   let n = 0;
   if (row.title !== current.title) n++;
-  if (row.slug !== current.slug) n++;
   if (row.price !== current.price) n++;
   if ((row.price_promotional ?? null) !== (current.price_promotional ?? null)) n++;
   if ((row.pages ?? null) !== (current.pages ?? null)) n++;
@@ -370,9 +368,9 @@ export function BatchLote({ books }: { books: BookFull[] }) {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground border-t border-border pt-3">
-          Campos editáveis: título, slug, preço, promoção, páginas, relevância, ativo, destaque, lançamento, mais vendido, ISBN, SKU, editora, peso, dimensões, descrição curta.
+          Campos editáveis: título, preço, promoção, páginas, relevância, ativo, destaque, lançamento, mais vendido, ISBN, SKU, editora, peso, dimensões, descrição curta.
           Preço, SKU e dados físicos são <strong>sincronizados automaticamente no Bling</strong> quando alterados.
-          Estoque não está incluído — é gerenciado diretamente no Bling ERP.
+          O <span className="font-mono">slug</span> identifica cada linha — não altere. Estoque é gerenciado no Bling ERP.
         </p>
       </div>
 
@@ -427,7 +425,7 @@ export function BatchLote({ books }: { books: BookFull[] }) {
                 <span><strong className="text-foreground">{importParsed.rows.length}</strong> linhas válidas</span>
                 <span><strong className="text-foreground">{changed.length}</strong> livros com alterações</span>
                 {importParsed.unknownIds.length > 0 && (
-                  <span className="text-orange-600"><strong>{importParsed.unknownIds.length}</strong> IDs não reconhecidos</span>
+                  <span className="text-orange-600"><strong>{importParsed.unknownIds.length}</strong> slugs não encontrados</span>
                 )}
                 {importParsed.warnings.length > 0 && (
                   <span className="text-orange-600"><strong>{importParsed.warnings.length}</strong> avisos</span>
