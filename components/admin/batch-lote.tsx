@@ -34,7 +34,6 @@ function toXlsxRow(b: BookFull) {
     slug: b.slug,
     preco: DEC(b.price),
     preco_promocional: DEC(b.price_promotional),
-    estoque: b.stock,
     paginas: NUM(b.pages),
     relevancia: NUM(b.relevance),
     ativo: BOOL(b.is_active),
@@ -64,7 +63,6 @@ async function exportXlsx(books: BookFull[]) {
     { wch: 40 }, // slug
     { wch: 10 }, // preco
     { wch: 16 }, // preco_promocional
-    { wch: 10 }, // estoque
     { wch: 10 }, // paginas
     { wch: 12 }, // relevancia
     { wch: 8 },  // ativo
@@ -89,12 +87,16 @@ async function exportXlsx(books: BookFull[]) {
     ["INSTRUÇÕES DE IMPORTAÇÃO"],
     [""],
     ["Campos editáveis (podem ser alterados):"],
-    ["titulo, slug, preco, preco_promocional, estoque, paginas, relevancia"],
+    ["titulo, slug, preco, preco_promocional, paginas, relevancia"],
     ["ativo, destaque, lancamento, mais_vendido"],
     ["isbn, sku, editora, peso_gramas, altura_cm, largura_cm, comprimento_cm, descricao_curta"],
     [""],
     ["Campos somente leitura (não altere):"],
     ["id"],
+    [""],
+    ["ATENÇÃO — estoque NÃO está nesta planilha:"],
+    ["O estoque é gerenciado diretamente no Bling ERP e sincronizado automaticamente."],
+    ["Para ajustar estoque, acesse o Bling."],
     [""],
     ["Formato dos campos:"],
     ["preco / preco_promocional → número decimal com vírgula (ex: 45,90). Deixe vazio para remover promoção."],
@@ -102,6 +104,8 @@ async function exportXlsx(books: BookFull[]) {
     ["relevancia → número de 1 a 5, ou vazio para não definida"],
     ["peso_gramas → número inteiro em gramas (ex: 350)"],
     ["altura_cm / largura_cm / comprimento_cm → decimal com vírgula em centímetros (ex: 21,0)"],
+    ["sku, peso_gramas, altura_cm, largura_cm, comprimento_cm → atualizados também no Bling ERP quando alterados"],
+    ["preco → atualizado também no Bling ERP quando alterado"],
   ]);
   info["!cols"] = [{ wch: 80 }];
   XLSX.utils.book_append_sheet(wb, info, "Instruções");
@@ -155,7 +159,6 @@ function parseImportRows(raw: unknown[], books: BookFull[]): ParsedImport {
       slug: (String(r["slug"] ?? "").trim() || books.find((b) => b.id === id)?.slug) ?? "",
       price,
       price_promotional: parseNum(r["preco_promocional"]),
-      stock: parseIntOrNull(r["estoque"]) ?? 0,
       pages: parseIntOrNull(r["paginas"]),
       relevance: (() => {
         const v = parseIntOrNull(r["relevancia"]);
@@ -185,7 +188,6 @@ function diffCount(row: BookImportRow, current: BookFull): number {
   if (row.slug !== current.slug) n++;
   if (row.price !== current.price) n++;
   if ((row.price_promotional ?? null) !== (current.price_promotional ?? null)) n++;
-  if (row.stock !== current.stock) n++;
   if ((row.pages ?? null) !== (current.pages ?? null)) n++;
   if ((row.relevance ?? null) !== (current.relevance ?? null)) n++;
   if (row.is_active !== current.is_active) n++;
@@ -368,8 +370,9 @@ export function BatchLote({ books }: { books: BookFull[] }) {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground border-t border-border pt-3">
-          Campos editáveis: título, slug, preço, promoção, estoque, páginas, relevância, ativo, destaque, lançamento, mais vendido, ISBN, SKU, editora, peso, dimensões, descrição curta.
-          Campo somente leitura (não altere): <span className="font-mono">id</span>.
+          Campos editáveis: título, slug, preço, promoção, páginas, relevância, ativo, destaque, lançamento, mais vendido, ISBN, SKU, editora, peso, dimensões, descrição curta.
+          Preço, SKU e dados físicos são <strong>sincronizados automaticamente no Bling</strong> quando alterados.
+          Estoque não está incluído — é gerenciado diretamente no Bling ERP.
         </p>
       </div>
 

@@ -697,7 +697,6 @@ export interface BookImportRow {
   slug: string;
   price: number;
   price_promotional: number | null;
-  stock: number;
   pages: number | null;
   relevance: number | null;
   is_active: boolean;
