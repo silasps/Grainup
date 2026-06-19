@@ -597,7 +597,7 @@ export type Database = {
         Row: {
           id: string;
           user_id: string;
-          type: "jocum" | "diretor";
+          type: "geral" | "jocum" | "diretor";
           name: string;
           email: string;
           cpf: string;
@@ -609,17 +609,25 @@ export type Database = {
           leader_name: string | null;
           leader_email: string | null;
           leader_phone: string | null;
+          leader_token: string;
+          leader_confirmation: "confirmed" | "denied" | null;
+          leader_confirmation_notes: string | null;
+          leader_confirmed_at: string | null;
           serving_location: string | null;
           last_confirmed_at: string | null;
           requires_review: boolean;
           next_review_at: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["affiliates"]["Row"], "id" | "balance" | "balance_pending" | "created_at" | "requires_review" | "next_review_at"> & {
+        Insert: Omit<Database["public"]["Tables"]["affiliates"]["Row"], "id" | "balance" | "balance_pending" | "created_at" | "requires_review" | "next_review_at" | "leader_token" | "leader_confirmation" | "leader_confirmation_notes" | "leader_confirmed_at"> & {
           balance?: number;
           balance_pending?: number;
           requires_review?: boolean;
           next_review_at?: string | null;
+          leader_token?: string;
+          leader_confirmation?: "confirmed" | "denied" | null;
+          leader_confirmation_notes?: string | null;
+          leader_confirmed_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["affiliates"]["Insert"]>;
         Relationships: never[];
