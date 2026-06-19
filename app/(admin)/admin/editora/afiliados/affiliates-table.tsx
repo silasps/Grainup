@@ -26,6 +26,9 @@ export interface Affiliate {
   cpf: string; phone: string; status: AffiliateStatus; commission_rate: number;
   balance: number; balance_pending: number; total_confirmed_sales?: number;
   leader_name: string | null; leader_email: string | null; leader_phone: string | null;
+  leader_confirmation: "confirmed" | "denied" | null;
+  leader_confirmation_notes: string | null;
+  leader_confirmed_at: string | null;
   serving_location: string | null; last_confirmed_at: string | null;
   requires_review?: boolean; next_review_at?: string | null; created_at: string;
 }
@@ -307,9 +310,31 @@ function AffiliateDetail({
             <>
               <Separator />
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Líder</p>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground flex flex-col gap-1">
                 <p>{affiliate.leader_name}</p>
-                {affiliate.leader_email && <a href={`mailto:${affiliate.leader_email}`} className="flex items-center gap-1 hover:text-brand text-xs mt-0.5"><Mail className="h-3 w-3" />{affiliate.leader_email}</a>}
+                {affiliate.leader_email && <a href={`mailto:${affiliate.leader_email}`} className="flex items-center gap-1 hover:text-brand text-xs"><Mail className="h-3 w-3" />{affiliate.leader_email}</a>}
+                {affiliate.leader_confirmation === "confirmed" && (
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-0.5 w-fit mt-0.5">
+                    <CheckCircle2 className="h-3 w-3" /> Vínculo confirmado
+                    {affiliate.leader_confirmed_at && ` · ${new Date(affiliate.leader_confirmed_at).toLocaleDateString("pt-BR")}`}
+                  </span>
+                )}
+                {affiliate.leader_confirmation === "denied" && (
+                  <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-2 py-0.5 w-fit mt-0.5">
+                    <XCircle className="h-3 w-3" /> Vínculo negado
+                    {affiliate.leader_confirmed_at && ` · ${new Date(affiliate.leader_confirmed_at).toLocaleDateString("pt-BR")}`}
+                  </span>
+                )}
+                {affiliate.type === "jocum" && !affiliate.leader_confirmation && (
+                  <span className="inline-flex items-center gap-1 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-md px-2 py-0.5 w-fit mt-0.5">
+                    <Clock className="h-3 w-3" /> Aguardando confirmação do líder
+                  </span>
+                )}
+                {affiliate.leader_confirmation_notes && (
+                  <p className="text-xs text-muted-foreground italic mt-0.5">
+                    "{affiliate.leader_confirmation_notes}"
+                  </p>
+                )}
               </div>
             </>
           )}

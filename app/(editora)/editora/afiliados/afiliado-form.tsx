@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, CheckCircle2, Mail, Clock, Share2, Wallet, UserPlus, LogIn } from "lucide-react";
+import { Loader2, CheckCircle2, Mail, Clock, Share2, Wallet, UserPlus, LogIn, MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { submitAffiliateApplicationAction } from "./actions";
 
 const DDI_OPTIONS = [
   { flag: "🇧🇷", code: "+55", label: "Brasil" },
@@ -125,6 +126,7 @@ export function AfiliadoForm({ inline = false }: { inline?: boolean }) {
   const [submitted, setSubmitted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [isJocum, setIsJocum] = useState(false);
+  const [submittedLeader, setSubmittedLeader] = useState<{ name: string; phone: string } | null>(null);
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
   const [profile, setProfile] = useState<{ full_name: string | null; phone: string | null; cpf: string | null } | null>(null);
 
@@ -154,32 +156,31 @@ export function AfiliadoForm({ inline = false }: { inline?: boolean }) {
   const typeValue = watch("type");
 
   async function onSubmit(data: FormData) {
-    const { error } = await supabase.from("affiliates").insert({
-      user_id: authUser!.id,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      type: data.type as any,
-      name: data.name,
-      email: data.email,
-      cpf: data.cpf.replace(/\D/g, ""),
-      phone: data.phone.replace(/\D/g, ""),
-      status: "pendente",
-      commission_rate: data.type === "geral" ? 30 : 50,
-      serving_location: data.serving_location || null,
-      leader_name: data.leader_name || null,
-      leader_email: data.leader_email || null,
-      leader_phone: data.leader_phone || null,
-      last_confirmed_at: null,
-    });
-
-    if (error) {
-      if (error.code === "23505") {
+    try {
+      await submitAffiliateApplicationAction({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        cpf: data.cpf,
+        type: data.type,
+        serving_location: data.serving_location,
+        leader_name: data.leader_name,
+        leader_email: data.leader_email,
+        leader_phone: data.leader_phone,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("23505")) {
         toast.error("Você já possui uma inscrição no programa de afiliados.");
       } else {
-        toast.error("Erro ao enviar inscrição", { description: error.message });
+        toast.error("Erro ao enviar inscrição", { description: msg });
       }
       return;
     }
 
+    if (data.type === "jocum" && data.leader_name && data.leader_phone) {
+      setSubmittedLeader({ name: data.leader_name, phone: data.leader_phone });
+    }
     setSubmitted(true);
     setModalOpen(true);
   }
@@ -277,6 +278,37 @@ export function AfiliadoForm({ inline = false }: { inline?: boolean }) {
               </p>
             </div>
           </DialogHeader>
+
+          {/* Aviso de email ao líder — só para JOCUM */}
+          {submittedLeader && (
+            <div className="flex flex-col gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4 mt-2">
+              <div className="flex items-start gap-2">
+                <Mail className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">E-mail enviado ao seu líder</p>
+                  <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
+                    {submittedLeader.name.split(" ")[0]} receberá um formulário de confirmação por e-mail.
+                    Se quiser avisá-lo pelo WhatsApp também, clique abaixo.
+                  </p>
+                </div>
+              </div>
+              <a
+                href={(() => {
+                  const phone = submittedLeader.phone.replace(/\D/g, "");
+                  const msg = encodeURIComponent(
+                    `Olá ${submittedLeader.name.split(" ")[0]}! Me inscrevi no Programa de Afiliados da Editora JOCUM e coloquei você como meu líder direto. Você receberá um e-mail da Editora JOCUM pedindo sua confirmação — por favor, verifique sua caixa de entrada e responda o formulário. Obrigado!`
+                  );
+                  return `https://wa.me/${phone}?text=${msg}`;
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-semibold py-2.5 px-4 rounded-lg transition-colors"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Avisar {submittedLeader.name.split(" ")[0]} pelo WhatsApp
+              </a>
+            </div>
+          )}
 
           <ol className="flex flex-col gap-4 mt-2">
             {PROXIMOS_PASSOS.map(({ icon: Icon, titulo, descricao }, i) => (

@@ -191,7 +191,7 @@ async function logEmail(type: string) {
   }
 }
 
-async function sendEmail(to: string, subject: string, html: string, type = "unknown") {
+export async function sendEmail(to: string, subject: string, html: string, type = "unknown", replyTo?: string) {
   if (!process.env.RESEND_API_KEY) {
     console.log(`[Email] RESEND_API_KEY não configurado — e-mail para ${to} ignorado`);
     return;
@@ -200,7 +200,7 @@ async function sendEmail(to: string, subject: string, html: string, type = "unkn
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = `Editora JOCUM <${process.env.EMAIL_FROM ?? "noreply@editorajocum.com.br"}>`;
   try {
-    await resend.emails.send({ from, to, subject, html });
+    await resend.emails.send({ from, to, subject, html, ...(replyTo ? { reply_to: replyTo } : {}) });
     console.log(`[Email] "${subject}" → ${to}`);
     logEmail(type).catch(() => null);
   } catch (err) {
@@ -432,6 +432,110 @@ export async function sendCancellationAdminNotifyEmail(
     </a>`
   );
   await sendEmail(adminEmail, `[Cancelamento] Pedido #${orderNumber} — ${customerName}`, html, "cancellation_admin_notify");
+}
+
+// ─── Notificação ao líder JOCUM — novo afiliado ───────────────────────────────
+
+export async function sendAffiliateLeaderNotificationEmail(data: {
+  leaderEmail: string;
+  leaderName: string;
+  affiliateName: string;
+  affiliateEmail: string;
+  servingLocation: string;
+  confirmationUrl: string;
+}) {
+  const adminEmail = process.env.ADMIN_EMAIL ?? "contato@editorajocum.com.br";
+  const firstName = data.leaderName.split(" ")[0];
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Helvetica Neue',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+<tr><td style="background:#1a1a2e;padding:28px 40px;text-align:center;">
+  <p style="margin:0;font-size:20px;font-weight:700;color:#fff;">Editora JOCUM</p>
+  <p style="margin:6px 0 0;font-size:12px;color:rgba(255,255,255,0.6);">Confirmação de vínculo missionário</p>
+</td></tr>
+
+<tr><td style="padding:36px 40px;">
+
+  <p style="margin:0 0 20px;font-size:15px;color:#333;">Olá, <strong>${firstName}</strong>!</p>
+
+  <p style="margin:0 0 16px;font-size:14px;color:#555;line-height:1.75;">
+    Você está recebendo este e-mail porque a pessoa abaixo se inscreveu no
+    <strong>Programa de Afiliados JOCUM</strong> da Editora JOCUM e informou que você é o seu líder direto.
+  </p>
+
+  <!-- Dados do candidato -->
+  <div style="background:#f8f8f8;border:1px solid #e8e8e8;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;">Candidato ao programa</p>
+    <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:#1a1a2e;">${data.affiliateName}</p>
+    <table cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td style="font-size:13px;color:#666;padding:3px 0;width:120px;">E-mail:</td>
+        <td style="font-size:13px;color:#333;padding:3px 0;">${data.affiliateEmail}</td>
+      </tr>
+      <tr>
+        <td style="font-size:13px;color:#666;padding:3px 0;">Base / local:</td>
+        <td style="font-size:13px;color:#333;padding:3px 0;">${data.servingLocation}</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Contexto do programa -->
+  <p style="margin:0 0 12px;font-size:14px;color:#555;line-height:1.75;">
+    O Programa de Afiliados JOCUM permite que missionários e colaboradores ativos
+    recebam uma <strong>margem de 50%</strong> ao divulgar os livros da Editora JOCUM.
+    Os recursos gerados apoiam diretamente o trabalho missionário.
+  </p>
+
+  <p style="margin:0 0 24px;font-size:14px;color:#555;line-height:1.75;">
+    Para aprovarmos a inscrição, precisamos que você confirme
+    que <strong>${data.affiliateName} está ativamente servindo na JOCUM</strong>
+    e que concorda com a participação no programa.
+    Leva menos de 1 minuto.
+  </p>
+
+  <!-- CTA principal -->
+  <div style="text-align:center;margin-bottom:28px;">
+    <a href="${data.confirmationUrl}"
+      style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:15px 36px;border-radius:10px;font-size:15px;font-weight:700;letter-spacing:0.2px;">
+      Responder ao formulário de confirmação →
+    </a>
+    <p style="margin:12px 0 0;font-size:11px;color:#aaa;">
+      Este link é de uso único e expira após respondido.
+    </p>
+  </div>
+
+  <!-- Instrução de fallback -->
+  <div style="background:#f8f8f8;border-radius:8px;padding:14px 18px;">
+    <p style="margin:0;font-size:12px;color:#888;line-height:1.65;">
+      Se o botão não funcionar, copie e cole este endereço no navegador:<br>
+      <span style="font-family:monospace;color:#555;word-break:break-all;">${data.confirmationUrl}</span>
+    </p>
+  </div>
+
+  <p style="margin:20px 0 0;font-size:12px;color:#aaa;line-height:1.6;">
+    Caso não reconheça esta pessoa ou não seja o líder indicado, ignore este e-mail com segurança.
+    Dúvidas? Responda este e-mail e nossa equipe te ajuda.
+  </p>
+
+</td></tr>
+
+<tr><td style="background:#f8f8f8;padding:20px 40px;text-align:center;border-top:1px solid #f0f0f0;">
+  <p style="margin:0;font-size:11px;color:#bbb;">Editora JOCUM · editorajocum.com.br</p>
+</td></tr>
+
+</table></td></tr></table>
+</body></html>`;
+
+  await sendEmail(
+    data.leaderEmail,
+    `${data.affiliateName} precisa da sua confirmação — Programa de Afiliados JOCUM`,
+    html,
+    "affiliate_leader_notification",
+    adminEmail,
+  );
 }
 
 // ─── Formulário de contato — notificação ao admin ─────────────────────────────

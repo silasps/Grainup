@@ -12,7 +12,7 @@ export default async function AdminAfiliadosPage() {
   const [affiliatesRes, salesRes, withdrawalsRes] = await Promise.all([
     supabase
       .from("affiliates")
-      .select("id, user_id, type, name, email, cpf, phone, status, commission_rate, balance, balance_pending, total_confirmed_sales, leader_name, leader_email, leader_phone, serving_location, last_confirmed_at, requires_review, next_review_at, created_at")
+      .select("id, user_id, type, name, email, cpf, phone, status, commission_rate, balance, balance_pending, total_confirmed_sales, leader_name, leader_email, leader_phone, leader_confirmation, leader_confirmation_notes, leader_confirmed_at, serving_location, last_confirmed_at, requires_review, next_review_at, created_at")
       .order("created_at", { ascending: false }),
     supabase
       .from("affiliate_sales")
