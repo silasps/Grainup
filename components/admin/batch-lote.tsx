@@ -24,16 +24,16 @@ import type { BookFull } from "@/app/(admin)/admin/editora/livros/lote/page";
 
 const BOOL = (v: boolean) => (v ? "SIM" : "NÃO");
 const NUM = (v: number | null | undefined) => (v != null ? v : "");
+const DEC = (v: number | null | undefined) =>
+  v != null ? v.toFixed(2).replace(".", ",") : "";
 
 function toXlsxRow(b: BookFull) {
   return {
     id: b.id,
     titulo: b.title,
     slug: b.slug,
-    autor: (b.authors as { name: string } | null)?.name ?? "",
-    categoria: (b.categories as { name: string } | null)?.name ?? "",
-    preco: b.price,
-    preco_promocional: NUM(b.price_promotional),
+    preco: DEC(b.price),
+    preco_promocional: DEC(b.price_promotional),
     estoque: b.stock,
     paginas: NUM(b.pages),
     relevancia: NUM(b.relevance),
@@ -45,9 +45,9 @@ function toXlsxRow(b: BookFull) {
     sku: b.sku ?? "",
     editora: b.publisher ?? "",
     peso_gramas: NUM(b.weight_grams),
-    altura_cm: NUM(b.height_cm),
-    largura_cm: NUM(b.width_cm),
-    comprimento_cm: NUM(b.length_cm),
+    altura_cm: DEC(b.height_cm),
+    largura_cm: DEC(b.width_cm),
+    comprimento_cm: DEC(b.length_cm),
     descricao_curta: b.description_short ?? "",
   };
 }
@@ -62,8 +62,6 @@ async function exportXlsx(books: BookFull[]) {
     { wch: 36 }, // id
     { wch: 50 }, // titulo
     { wch: 40 }, // slug
-    { wch: 25 }, // autor
-    { wch: 20 }, // categoria
     { wch: 10 }, // preco
     { wch: 16 }, // preco_promocional
     { wch: 10 }, // estoque
@@ -96,14 +94,14 @@ async function exportXlsx(books: BookFull[]) {
     ["isbn, sku, editora, peso_gramas, altura_cm, largura_cm, comprimento_cm, descricao_curta"],
     [""],
     ["Campos somente leitura (não altere):"],
-    ["id, autor, categoria"],
+    ["id"],
     [""],
     ["Formato dos campos:"],
-    ["preco / preco_promocional → número decimal (ex: 45.90). Deixe vazio para remover promoção."],
+    ["preco / preco_promocional → número decimal com vírgula (ex: 45,90). Deixe vazio para remover promoção."],
     ["ativo, destaque, lancamento, mais_vendido → SIM ou NÃO"],
     ["relevancia → número de 1 a 5, ou vazio para não definida"],
     ["peso_gramas → número inteiro em gramas (ex: 350)"],
-    ["altura_cm / largura_cm / comprimento_cm → decimal em centímetros (ex: 21.0)"],
+    ["altura_cm / largura_cm / comprimento_cm → decimal com vírgula em centímetros (ex: 21,0)"],
   ]);
   info["!cols"] = [{ wch: 80 }];
   XLSX.utils.book_append_sheet(wb, info, "Instruções");
@@ -371,7 +369,7 @@ export function BatchLote({ books }: { books: BookFull[] }) {
         </div>
         <p className="text-xs text-muted-foreground border-t border-border pt-3">
           Campos editáveis: título, slug, preço, promoção, estoque, páginas, relevância, ativo, destaque, lançamento, mais vendido, ISBN, SKU, editora, peso, dimensões, descrição curta.
-          Campos somente leitura (não altere): <span className="font-mono">id</span>, autor, categoria.
+          Campo somente leitura (não altere): <span className="font-mono">id</span>.
         </p>
       </div>
 
