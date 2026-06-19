@@ -49,11 +49,11 @@ const TYPE_CLASS: Record<AffiliateType, string> = {
 };
 
 const TIERS = [
-  { min: 0,   max: 9,   label: "Explorador",      margin: 30, color: "text-gray-500" },
-  { min: 10,  max: 24,  label: "Colaborador",      margin: 35, color: "text-blue-600" },
-  { min: 25,  max: 49,  label: "Parceiro",         margin: 40, color: "text-emerald-600" },
-  { min: 50,  max: 99,  label: "Embaixador",       margin: 45, color: "text-orange-500" },
-  { min: 100, max: Infinity, label: "Embaixador Elite", margin: 50, color: "text-brand" },
+  { min: 0,   max: 9,   label: "Explorador",      margin: 10, color: "text-gray-500",    next: 10,  nextMargin: 20 },
+  { min: 10,  max: 24,  label: "Colaborador",      margin: 20, color: "text-blue-600",   next: 25,  nextMargin: 30 },
+  { min: 25,  max: 49,  label: "Parceiro",         margin: 30, color: "text-emerald-600", next: 50, nextMargin: 40 },
+  { min: 50,  max: 99,  label: "Embaixador",       margin: 40, color: "text-orange-500",  next: 100, nextMargin: 50 },
+  { min: 100, max: Infinity, label: "Embaixador Elite", margin: 50, color: "text-brand",  next: null, nextMargin: null },
 ];
 
 function getTier(sales: number) {
@@ -325,11 +325,24 @@ function AffiliateDetail({
                 <span className={`font-bold text-lg ${tier.color}`}>{tier.label}</span>
                 <span className="font-bold text-xl text-brand">{tier.margin}%</span>
               </div>
+              {tier.next !== null && (
+                <>
+                  <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="absolute inset-y-0 left-0 bg-brand rounded-full transition-all duration-700"
+                      style={{ width: `${Math.min(100, Math.round(((affiliate.total_confirmed_sales ?? 0) / tier.next) * 100))}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {affiliate.total_confirmed_sales ?? 0}/{tier.next} vendas → próximo nível ({tier.nextMargin}%)
+                  </p>
+                </>
+              )}
               <div className="flex flex-col gap-1.5">
                 {TIERS.map((t, i) => {
                   const sales = affiliate.total_confirmed_sales ?? 0;
                   const active = sales >= t.min && (t.max === Infinity || sales <= t.max);
-                  const past   = sales > t.max;
+                  const past   = t.max !== Infinity && sales > t.max;
                   return (
                     <div key={i} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${active ? "bg-brand-50 font-semibold" : past ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
                       <span>{t.label}</span>

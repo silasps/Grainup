@@ -72,7 +72,7 @@ export function ComboCard({ combo, slug }: { combo: ComboData; slug?: string }) 
 
   // Preço total individual e preço do combo com desconto
   const totalIndividual = livros.reduce(
-    (sum, b) => sum + (b.pricePromotional ?? b.price),
+    (sum, b) => sum + ((b.pricePromotional != null && b.pricePromotional > 0) ? b.pricePromotional : b.price),
     0
   );
   const comboPrice = Math.max(0, totalIndividual - combo.descontoReais);

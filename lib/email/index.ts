@@ -113,10 +113,11 @@ function buildOrderEmailHtml(data: {
         <!-- Footer -->
         <tr>
           <td style="background:#f8f8f8;padding:24px 40px;text-align:center;border-top:1px solid #f0f0f0;">
-            <p style="margin:0;font-size:12px;color:#999;line-height:1.6;">
-              Dúvidas? Entre em contato pelo e-mail <a href="mailto:contato@editorajocum.com.br" style="color:#1a1a2e;">contato@editorajocum.com.br</a><br>
-              Editora JOCUM · Curitiba, PR
-            </p>
+            <p style="margin:0 0 12px;font-size:12px;color:#999;">Dúvidas ou problemas com seu pedido?</p>
+            <a href="${SITE}/editora/sac" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:600;">
+              Acesse nosso SAC →
+            </a>
+            <p style="margin:12px 0 0;font-size:11px;color:#bbb;">Editora JOCUM · Curitiba, PR</p>
           </td>
         </tr>
 
@@ -223,7 +224,8 @@ function baseHtml(title: string, body: string) {
   ${body}
 </td></tr>
 <tr><td style="background:#f8f8f8;padding:20px 40px;text-align:center;border-top:1px solid #f0f0f0;">
-  <p style="margin:0;font-size:12px;color:#999;">Dúvidas? <a href="mailto:contato@editorajocum.com.br" style="color:#1a1a2e;">contato@editorajocum.com.br</a></p>
+  <p style="margin:0 0 10px;font-size:12px;color:#999;">Dúvidas? Acesse nosso SAC.</p>
+  <a href="${SITE}/editora/sac" style="display:inline-block;background:#1a1a2e;color:#fff;text-decoration:none;padding:9px 22px;border-radius:8px;font-size:12px;font-weight:600;">Acesse nosso SAC →</a>
 </td></tr>
 </table></td></tr></table></body></html>`;
 }

@@ -65,6 +65,7 @@ export interface BlingProduct {
   altura?: number | null;
   profundidade?: number | null;
   estoque: { saldoFisico: number; saldoVirtual: number } | null;
+  classificacaoFiscal?: string | null; // NCM — preenchido = dados fiscais ok
 }
 
 export async function getBlingProductBySku(sku: string): Promise<BlingProduct | null> {
@@ -97,6 +98,12 @@ export interface BlingProductPayload {
   tipo?: "P" | "S" | "N"; // P = Produto, S = Serviço, N = Serviço 06/21/22 (obrigatório no PUT)
   formato?: "S" | "E" | "V"; // S = Simples, E = Estrutura/Composição, V = Variação (obrigatório no PUT)
   situacao?: "A" | "I"; // obrigatório no PUT
+  unidade?: string;
+  categoria?: { id: number }; // categoria do produto — define qual regra da naturezaOperacao se aplica
+  tributacao?: {
+    ncm?: string;    // ex: "4901.99.00" (livros)
+    origem?: number; // 0 = nacional
+  };
 }
 
 export async function createBlingProduct(payload: BlingProductPayload): Promise<{ id: number; codigo: string }> {
@@ -111,6 +118,60 @@ export async function updateBlingProduct(blingProductId: number, payload: Partia
   await blingFetch(`/produtos/${blingProductId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Altera APENAS o campo `codigo` de um produto no Bling.
+ * Busca o produto completo, substitui só o codigo, e devolve tudo —
+ * garantindo que nenhum outro campo seja apagado.
+ */
+export async function safePatchBlingProductCodigo(blingProductId: number, newCodigo: string): Promise<void> {
+  const data = await blingFetch<{ data: Record<string, unknown> }>(`/produtos/${blingProductId}`);
+  const product = { ...data.data };
+  // Remove campos que o Bling não aceita no PUT (somente leitura / computados)
+  delete product.id;
+  delete product.estoque;
+  delete product.imagens;
+  delete product.dataCriacao;
+  delete product.dataAlteracao;
+  product.codigo = newCodigo;
+  await blingFetch(`/produtos/${blingProductId}`, {
+    method: "PUT",
+    body: JSON.stringify(product),
+  });
+}
+
+export async function safePatchBlingProductNcm(blingProductId: number, ncm: string): Promise<void> {
+  // GET completo → modifica só tributacao.ncm → PUT completo (preserva categoria, dimensões, etc.)
+  const data = await blingFetch<{ data: Record<string, unknown> }>(`/produtos/${blingProductId}`);
+  const product = { ...data.data };
+  delete product.id;
+  delete product.estoque;
+  delete product.imagens;
+  delete product.dataCriacao;
+  delete product.dataAlteracao;
+  const tributacao = (product.tributacao as Record<string, unknown>) ?? {};
+  product.tributacao = { ...tributacao, ncm, origem: tributacao.origem ?? 0 };
+  await blingFetch(`/produtos/${blingProductId}`, {
+    method: "PUT",
+    body: JSON.stringify(product),
+  });
+}
+
+export async function safePatchBlingProductCategoria(blingProductId: number, categoriaId: number): Promise<void> {
+  // GET completo → muda só categoria → PUT completo (preserva NCM, dimensões, código, etc.)
+  const data = await blingFetch<{ data: Record<string, unknown> }>(`/produtos/${blingProductId}`);
+  const product = { ...data.data };
+  delete product.id;
+  delete product.estoque;
+  delete product.imagens;
+  delete product.dataCriacao;
+  delete product.dataAlteracao;
+  product.categoria = { id: categoriaId };
+  await blingFetch(`/produtos/${blingProductId}`, {
+    method: "PUT",
+    body: JSON.stringify(product),
   });
 }
 
@@ -211,17 +272,238 @@ export async function findOrCreateBlingContact(nome: string, email: string, ende
 export interface BlingPaymentForm {
   id: number;
   descricao: string;
-  // tipoPagamento é o código SEFAZ: "03"=crédito, "04"=débito, "15"=boleto, "17"=PIX, "99"=outros
-  tipoPagamento: string;
-  situacao: string;
+  // tipoPagamento código SEFAZ: 17=PIX, 3=crédito, 4=débito, 15=boleto, 99=outros (API retorna number)
+  tipoPagamento: number | string;
+  situacao: number | string; // API retorna 1 (ativo) ou 2 (inativo), não "A"/"I"
 }
 
 export async function getBlingPaymentForms(): Promise<BlingPaymentForm[]> {
   try {
     const data = await blingFetch<{ data: BlingPaymentForm[] }>("/formas-pagamentos");
     return data.data ?? [];
+  } catch (err) {
+    console.warn("[Bling] /formas-pagamentos falhou (verifique escopo OAuth):", err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
+/**
+ * Descobre o ID da forma de pagamento correta no Bling para um dado método.
+ * Primeiro tenta por código SEFAZ, depois por palavra-chave no nome, depois qualquer forma ativa.
+ * Retorna null se nenhuma forma for encontrada (NF-e ficará sem forma de pagamento).
+ */
+export async function resolvePaymentFormId(paymentMethod: string | null): Promise<number | null> {
+  // Prioridade 1: IDs fixos do .env (confiável, sem depender de escopo OAuth)
+  const envId =
+    (paymentMethod === "pix" && process.env.BLING_PAYMENT_FORM_PIX)
+      ? parseInt(process.env.BLING_PAYMENT_FORM_PIX, 10)
+      : process.env.BLING_PAYMENT_FORM_DEFAULT
+        ? parseInt(process.env.BLING_PAYMENT_FORM_DEFAULT, 10)
+        : null;
+  if (envId) {
+    console.log(`[Bling] Forma de pagamento (env): método=${paymentMethod}, formId=${envId}`);
+    return envId;
+  }
+
+  // Prioridade 2: auto-descoberta via /formas-pagamentos
+  // A API retorna tipoPagamento e situacao como números, não strings
+  const sefazCodeMap: Record<string, number> = { pix: 17, credito: 3, debito: 4, boleto: 15 };
+  const nameKeywordMap: Record<string, string[]> = {
+    pix: ["pix"],
+    credito: ["crédito", "credito", "credit", "cartão", "cartao"],
+    debito: ["débito", "debito", "debit"],
+    boleto: ["boleto"],
+  };
+  const targetSefaz = paymentMethod ? (sefazCodeMap[paymentMethod] ?? 99) : 99;
+  const targetKeywords = paymentMethod ? (nameKeywordMap[paymentMethod] ?? []) : [];
+
+  const forms = await getBlingPaymentForms();
+  // situacao=1 (ativo) na API v3 — não "A"
+  const active = forms.filter(f => f.situacao === 1 || String(f.situacao) === "A");
+
+  if (active.length > 0) {
+    console.log("[Bling] Formas disponíveis:", active.map(f => `${f.id}=${f.descricao}(tipo=${f.tipoPagamento})`).join(", "));
+  }
+
+  const matched =
+    active.find(f => Number(f.tipoPagamento) === targetSefaz)
+    ?? active.find(f => targetKeywords.some(kw => f.descricao.toLowerCase().includes(kw)))
+    ?? active[0]
+    ?? null;
+
+  const formId = matched?.id ?? null;
+  console.log(`[Bling] Forma resolvida: método=${paymentMethod}, sefaz=${targetSefaz}, formId=${formId} (${matched?.descricao ?? "nenhuma"})`);
+  if (!formId) console.warn("[Bling] AVISO: Nenhuma forma de pagamento encontrada. NF-e ficará sem forma.");
+  return formId;
+}
+
+export interface BlingCategoria {
+  id: number;
+  descricao: string;
+}
+
+export async function getBlingCategorias(): Promise<BlingCategoria[]> {
+  try {
+    // Busca todas as páginas para pegar inclusive subcategorias
+    const all: BlingCategoria[] = [];
+    for (let page = 1; page <= 5; page++) {
+      const data = await blingFetch<{ data: BlingCategoria[] }>(`/categorias/produtos?limite=100&pagina=${page}`);
+      const items = (data.data ?? []).filter(c => c.id > 0);
+      all.push(...items);
+      if (items.length < 100) break;
+    }
+    return all.sort((a, b) => a.descricao.localeCompare(b.descricao));
   } catch {
     return [];
+  }
+}
+
+export interface BlingNaturezaOperacao {
+  id: number;
+  descricao: string;
+}
+
+export async function getBlingNaturezasOperacao(): Promise<BlingNaturezaOperacao[]> {
+  try {
+    const data = await blingFetch<{ data: BlingNaturezaOperacao[] }>("/naturezas-operacoes?limite=100");
+    return (data.data ?? []).filter(n => n.id > 0);
+  } catch {
+    return [];
+  }
+}
+
+export async function getBlingCategoriasRaw(): Promise<unknown[]> {
+  const all: unknown[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const data = await blingFetch<{ data: unknown[] }>(`/categorias/produtos?limite=100&pagina=${page}`);
+    const items = (data.data ?? []);
+    all.push(...items);
+    if (items.length < 100) break;
+  }
+  return all;
+}
+
+export interface BlingGrupo {
+  id: number;
+  descricao: string;
+}
+
+export async function getBlingGrupos(): Promise<BlingGrupo[]> {
+  try {
+    const all: BlingGrupo[] = [];
+    for (let page = 1; page <= 5; page++) {
+      const data = await blingFetch<{ data: BlingGrupo[] }>(`/grupos?limite=100&pagina=${page}`);
+      const items = (data.data ?? []).filter(g => g.id > 0);
+      all.push(...items);
+      if (items.length < 100) break;
+    }
+    return all;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Lê as dimensões de um produto no Bling e retorna em centímetros.
+ * Converte automaticamente de Metros (0) ou Milímetros (2) para cm.
+ * Retorna null se o produto não existir ou não tiver dimensões.
+ */
+export async function getBlingProductDimensions(blingProductId: number): Promise<{
+  alturaCm: number | null;
+  larguraCm: number | null;
+  profundidadeCm: number | null;
+  pesoBrutoKg: number | null;
+} | null> {
+  try {
+    const data = await blingFetch<{ data: {
+      pesoBruto?: number | null;
+      dimensoes?: { largura?: number; altura?: number; profundidade?: number; unidadeMedida?: number } | null;
+    } }>(`/produtos/${blingProductId}`);
+    const d = data.data;
+    const dim = d?.dimensoes;
+    const unit = dim?.unidadeMedida ?? 1; // 0=Metros, 1=Centímetros, 2=Milímetros
+    const toCm = (v?: number | null) => {
+      if (v == null || v <= 0) return null;
+      if (unit === 0) return Math.round(v * 100); // metros → cm
+      if (unit === 2) return Math.round(v / 10);  // mm → cm
+      return v; // já em cm
+    };
+    return {
+      alturaCm: toCm(dim?.altura),
+      larguraCm: toCm(dim?.largura),
+      profundidadeCm: toCm(dim?.profundidade),
+      pesoBrutoKg: d?.pesoBruto && d.pesoBruto > 0 ? d.pesoBruto : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function safePatchBlingProductGrupo(blingProductId: number, grupoId: number): Promise<void> {
+  // GET completo → muda só grupo → PUT completo (preserva NCM, categoria, código, etc.)
+  const data = await blingFetch<{ data: Record<string, unknown> }>(`/produtos/${blingProductId}`);
+  const product = { ...data.data };
+  delete product.id;
+  delete product.estoque;
+  delete product.imagens;
+  delete product.dataCriacao;
+  delete product.dataAlteracao;
+  product.grupo = { id: grupoId };
+  await blingFetch(`/produtos/${blingProductId}`, {
+    method: "PUT",
+    body: JSON.stringify(product),
+  });
+}
+
+/**
+ * Restaura preço, SKU e dados físicos (peso/dimensões) de um produto no Bling.
+ * Usa safePatch: GET completo → altera apenas os campos fornecidos → PUT completo.
+ *
+ * Unidades esperadas pelo Bling (confirmado pela doc e integração ecomplus oficial):
+ *   pesoBruto/pesoLiquido: kg  →  weight_grams do DB ÷ 1000
+ *   dimensoes.unidadeMedida: 1 = centímetros  →  height_cm/width_cm/length_cm direto
+ */
+export async function safePatchBlingProductFisicos(params: {
+  blingProductId: number;
+  preco?: number | null;
+  codigo?: string | null;
+  pesoBrutoKg?: number | null;
+  alturaCm?: number | null;
+  larguraCm?: number | null;
+  profundidadeCm?: number | null;
+}): Promise<void> {
+  const { blingProductId, preco, codigo, pesoBrutoKg, alturaCm, larguraCm, profundidadeCm } = params;
+  const data = await blingFetch<{ data: Record<string, unknown> }>(`/produtos/${blingProductId}`);
+  const product = { ...data.data };
+  delete product.id;
+  delete product.estoque;
+  delete product.imagens;
+  delete product.dataCriacao;
+  delete product.dataAlteracao;
+
+  if (preco != null && preco > 0) product.preco = preco;
+  if (codigo != null && codigo.trim() !== "") product.codigo = codigo.trim();
+  if (pesoBrutoKg != null && pesoBrutoKg > 0) {
+    product.pesoBruto = pesoBrutoKg;
+    product.pesoLiquido = pesoBrutoKg;
+  }
+  if (alturaCm != null || larguraCm != null || profundidadeCm != null) {
+    const existingDim = (product.dimensoes as Record<string, unknown>) ?? {};
+    const newDim: Record<string, unknown> = {
+      ...existingDim,
+      unidadeMedida: 1, // 1 = centímetros
+    };
+    if (alturaCm != null && alturaCm > 0) newDim.altura = alturaCm;
+    if (larguraCm != null && larguraCm > 0) newDim.largura = larguraCm;
+    if (profundidadeCm != null && profundidadeCm > 0) newDim.profundidade = profundidadeCm;
+    product.dimensoes = newDim;
+    console.log(`[Bling] safePatchFisicos ID=${blingProductId} — existingDim=${JSON.stringify(existingDim)} → newDim=${JSON.stringify(newDim)}`);
+  } else {
+    console.log(`[Bling] safePatchFisicos ID=${blingProductId} — dimensões ignoradas (alturaCm=${alturaCm}, larguraCm=${larguraCm}, profundidadeCm=${profundidadeCm})`);
+  }
+  const res = await blingFetch<{ data: { warnings?: string[] } }>(`/produtos/${blingProductId}`, { method: "PUT", body: JSON.stringify(product) });
+  if (res?.data?.warnings?.length) {
+    console.warn(`[Bling] PUT produto ${blingProductId} warnings:`, res.data.warnings);
   }
 }
 
@@ -242,9 +524,9 @@ export interface BlingOrderPayload {
     valor: number;
   }>;
   parcelas: Array<{
-    valor: number;
     dataVencimento: string;
-    formasPagamento?: Array<{ forma: { id: number }; valor: number }>;
+    valor: number;
+    formaPagamento?: { id: number };
   }>;
   transporte: {
     fretePorConta: number;   // 1 = Remetente, 2 = Destinatário, 3 = Terceiros (inteiro no Bling v3)
@@ -271,14 +553,19 @@ export interface BlingNfePayload {
     };
   };
   dataOperacao?: string;     // data de saída/operação da NF-e
+  naturezaOperacao?: { id: number };
   itens: Array<{
-    produto?: { id: number };
-    codigo: string;           // obrigatório na NF-e mesmo quando produto.id é fornecido
+    codigo: string;
     descricao: string;
     quantidade: number;
     valor: number;
-    unidade?: string;         // "UN" — obrigatório para SEFAZ
-    cfop?: string;            // ex: "6101" para inter-estadual, "5101" para intra-estadual
+    unidade?: string;             // "UN" — obrigatório para SEFAZ
+    classificacaoFiscal?: string; // NCM do item (ex: "4901.99.00" para livros)
+    origem?: number;              // 0 = nacional
+    cfop?: string;                // 5101 intra-estadual, 6107 inter-estadual
+    tributacao?: {
+      csosn?: number;             // 300 = Imune (livros são imunes ao ICMS no Brasil)
+    };
   }>;
   parcelas: Array<{
     valor: number;
@@ -368,11 +655,11 @@ export async function findBlingNfeByChave(chave: string): Promise<BlingNfe | nul
 }
 
 export async function generateBlingNfeFromOrder(blingOrderId: number): Promise<{ id: number } | null> {
-  // POST /pedidos/vendas/{id}/gerar-nfe — gera NF-e vinculada ao pedido (retorna idNotaFiscal)
-  // Requer que o pedido e os produtos estejam com dados fiscais completos no Bling
+  // POST /pedidos/vendas/{id}/gerar-nfe — gera NF-e vinculada ao pedido.
+  // Não aceita body: a forma de pagamento vem do pedido (parcelas[].formaPagamento).
   const data = await blingFetch<{ data: { idNotaFiscal: number } }>(
     `/pedidos/vendas/${blingOrderId}/gerar-nfe`,
-    { method: "POST", body: "{}" }
+    { method: "POST", body: JSON.stringify({}) }
   );
   const nfeId = data.data?.idNotaFiscal;
   if (!nfeId) return null;

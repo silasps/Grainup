@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { slugify } from "@/lib/utils/format";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Upload, Loader2, ArrowLeft, Save, UserPlus, X } from "lucide-react";
 
 interface Author { id: string; name: string; bio: string | null; photo_url: string | null }
@@ -39,6 +41,7 @@ interface BookData {
   is_featured: boolean;
   is_new: boolean;
   is_bestseller: boolean;
+  relevance?: number | null;
   bling_product_id?: number | null;
 }
 
@@ -62,8 +65,8 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
   const [categoryId, setCategoryId] = useState(book?.category_id ?? "");
   const [descShort, setDescShort] = useState(book?.description_short ?? "");
   const [descFull, setDescFull] = useState(book?.description_full ?? "");
-  const [price, setPrice] = useState(String(book?.price ?? ""));
-  const [pricePromo, setPricePromo] = useState(String(book?.price_promotional ?? ""));
+  const [price, setPrice] = useState<number>(book?.price ?? 0);
+  const [pricePromo, setPricePromo] = useState<number | null>(book?.price_promotional ?? null);
   const [stock, setStock] = useState(String(book?.stock ?? "0"));
   const [pages, setPages] = useState(String(book?.pages ?? ""));
   const [isbn, setIsbn] = useState(book?.isbn ?? "");
@@ -71,13 +74,14 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
   const [blingStatus, setBlingStatus] = useState<"idle" | "found" | "not_found">("idle");
   const [publisher, setPublisher] = useState(book?.publisher ?? "Editora Jocum");
   const [weightGrams, setWeightGrams] = useState(String(book?.weight_grams ?? ""));
-  const [heightCm, setHeightCm] = useState(String(book?.height_cm ?? ""));
-  const [widthCm, setWidthCm] = useState(String(book?.width_cm ?? ""));
-  const [lengthCm, setLengthCm] = useState(String(book?.length_cm ?? ""));
+  const [heightCm, setHeightCm] = useState<number | null>(book?.height_cm ?? null);
+  const [widthCm, setWidthCm] = useState<number | null>(book?.width_cm ?? null);
+  const [lengthCm, setLengthCm] = useState<number | null>(book?.length_cm ?? null);
   const [isActive, setIsActive] = useState(book?.is_active ?? true);
   const [isFeatured, setIsFeatured] = useState(book?.is_featured ?? false);
   const [isNew, setIsNew] = useState(book?.is_new ?? false);
   const [isBestseller, setIsBestseller] = useState(book?.is_bestseller ?? false);
+  const [relevance, setRelevance] = useState<number | null>(book?.relevance ?? null);
   const [coverUrl, setCoverUrl] = useState(book?.cover_url ?? "");
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
@@ -225,25 +229,27 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
         cover_url: finalCoverUrl || null,
         description_short: descShort || null,
         description_full: descFull || null,
-        price: parseFloat(price),
-        price_promotional: pricePromo ? parseFloat(pricePromo) : null,
+        price,
+        price_promotional: pricePromo ?? null,
         stock: parseInt(stock) || 0,
         pages: pages ? parseInt(pages) : null,
         isbn: isbn || null,
         sku: sku || null,
         publisher: publisher || null,
         weight_grams: weightGrams ? parseInt(weightGrams) : null,
-        height_cm: heightCm ? parseFloat(heightCm) : null,
-        width_cm: widthCm ? parseFloat(widthCm) : null,
-        length_cm: lengthCm ? parseFloat(lengthCm) : null,
+        height_cm: heightCm,
+        width_cm: widthCm,
+        length_cm: lengthCm,
         is_active: isActive,
         is_featured: isFeatured,
         is_new: isNew,
         is_bestseller: isBestseller,
+        relevance: relevance,
       };
 
       if (book) {
-        const { error } = await supabase.from("books").update(payload).eq("id", book.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await supabase.from("books").update(payload as any).eq("id", book.id);
         if (error) { toast.error(error.message); return; }
         toast.success("Livro atualizado!");
         if (!book.bling_product_id) {
@@ -256,7 +262,8 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
           });
         }
       } else {
-        const { data: inserted, error } = await supabase.from("books").insert(payload).select("id").single();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: inserted, error } = await supabase.from("books").insert(payload as any).select("id").single();
         if (error) { toast.error(error.message); return; }
         toast.success("Livro criado!");
         if (inserted?.id) {
@@ -552,11 +559,11 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="price">Preço *</Label>
-                  <Input id="price" type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="49.90" required />
+                  <CurrencyInput id="price" value={price} onChange={(v) => setPrice(v ?? 0)} required />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="price-promo">Preço promocional</Label>
-                  <Input id="price-promo" type="number" step="0.01" value={pricePromo} onChange={(e) => setPricePromo(e.target.value)} placeholder="39.90" />
+                  <CurrencyInput id="price-promo" value={pricePromo} onChange={setPricePromo} nullable />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="stock">Estoque</Label>
@@ -582,15 +589,15 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label htmlFor="height_cm" className="text-xs">Altura</Label>
-                      <Input id="height_cm" type="number" step="0.1" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} placeholder="21" />
+                      <DecimalInput id="height_cm" value={heightCm} onChange={setHeightCm} placeholder="21" suffix="cm" />
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="width_cm" className="text-xs">Largura</Label>
-                      <Input id="width_cm" type="number" step="0.1" value={widthCm} onChange={(e) => setWidthCm(e.target.value)} placeholder="14" />
+                      <DecimalInput id="width_cm" value={widthCm} onChange={setWidthCm} placeholder="14" suffix="cm" />
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="length_cm" className="text-xs">Comprimento</Label>
-                      <Input id="length_cm" type="number" step="0.1" value={lengthCm} onChange={(e) => setLengthCm(e.target.value)} placeholder="2" />
+                      <DecimalInput id="length_cm" value={lengthCm} onChange={setLengthCm} placeholder="2" suffix="cm" />
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">Usado no cálculo de frete (Mercado Envios / Correios)</p>
@@ -611,9 +618,9 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
                       if (res.found) {
                         if (res.stock !== undefined) setStock(String(res.stock));
                         if (res.weightGrams) setWeightGrams(String(res.weightGrams));
-                        if (res.widthCm)    setWidthCm(String(res.widthCm));
-                        if (res.heightCm)   setHeightCm(String(res.heightCm));
-                        if (res.lengthCm)   setLengthCm(String(res.lengthCm));
+                        if (res.widthCm)    setWidthCm(res.widthCm);
+                        if (res.heightCm)   setHeightCm(res.heightCm);
+                        if (res.lengthCm)   setLengthCm(res.lengthCm);
                       }
                     }}
                     placeholder="LIV-001"
@@ -690,6 +697,25 @@ export function BookForm({ book, authors: initialAuthors, categories }: Props) {
             {/* Flags */}
             <div className="bg-white rounded-xl border border-border p-5 space-y-3">
               <h3 className="text-sm font-semibold">Configurações</h3>
+
+              <div className="space-y-1.5 pb-2 border-b border-border">
+                <Label htmlFor="relevance">Relevância editorial</Label>
+                <select
+                  id="relevance"
+                  value={relevance ?? ""}
+                  onChange={(e) => setRelevance(e.target.value ? Number(e.target.value) : null)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">Não definida</option>
+                  <option value="1">1 — Baixa</option>
+                  <option value="2">2 — Média-baixa</option>
+                  <option value="3">3 — Média</option>
+                  <option value="4">4 — Média-alta</option>
+                  <option value="5">5 — Alta</option>
+                </select>
+                <p className="text-xs text-muted-foreground">Só visível no admin — usada para precificação em lote</p>
+              </div>
+
               {[
                 { label: "Ativo (visível na loja)", value: isActive, set: setIsActive },
                 { label: "Destaque na home", value: isFeatured, set: setIsFeatured },

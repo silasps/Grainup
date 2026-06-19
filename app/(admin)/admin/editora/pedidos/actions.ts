@@ -133,6 +133,7 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
   // GET /nfe não filtra por idPedidoVenda — única forma de obter/criar NF-e vinculada ao pedido.
   if (!nfe) {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const generated = await generateBlingNfeFromOrder(blingOrderId);
       if (generated) {
         // Transmite ao SEFAZ e busca a chave de acesso

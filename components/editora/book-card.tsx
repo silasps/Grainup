@@ -42,8 +42,8 @@ export function BookCard({ book, className }: BookCardProps) {
   const router = useRouter();
 
   const outOfStock = typeof book.stock === "number" && book.stock === 0;
-  const hasDiscount = book.pricePromotional && book.pricePromotional < book.price;
-  const displayPrice = book.pricePromotional ?? book.price;
+  const hasDiscount = !!book.pricePromotional && book.pricePromotional > 0 && book.pricePromotional < book.price;
+  const displayPrice = hasDiscount ? book.pricePromotional! : book.price;
   const discountPct = hasDiscount
     ? Math.round((1 - book.pricePromotional! / book.price) * 100)
     : 0;

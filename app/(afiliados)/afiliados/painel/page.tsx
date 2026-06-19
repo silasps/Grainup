@@ -489,11 +489,26 @@ export default async function PainelAfiliadoPage() {
                   <div className="absolute inset-y-0 left-0 bg-brand rounded-full transition-all duration-700"
                     style={{ width: `${Math.min(100, Math.round((confirmedSales / tier.next) * 100))}%` }} />
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground mb-4">
                   {confirmedSales}/{tier.next} vendas para o próximo nível ({tier.nextMargin}% de margem)
                 </p>
               </>
             )}
+            <div className="flex flex-col gap-1.5 mt-1">
+              {TIERS.map((t, i) => {
+                const active = confirmedSales >= t.min && (t.max === Infinity || confirmedSales <= t.max);
+                const past = t.max !== Infinity && confirmedSales > t.max;
+                return (
+                  <div key={i} className={`flex items-center justify-between text-xs px-2 py-1.5 rounded ${active ? "bg-brand-50 font-semibold" : past ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                    <span>{t.label}</span>
+                    <span>{t.min === 100 ? "100+" : `${t.min}–${t.max}`} vendas → {t.margin}%</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Vendas confirmadas: <strong className="text-foreground">{confirmedSales}</strong>
+            </p>
           </CardContent>
         </Card>
       )}

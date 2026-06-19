@@ -6,7 +6,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { getBlingProductBySku, createBlingOrder, createBlingNfe, sendBlingNfe, getBlingNfe, findOrCreateBlingContact, getBlingPaymentForms, type BlingOrderPayload } from "./client";
+import { getBlingProductBySku, createBlingProduct, createBlingOrder, createBlingNfe, sendBlingNfe, getBlingNfe, generateBlingNfeFromOrder, findOrCreateBlingContact, resolvePaymentFormId, type BlingOrderPayload } from "./client";
 
 /** Chamado pelo webhook do Bling quando estoque muda */
 export async function syncStockFromBling(blingProductId: number, sku: string, newStock: number) {
@@ -30,36 +30,65 @@ export async function pushOrderToBling(orderId: string) {
     .from("orders")
     .select(`
       id, order_number, created_at, total, subtotal, shipping_cost,
-      customer_name, customer_email, customer_cpf, shipping_address, payment_method,
-      order_items(title, quantity, unit_price, book_id, combo_id, books(sku))
+      customer_name, customer_email, customer_cpf, shipping_address, payment_method, bling_order_id,
+      order_items(title, quantity, unit_price, book_id, combo_id, books(sku, price))
     `)
     .eq("id", orderId)
     .single() as { data: Record<string, unknown> | null };
 
   if (!order) throw new Error("Pedido não encontrado.");
+  // Guard: evita duplicatas se o webhook disparar mais de uma vez para o mesmo pagamento
+  if (order.bling_order_id) { console.log(`[Bling] Pedido ${order.order_number} já enviado (ID ${order.bling_order_id}), ignorando.`); return; }
 
   type RawItem = {
     title: string; quantity: number; unit_price: number;
     book_id: string | null; combo_id: string | null;
-    books: { sku: string | null } | null;
+    books: { sku: string | null; price: number } | null;
   };
 
   const rawItems = order.order_items as RawItem[];
 
-  type BlingItem = { produto?: { id: number }; codigo: string; descricao: string; quantidade: number; valor: number };
+  // produto.id é válido em itens de PEDIDO (para vincular sem criar novo produto).
+  // Em itens de NF-e produto.id NÃO existe — nfeItens é construído separadamente sem esse campo.
+  type BlingItem = { produto?: { id: number }; codigo?: string; descricao: string; quantidade: number; valor: number };
   const blingItems: BlingItem[] = [];
 
-  async function resolveItem(sku: string | null, title: string): Promise<Pick<BlingItem, "produto" | "codigo">> {
+  async function resolveItem(sku: string | null, title: string, bookId: string | null, price?: number): Promise<Pick<BlingItem, "produto" | "codigo">> {
     const code = sku ?? title;
     const blingProduct = await getBlingProductBySku(code);
-    // NF-e exige "codigo" mesmo quando produto.id é fornecido
     if (blingProduct) return { produto: { id: blingProduct.id }, codigo: blingProduct.codigo || code };
-    return { codigo: code };
+
+    // Produto não está no Bling — cria automaticamente com categoria e NCM corretos
+    try {
+      const categoriaId = process.env.BLING_CATEGORIA_LIVROS_ID
+        ? parseInt(process.env.BLING_CATEGORIA_LIVROS_ID, 10)
+        : undefined;
+      const created = await createBlingProduct({
+        nome: title,
+        codigo: sku || undefined,
+        preco: price ?? 0,
+        formato: "S", situacao: "A", tipo: "P", unidade: "UN",
+        tributacao: { ncm: "4901.99.00", origem: 0 },
+        ...(categoriaId ? { categoria: { id: categoriaId } } : {}),
+      });
+      console.log(`[Bling] Produto criado automaticamente: "${title}" → ID ${created.id}`);
+      // Salva o bling_product_id no nosso DB para futuras sincronizações
+      if (bookId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).from("books")
+          .update({ bling_product_id: created.id, bling_ncm_synced: true })
+          .eq("id", bookId);
+      }
+      return { produto: { id: created.id }, codigo: created.codigo || code };
+    } catch (e) {
+      console.error(`[Bling] Falha ao criar produto "${title}":`, e);
+      return {};
+    }
   }
 
   for (const item of rawItems) {
     if (!item.combo_id) {
-      const ref = await resolveItem(item.books?.sku ?? null, item.title);
+      const ref = await resolveItem(item.books?.sku ?? null, item.title, item.book_id, item.books?.price);
       blingItems.push({ ...ref, descricao: item.title, quantidade: item.quantity, valor: item.unit_price });
       continue;
     }
@@ -83,7 +112,7 @@ export async function pushOrderToBling(orderId: string) {
       const precoUnitarioProporcional = somaPrecos > 0
         ? (item.unit_price * fator) / cb.quantity
         : item.unit_price / comboBooks.length;
-      const ref = await resolveItem(cb.books.sku, cb.books.title);
+      const ref = await resolveItem(cb.books.sku, cb.books.title, null, cb.books.price);
       blingItems.push({
         ...ref,
         descricao: cb.books.title,
@@ -118,47 +147,10 @@ export async function pushOrderToBling(orderId: string) {
   // Bling v3 valida: sum(parcelas) == sum(itens) + frete. Quando frete=0 era só itens, agora inclui frete.
   const parcelaTotal = orderTotal;
 
-  // Mapeia o método de pagamento do pedido para a forma de pagamento no Bling.
-  // Tenta por código SEFAZ (tipoPagamento) e, se não achar, por nome (descricao).
-  const VALID_SEFAZ = new Set(["01","02","03","04","05","10","11","12","13","14","15","16","17","18","19","90","99"]);
   const paymentMethod = order.payment_method as string | null;
-  const sefazCodeMap: Record<string, string> = { pix: "17", credito: "03", debito: "04", boleto: "15" };
-  const nameKeywordMap: Record<string, string[]> = {
-    // "dinheiro" como fallback para PIX — código SEFAZ 01 é válido e aceito pela SEFAZ
-    pix: ["pix", "dinheiro"],
-    credito: ["crédito", "credito", "credit", "cartão", "cartao"],
-    debito: ["débito", "debito", "debit", "cartão", "cartao"],
-    boleto: ["boleto"],
-  };
-  const targetSefazCode = paymentMethod ? (sefazCodeMap[paymentMethod] ?? "99") : "99";
-  const targetKeywords = paymentMethod ? (nameKeywordMap[paymentMethod] ?? []) : [];
+  const finalFormId = await resolvePaymentFormId(paymentMethod);
 
-  // IDs fixos do .env — evita depender do escopo OAuth /formas-pagamentos (que pode não estar habilitado)
-  const envFormId =
-    (paymentMethod === "pix" && process.env.BLING_PAYMENT_FORM_PIX)
-      ? parseInt(process.env.BLING_PAYMENT_FORM_PIX, 10)
-      : process.env.BLING_PAYMENT_FORM_DEFAULT
-        ? parseInt(process.env.BLING_PAYMENT_FORM_DEFAULT, 10)
-        : null;
-
-  // Se não tiver .env configurado, tenta buscar via API como fallback
-  let finalFormId: number | null = envFormId;
-  if (!finalFormId) {
-    const paymentForms = await getBlingPaymentForms();
-    const activeForms = paymentForms.filter(f => f.situacao === "A");
-    const matchedForm =
-      activeForms.find(f => VALID_SEFAZ.has(f.tipoPagamento) && f.tipoPagamento === targetSefazCode)
-      ?? activeForms.find(f => targetKeywords.some(kw => f.descricao.toLowerCase().includes(kw)))
-      ?? activeForms.find(f => VALID_SEFAZ.has(f.tipoPagamento))
-      ?? activeForms[0];
-    finalFormId = matchedForm?.id ?? null;
-    if (!finalFormId) console.warn("[Bling] Nenhuma forma de pagamento encontrada. Parcela sem formasPagamento.");
-  }
-  console.log(`[Bling] Forma de pagamento: método=${paymentMethod}, formId=${finalFormId}`);
-
-  const formasPagamento = finalFormId
-    ? [{ forma: { id: finalFormId }, valor: parcelaTotal }]
-    : undefined;
+  const formaPagamento = finalFormId ? { id: finalFormId } : undefined;
 
   if (blingItems.length > 0) {
     for (const item of blingItems) {
@@ -182,7 +174,7 @@ export async function pushOrderToBling(orderId: string) {
     data: orderDate,
     contato: { id: contatoId },
     itens: blingItems,
-    parcelas: [{ valor: parcelaTotal, dataVencimento: orderDate, formasPagamento }],
+    parcelas: [{ dataVencimento: orderDate, valor: parcelaTotal, formaPagamento }],
     transporte: {
       fretePorConta: 1,  // 1 = Remetente (Bling v3 usa inteiro, não string "R")
       frete,
@@ -205,56 +197,13 @@ export async function pushOrderToBling(orderId: string) {
   await (supabase as any).from("orders").update({ bling_order_id: result.id }).eq("id", orderId);
   console.log(`[Bling] Pedido ${order.order_number} enviado → ID Bling ${result.id}`);
 
-  // Cria NF-e com todos os campos obrigatórios explícitos.
-  // pedido: { id } apenas vincula a NF-e ao pedido; a Bling NÃO auto-popula itens/contato/data a partir dele.
-  const condicaoId = process.env.BLING_CONDICAO_PAGAMENTO_ID
-    ? parseInt(process.env.BLING_CONDICAO_PAGAMENTO_ID, 10)
-    : undefined;
-
-  // CFOP: 5xxx = intra-estadual, 6xxx = inter-estadual.
-  // Editora Jocum fica em PR; clientes em outro estado exigem CFOP começando com 6.
-  const companyUf = (process.env.BLING_COMPANY_UF ?? "PR").toUpperCase();
-  const customerUf = (addr.state ?? "").toUpperCase();
-  const isInterstate = customerUf && customerUf !== companyUf;
-
-  // Monta os itens da NF-e adicionando unidade e CFOP correto.
-  // CFOP do produto no Bling é intra-estadual (5xxx). Para inter-estadual, troca o primeiro dígito 5→6.
-  const nfeItens = blingItems.map(item => ({
-    ...item,
-    unidade: "UN",
-    ...(isInterstate ? { cfop: "6101" } : { cfop: "5101" }),
-  }));
-
-  // Data de emissão da NF-e = hoje (Bling rejeita datas no passado para "data de operação")
-  const today = new Date().toISOString().slice(0, 10);
-
+  // Usa POST /pedidos/vendas/{id}/gerar-nfe — Bling gera a NF-e internamente aplicando
+  // as regras da natureza de operação (CFOP, CSOSN) com base na categoria do produto.
+  // Isso é correto porque o Bling tem acesso aos dados completos do produto (categoria, tributação).
   try {
-    const nfe = await createBlingNfe({
-      pedido: { id: result.id },
-      contato: {
-        id: contatoId,
-        nome: order.customer_name as string,
-        endereco: {
-          municipio: addr.city ?? "",
-          uf: addr.state ?? "",
-          cep,
-          endereco: addr.street ?? "",
-          numero: addr.number ?? "S/N",
-          bairro: addr.neighborhood ?? "",
-          complemento: addr.complement || undefined,
-        },
-      },
-      dataOperacao: today,
-      itens: nfeItens,
-      parcelas: [{
-        valor: parcelaTotal,
-        data: today,
-        formaPagamento: finalFormId ? { id: finalFormId } : undefined,
-      }],
-      transporte: payload.transporte,
-      condicaoPagamentoId: condicaoId,
-    });
-    console.log(`[Bling] NF-e criada → ID ${nfe.id} | CFOP=${isInterstate ? "inter" : "intra"}-estadual`);
+    const nfe = await generateBlingNfeFromOrder(result.id);
+    if (!nfe) throw new Error("gerar-nfe não retornou ID");
+    console.log(`[Bling] NF-e gerada → ID ${nfe.id}`);
 
     // Transmite ao SEFAZ automaticamente
     await sendBlingNfe(nfe.id);
@@ -272,6 +221,8 @@ export async function pushOrderToBling(orderId: string) {
     }
 
   } catch (err) {
-    console.error("[Bling] Falha ao criar/transmitir NF-e (admin pode gerar no Bling):", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[Bling] Falha ao gerar/transmitir NF-e para pedido ${result.id}: ${msg}`);
+    console.error("[Bling] → Admin pode gerar manualmente no Bling: Vendas → Pedidos de Venda → Gerar NF-e");
   }
 }

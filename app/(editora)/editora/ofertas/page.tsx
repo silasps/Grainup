@@ -19,6 +19,7 @@ export default async function OfertasPage() {
     .select("id, title, slug, cover_url, price, price_promotional, rating_avg, rating_count, is_new, is_bestseller, stock, authors(name)")
     .eq("is_active", true)
     .not("price_promotional", "is", null)
+    .gt("price_promotional", 0)
     .order("price_promotional", { ascending: true });
 
   const rows = (data ?? []) as Record<string, unknown>[];

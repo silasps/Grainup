@@ -28,6 +28,7 @@ import {
   GraduationCap,
   BarChart2,
   FileSignature,
+  Handshake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/logo";
@@ -74,7 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Usuários",   href: "/admin/editora/usuarios",   icon: Users },
       { label: "Leads",      href: "/admin/editora/leads",      icon: UserCheck },
-      { label: "Afiliados",  href: "/admin/editora/afiliados",  icon: Users },
+      { label: "Afiliados",  href: "/admin/editora/afiliados",  icon: Handshake },
     ],
   },
   {
