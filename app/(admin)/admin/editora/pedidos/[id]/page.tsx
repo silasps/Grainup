@@ -16,6 +16,7 @@ import { BlingSyncCard } from "@/components/admin/bling-sync-card";
 import { PaymentSyncButton } from "@/components/admin/payment-sync-button";
 import { AdminOrderStatusPoller } from "@/components/admin/order-status-poller";
 import { CancellationReviewCard } from "@/components/admin/cancellation-review-card";
+import { FulfillmentPipelineCard } from "@/components/admin/fulfillment-pipeline-card";
 
 export const metadata: Metadata = { title: "Detalhe do Pedido — Admin" };
 
@@ -82,6 +83,8 @@ interface OrderDetail {
   invoice_number: string | null;
   invoice_url: string | null;
   bling_order_id: number | null;
+  nota_impressa: boolean;
+  postagem_gerada: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -96,7 +99,7 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
       `id, order_number, status, payment_status, payment_method,
        subtotal, discount, shipping_cost, total,
        customer_name, customer_email, shipping_address, tracking_code,
-       invoice_number, invoice_url, bling_order_id, notes,
+       invoice_number, invoice_url, bling_order_id, nota_impressa, postagem_gerada, notes,
        created_at, updated_at,
        order_items(id, quantity, unit_price, total_price, title, book_id, combo_id, books(title, cover_url, sku), combos(name, combo_items(quantity, books(title, cover_url, sku))))`
     )
@@ -309,6 +312,17 @@ export default async function AdminOrderDetailPage({
               orderId={order.id}
               blingOrderId={order.bling_order_id}
               orderStatus={order.status}
+            />
+
+            {/* Pipeline de fulfillment */}
+            <FulfillmentPipelineCard
+              orderId={order.id}
+              blingOrderId={order.bling_order_id}
+              invoiceNumber={order.invoice_number}
+              notaImpressa={order.nota_impressa}
+              postagemGerada={order.postagem_gerada}
+              orderStatus={order.status}
+              trackingCode={order.tracking_code}
             />
 
             {/* Nota Fiscal */}

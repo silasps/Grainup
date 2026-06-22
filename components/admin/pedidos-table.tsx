@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X, ChevronUp, ChevronDown, Send, Package, Check, Pencil, Truck, FileText, TriangleAlert, RefreshCw } from "lucide-react";
+import { Search, X, ChevronUp, ChevronDown, Package, Check, Pencil, Truck, FileText, TriangleAlert, RefreshCw, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
-import { pushOrderToBlingAction, updateTrackingCodeAction, syncBlingOrderAction } from "@/app/(admin)/admin/editora/pedidos/actions";
+import { pushOrderToBlingAction, updateTrackingCodeAction, syncBlingOrderAction, markFulfillmentStepAction } from "@/app/(admin)/admin/editora/pedidos/actions";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 30;
@@ -43,6 +43,8 @@ export interface OrderRow {
   bling_order_id: number | null;
   tracking_code: string | null;
   shipping_address: Record<string, string> | null;
+  nota_impressa: boolean;
+  postagem_gerada: boolean;
   order_items: Array<{
     id: string;
     title: string;
@@ -52,6 +54,37 @@ export interface OrderRow {
     combos: { combo_items: Array<{ books: { sku: string | null; title: string } | null }> } | null;
   }>;
 }
+
+type FulfillmentStep =
+  | "aguardando_pagamento"
+  | "emitir_nota"
+  | "imprimir_nota"
+  | "gerar_postagem"
+  | "separar_livro"
+  | "enviado"
+  | "entregue"
+  | "cancelado";
+
+function getFulfillmentStep(o: OrderRow): FulfillmentStep {
+  if (["cancelado", "reembolsado", "cancelamento_solicitado"].includes(o.status)) return "cancelado";
+  if (o.status === "aguardando_pagamento") return "aguardando_pagamento";
+  if (o.status === "entregue") return "entregue";
+  if (o.status === "enviado") return "enviado";
+  if (!o.bling_order_id && !o.invoice_number) return "emitir_nota";
+  if (!o.nota_impressa) return "imprimir_nota";
+  if (!o.postagem_gerada) return "gerar_postagem";
+  return "separar_livro";
+}
+
+const PIPELINE_STEPS: { key: FulfillmentStep | "all"; label: string }[] = [
+  { key: "all", label: "Todos" },
+  { key: "emitir_nota", label: "Emitir NF-e" },
+  { key: "imprimir_nota", label: "Imprimir" },
+  { key: "gerar_postagem", label: "Postagem" },
+  { key: "separar_livro", label: "Separar" },
+  { key: "enviado", label: "Enviados" },
+  { key: "entregue", label: "Entregues" },
+];
 
 type SortEntry = { key: string; dir: "asc" | "desc" };
 
@@ -130,6 +163,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCarrier, setFilterCarrier] = useState("all");
+  const [filterPipeline, setFilterPipeline] = useState<FulfillmentStep | "all">("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [sorts, setSorts] = useState<SortEntry[]>([{ key: "created_at", dir: "desc" }]);
@@ -143,6 +177,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
   // Bling loading
   const [blingLoading, setBlingLoading] = useState<string | null>(null);
   const [blingSyncing, setBlingSyncing] = useState<string | null>(null);
+  const [markingStep, setMarkingStep] = useState<string | null>(null);
 
   const carriers = useMemo(() => {
     const set = new Set<string>();
@@ -153,6 +188,15 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
     return Array.from(set).sort();
   }, [orders]);
 
+  const stepCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const o of orders) {
+      const step = getFulfillmentStep(o);
+      counts[step] = (counts[step] ?? 0) + 1;
+    }
+    return counts;
+  }, [orders]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
@@ -161,12 +205,13 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
       if (q && !o.customer_name?.toLowerCase().includes(q) && !o.order_number?.toLowerCase().includes(q)) return false;
       if (filterStatus !== "all" && o.status !== filterStatus) return false;
       if (filterCarrier !== "all" && (o.shipping_address?.method ?? "") !== filterCarrier) return false;
+      if (filterPipeline !== "all" && getFulfillmentStep(o) !== filterPipeline) return false;
       const d = new Date(o.created_at);
       if (from && d < from) return false;
       if (to && d > to) return false;
       return true;
     });
-  }, [orders, search, filterStatus, filterCarrier, dateFrom, dateTo]);
+  }, [orders, search, filterStatus, filterCarrier, filterPipeline, dateFrom, dateTo]);
 
   const sorted = useMemo(() => applySorts(filtered, sorts), [filtered, sorts]);
 
@@ -240,10 +285,20 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
     if (result.error) { toast.error(result.error); return; }
     toast.success("Rastreio salvo");
     setEditingTracking(null);
-    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, tracking_code: value || null } : o));
+    setOrders((prev) => prev.map((o) =>
+      o.id === orderId ? { ...o, tracking_code: value || null, postagem_gerada: value ? true : o.postagem_gerada } : o
+    ));
   }
 
-  const hasFilter = search || filterStatus !== "all" || filterCarrier !== "all" || dateFrom || dateTo;
+  async function handleMarkStep(orderId: string, step: "nota_impressa" | "postagem_gerada", currentValue: boolean) {
+    setMarkingStep(`${orderId}-${step}`);
+    const result = await markFulfillmentStepAction(orderId, step, !currentValue);
+    setMarkingStep(null);
+    if (result.error) { toast.error(result.error); return; }
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, [step]: !currentValue } : o));
+  }
+
+  const hasFilter = search || filterStatus !== "all" || filterCarrier !== "all" || filterPipeline !== "all" || dateFrom || dateTo;
   const visible = sorted.slice(0, visibleCount);
 
   return (
@@ -302,6 +357,14 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                 {filterCarrier !== "all" && <button onClick={() => setFilterCarrier("all")} className="ml-0.5 text-brand hover:text-brand-700"><X className="h-3.5 w-3.5" /></button>}
               </div>
             )}
+            <div className={`lg:hidden flex items-center h-8 rounded-md border text-xs focus-within:ring-1 focus-within:ring-brand ${filterPipeline !== "all" ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
+              <select value={filterPipeline} onChange={(e) => setFilterPipeline(e.target.value as FulfillmentStep | "all")} className="h-full bg-transparent pl-2 pr-1 focus:outline-none cursor-pointer">
+                {PIPELINE_STEPS.map((s) => (
+                  <option key={s.key} value={s.key}>{s.key === "all" ? "Etapa" : s.label}{s.key !== "all" && stepCounts[s.key] ? ` (${stepCounts[s.key]})` : ""}</option>
+                ))}
+              </select>
+              {filterPipeline !== "all" && <button onClick={() => setFilterPipeline("all")} className="ml-0.5 text-brand hover:text-brand-700"><X className="h-3.5 w-3.5" /></button>}
+            </div>
             <div className={`flex items-center h-8 rounded-md border text-xs focus-within:ring-1 focus-within:ring-brand ${dateFrom ? "border-brand bg-brand-50 pr-1" : "border-border bg-secondary/40"}`}>
               <span className="pl-2 pr-1 text-muted-foreground">De</span>
               <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="h-full bg-transparent pr-1 text-xs focus:outline-none cursor-pointer" />
@@ -312,6 +375,29 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
               <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="h-full bg-transparent pr-1 text-xs focus:outline-none cursor-pointer" />
               {dateTo && <button onClick={() => setDateTo("")} className="ml-0.5 text-brand hover:text-brand-700"><X className="h-3.5 w-3.5" /></button>}
             </div>
+          </div>
+          {/* Pipeline chips — desktop only */}
+          <div className="hidden lg:flex items-center gap-1.5 flex-wrap pt-0.5">
+            <span className="text-xs text-muted-foreground shrink-0 mr-0.5">Etapa:</span>
+            {PIPELINE_STEPS.map((s) => {
+              const count = s.key !== "all" ? (stepCounts[s.key] ?? 0) : orders.length;
+              const active = filterPipeline === s.key;
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => setFilterPipeline(s.key)}
+                  className={cn(
+                    "inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors",
+                    active
+                      ? "border-brand bg-brand/10 text-brand font-medium"
+                      : "border-border text-muted-foreground hover:border-brand/50 hover:text-foreground"
+                  )}
+                >
+                  {s.label}
+                  {count > 0 && <span className={cn("text-[10px] font-bold", active ? "text-brand" : "text-muted-foreground/70")}>{count}</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -407,50 +493,87 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                       </td>
 
                       {/* Bling / NF-e */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {order.invoice_number ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
-                              <Check className="h-3 w-3" /> NF emitida
-                            </span>
-                            {(() => {
-                              const chave = order.invoice_number?.replace(/\D/g, "") ?? "";
-                              const url = order.invoice_url
-                                ?? (chave.length === 44 ? `https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=resumo&tipoConteudo=7PhJ+gAVw2g=&nfe=${chave}` : null);
-                              return url ? (
-                                <a href={url} target="_blank" rel="noopener noreferrer" title="Ver DANFE / Consultar NF-e" className="text-muted-foreground hover:text-foreground" onClick={(e) => e.stopPropagation()}>
-                                  <FileText className="h-3.5 w-3.5" />
-                                </a>
-                              ) : null;
-                            })()}
-                          </div>
-                        ) : order.bling_order_id ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <Package className="h-3 w-3" /> #{order.bling_order_id}
-                            </span>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          {order.invoice_number ? (
+                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+                                <Check className="h-3 w-3" /> NF emitida
+                              </span>
+                              {(() => {
+                                const chave = order.invoice_number?.replace(/\D/g, "") ?? "";
+                                const url = order.invoice_url
+                                  ?? (chave.length === 44 ? `https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=resumo&tipoConteudo=7PhJ+gAVw2g=&nfe=${chave}` : null);
+                                return url ? (
+                                  <a href={url} target="_blank" rel="noopener noreferrer" title="Ver DANFE / Consultar NF-e" className="text-muted-foreground hover:text-foreground" onClick={(e) => e.stopPropagation()}>
+                                    <FileText className="h-3.5 w-3.5" />
+                                  </a>
+                                ) : null;
+                              })()}
+                            </div>
+                          ) : order.bling_order_id ? (
+                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <Package className="h-3 w-3" /> #{order.bling_order_id}
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleSyncBling(order.id); }}
+                                disabled={blingSyncing === order.id}
+                                title="Sincronizar NF-e do Bling"
+                                className="text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                              >
+                                <RefreshCw className={`h-3 w-3 ${blingSyncing === order.id ? "animate-spin" : ""}`} />
+                              </button>
+                            </div>
+                          ) : ["pago", "separando", "enviado", "entregue"].includes(order.status) ? (
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleSyncBling(order.id); }}
-                              disabled={blingSyncing === order.id}
-                              title="Sincronizar NF-e do Bling"
-                              className="text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                              onClick={(e) => { e.stopPropagation(); handleSendToBling(order.id); }}
+                              disabled={blingLoading === order.id}
+                              className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 font-medium whitespace-nowrap"
+                              title="Pedido pago sem registro no Bling — clique para enviar"
                             >
-                              <RefreshCw className={`h-3 w-3 ${blingSyncing === order.id ? "animate-spin" : ""}`} />
+                              <TriangleAlert className={`h-3 w-3 ${blingLoading === order.id ? "animate-pulse" : ""}`} />
+                              {blingLoading === order.id ? "Enviando…" : "Enviar Bling"}
                             </button>
-                          </div>
-                        ) : ["pago", "separando", "enviado", "entregue"].includes(order.status) ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleSendToBling(order.id); }}
-                            disabled={blingLoading === order.id}
-                            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 font-medium"
-                            title="Pedido pago sem registro no Bling — clique para enviar"
-                          >
-                            <TriangleAlert className={`h-3 w-3 ${blingLoading === order.id ? "animate-pulse" : ""}`} />
-                            {blingLoading === order.id ? "Enviando…" : "Enviar Bling"}
-                          </button>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground/40">—</span>
-                        )}
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground/40">—</span>
+                          )}
+                          {/* Etapas de fulfillment — visíveis quando nota foi gerada */}
+                          {(order.bling_order_id || order.invoice_number) && (
+                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => markingStep !== `${order.id}-nota_impressa` && handleMarkStep(order.id, "nota_impressa", order.nota_impressa)}
+                                title={order.nota_impressa ? "Impressa — clique para desfazer" : "Marcar nota como impressa"}
+                                className={cn(
+                                  "inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border transition-all",
+                                  order.nota_impressa
+                                    ? "border-emerald-400 bg-emerald-100 text-emerald-700 font-medium hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                                    : markingStep === `${order.id}-nota_impressa`
+                                      ? "border-border text-muted-foreground opacity-50 cursor-wait pointer-events-none"
+                                      : "border-border text-muted-foreground hover:border-brand/50 hover:text-foreground"
+                                )}
+                              >
+                                {order.nota_impressa ? <Check className="h-2.5 w-2.5" /> : <Printer className="h-2.5 w-2.5" />}
+                                {order.nota_impressa ? "Impressa" : "Imprimir"}
+                              </button>
+                              <button
+                                onClick={() => markingStep !== `${order.id}-postagem_gerada` && handleMarkStep(order.id, "postagem_gerada", order.postagem_gerada)}
+                                title={order.postagem_gerada ? "Postagem gerada — clique para desfazer" : "Marcar postagem como gerada"}
+                                className={cn(
+                                  "inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border transition-all",
+                                  order.postagem_gerada
+                                    ? "border-emerald-400 bg-emerald-100 text-emerald-700 font-medium hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                                    : markingStep === `${order.id}-postagem_gerada`
+                                      ? "border-border text-muted-foreground opacity-50 cursor-wait pointer-events-none"
+                                      : "border-border text-muted-foreground hover:border-brand/50 hover:text-foreground"
+                                )}
+                              >
+                                {order.postagem_gerada ? <Check className="h-2.5 w-2.5" /> : <Package className="h-2.5 w-2.5" />}
+                                Postagem
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       {/* Rastreio inline */}

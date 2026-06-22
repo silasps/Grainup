@@ -20,7 +20,7 @@ export async function fetchOrdersAction(): Promise<OrderRow[]> {
   const supabase = await createAdminClient();
   const { data } = await supabase
     .from("orders")
-    .select("id, order_number, status, total, payment_method, shipping_cost, created_at, customer_name, invoice_number, invoice_url, bling_order_id, tracking_code, shipping_address, order_items(id, title, quantity, combo_id, books(sku), combos(combo_items(books(sku, title))))")
+    .select("id, order_number, status, total, payment_method, shipping_cost, created_at, customer_name, invoice_number, invoice_url, bling_order_id, tracking_code, shipping_address, nota_impressa, postagem_gerada, order_items(id, title, quantity, combo_id, books(sku), combos(combo_items(books(sku, title))))")
     .order("created_at", { ascending: false })
     .limit(200);
   return (data ?? []) as unknown as OrderRow[];
@@ -192,10 +192,21 @@ export async function updateTrackingCodeAction(
   trackingCode: string
 ): Promise<{ error: string | null }> {
   const supabase = await createAdminClient();
-  const { error } = await supabase
-    .from("orders")
-    .update({ tracking_code: trackingCode || null })
-    .eq("id", orderId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: any = { tracking_code: trackingCode || null };
+  if (trackingCode) updates.postagem_gerada = true;
+  const { error } = await supabase.from("orders").update(updates).eq("id", orderId);
+  return { error: error?.message ?? null };
+}
+
+export async function markFulfillmentStepAction(
+  orderId: string,
+  step: "nota_impressa" | "postagem_gerada",
+  value: boolean
+): Promise<{ error: string | null }> {
+  const supabase = await createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await supabase.from("orders").update({ [step]: value } as any).eq("id", orderId);
   return { error: error?.message ?? null };
 }
 
