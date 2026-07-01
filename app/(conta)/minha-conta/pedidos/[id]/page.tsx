@@ -220,7 +220,15 @@ export default async function PedidoDetalhesPage({
       {o.tracking_code && (
         <div className="bg-brand-50 border border-brand/20 rounded-xl p-5">
           <p className="text-sm font-semibold text-brand mb-0.5">Código de rastreio</p>
-          <p className="text-sm font-mono text-foreground">{o.tracking_code}</p>
+          <p className="text-sm font-mono text-foreground mb-2">{o.tracking_code}</p>
+          <a
+            href={`https://rastreamento.correios.com.br/app/index.php?objetos=${o.tracking_code}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-brand hover:underline"
+          >
+            Rastrear nos Correios →
+          </a>
         </div>
       )}
 

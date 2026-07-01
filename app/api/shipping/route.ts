@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { calculateShipping } from "@/lib/melhor-envio";
+import { calculateShipping as calculateCorreiosShipping } from "@/lib/correios/client";
+import { calculateShipping as calculateMEShipping } from "@/lib/melhor-envio";
 
-const FROM_CEP = process.env.MELHOR_ENVIO_FROM_CEP!;
+// Aceita CORREIOS_CEP_ORIGEM (preferido) ou MELHOR_ENVIO_FROM_CEP (legado)
+const FROM_CEP = (process.env.CORREIOS_CEP_ORIGEM ?? process.env.MELHOR_ENVIO_FROM_CEP ?? "").replace(/\D/g, "");
 
 // Fallback dimensions for books without data in the database
 const DEFAULT_WEIGHT_G = 300;
@@ -84,8 +86,35 @@ export async function POST(req: NextRequest) {
 
     console.log("[shipping] items:", JSON.stringify(items), "pkg:", JSON.stringify(pkg));
 
-    const options = await calculateShipping(FROM_CEP, cleanCep, pkg);
-    return NextResponse.json({ options });
+    // Tenta Correios direto (requer CORREIOS_CONTRATO ou CORREIOS_CARTAO_POSTAGEM)
+    type ShippingResult = { id: string; label: string; price: number; minDays: number; maxDays: number; serviceCode?: string };
+    let options: ShippingResult[] = await calculateCorreiosShipping(FROM_CEP, cleanCep, pkg);
+    let source = "correios";
+
+    // Fallback: Melhor Envio filtrado só para serviços Correios
+    // Ativo enquanto contrato/cartão dos Correios não estiver configurado ou a API falhar
+    if (options.length === 0) {
+      source = "melhor-envio-fallback";
+      const serviceCodeByName: Record<string, string> = {
+        "PAC": "03298",
+        "SEDEX": "03220",
+        "SEDEX 10": "03158",
+      };
+      const meOptions = await calculateMEShipping(FROM_CEP, cleanCep, pkg);
+      options = meOptions
+        .filter((o) => {
+          const name = o.label.split(" — ")[0].trim();
+          return name in serviceCodeByName; // só PAC, SEDEX, SEDEX 10 — exclui Mini Envios etc.
+        })
+        .map((o) => {
+          const name = o.label.split(" — ")[0].trim();
+          const serviceCode = serviceCodeByName[name]; // sem fallback: se não está no mapa, foi filtrado acima
+          return { ...o, label: `${name} — Correios`, id: serviceCode, serviceCode };
+        });
+    }
+
+    console.log(`[shipping] source=${source} options=${options.length}`);
+    return NextResponse.json({ options, _source: source });
   } catch (err) {
     console.error("[shipping/calculate]", err);
     return NextResponse.json({ error: "Erro ao calcular frete. Tente novamente." }, { status: 500 });

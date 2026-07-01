@@ -531,7 +531,15 @@ export interface BlingOrderPayload {
   transporte: {
     fretePorConta: number;   // 1 = Remetente, 2 = Destinatário, 3 = Terceiros (inteiro no Bling v3)
     frete: number;
-    contato?: { id: number };
+    // contato dentro de transporte = transportador (Correios cadastrado como contato no Bling).
+    // Confirmado via SDK oficial: AlexandreBellas/bling-erp-api-js create.interface.ts
+    // NÃO existe campo "transportadora" — o carrier vai em transporte.contato.
+    contato?: { id?: number; nome: string };
+    volumes?: Array<{
+      id: number;                    // obrigatório no tipo; usar 0 para criação
+      servico: string;               // "PAC" | "SEDEX" — confirmado via SDK oficial
+      codigoRastreamento?: string;
+    }>;
     etiqueta?: { nome?: string; endereco: string; numero: string; complemento?: string; bairro: string; municipio: string; uf: string; cep: string };
   };
 }

@@ -53,6 +53,7 @@ interface PlaceOrderInput {
   discount: number;
   shippingCost: number;
   shippingLabel?: string;
+  shippingServiceCode?: string;
   total: number;
   paymentMethod: "pix" | "credito" | "debito" | null;
   items: OrderItem[];
@@ -221,7 +222,11 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     customer_email: input.customerEmail,
     customer_name: customerName,
     customer_cpf: customerCpf || null,
-    shipping_address: input.shippingLabel ? { ...normalizedAddress, method: input.shippingLabel } : normalizedAddress,
+    shipping_address: {
+      ...normalizedAddress,
+      ...(input.shippingLabel ? { method: input.shippingLabel } : {}),
+      ...(input.shippingServiceCode ? { serviceCode: input.shippingServiceCode } : {}),
+    },
     subtotal: input.subtotal,
     discount: input.discount,
     shipping_cost: input.shippingCost,

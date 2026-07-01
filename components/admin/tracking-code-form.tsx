@@ -56,18 +56,18 @@ export function TrackingCodeForm({
             O cliente verá este código na área de pedidos.
           </p>
           <a
-            href={`https://melhorrastreio.com.br/rastreio/${code.trim()}`}
+            href={`https://rastreamento.correios.com.br/app/index.php?objetos=${code.trim()}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-xs text-brand hover:underline shrink-0"
           >
             <ExternalLink className="h-3 w-3" />
-            Rastrear no Melhor Envio
+            Rastrear nos Correios
           </a>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          O código é gerado pelo Melhor Envio ao emitir a etiqueta — cole aqui após a emissão.
+          O código é gerado pelos Correios ao emitir a etiqueta — cole aqui após a emissão.
         </p>
       )}
     </div>

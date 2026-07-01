@@ -49,6 +49,7 @@ type ShippingOption = {
   price: number;
   minDays: number;
   maxDays: number;
+  serviceCode?: string;
 };
 
 const WEEKDAYS_PT = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
@@ -604,6 +605,7 @@ export function CheckoutFlow() {
       discount: totalDiscount,
       shippingCost: shippingPrice,
       shippingLabel: selectedShipping?.label,
+      shippingServiceCode: selectedShipping?.serviceCode,
       total,
       paymentMethod: paymentMethodMap[payment ?? ""] ?? null,
       items: items.map((i) => ({ id: i.id, type: i.type, title: i.title, price: i.price, quantity: i.quantity })),

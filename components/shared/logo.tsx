@@ -11,13 +11,13 @@ interface LogoProps {
 
 export function Logo({ className, imageClassName, variant = "default", href = "/editora" }: LogoProps) {
   const content = (
-    <div className={cn("flex items-center", className)}>
+    <div className={cn("flex items-center shrink-0", className)}>
       <Image
         src={variant === "white" ? "/logo-editora-jocum-branca.png" : "/logo-editora-jocum.png"}
         alt="Editora Jocum"
         width={120}
         height={40}
-        className={cn("h-10 w-auto object-contain", imageClassName)}
+        className={cn("h-8 w-auto min-w-[80px] object-contain md:h-10", imageClassName)}
         priority
       />
     </div>
@@ -26,7 +26,7 @@ export function Logo({ className, imageClassName, variant = "default", href = "/
   if (!href) return content;
 
   return (
-    <Link href={href} className="outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-sm">
+    <Link href={href} className="shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-sm">
       {content}
     </Link>
   );

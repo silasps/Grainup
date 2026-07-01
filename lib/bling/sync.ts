@@ -169,6 +169,28 @@ export async function pushOrderToBling(orderId: string) {
     last.valor = Math.round((remaining / last.quantidade) * 100) / 100;
   }
 
+  // Mapeamento de código Correios → nome do serviço para o campo `volumes.servico` no Bling
+  const serviceCodeToName: Record<string, string> = {
+    "03298": "PAC",
+    "03220": "SEDEX",
+    "03158": "SEDEX 10",
+  };
+
+  const serviceCode = (addr.serviceCode ?? null) as string | null;
+  const serviceName = serviceCode ? (serviceCodeToName[serviceCode] ?? null) : null;
+
+  // BLING_TRANSPORTADORA_CORREIOS_ID = ID dos Correios cadastrado como CONTATO no Bling
+  // (Cadastros → Contatos → buscar Correios). Não existe campo "transportadora" no Bling v3 —
+  // o transportador vai em transporte.contato conforme SDK oficial.
+  const blingCorreiosContatoId = process.env.BLING_TRANSPORTADORA_CORREIOS_ID
+    ? parseInt(process.env.BLING_TRANSPORTADORA_CORREIOS_ID, 10)
+    : null;
+
+  if (!blingCorreiosContatoId) {
+    console.warn("[Bling] BLING_TRANSPORTADORA_CORREIOS_ID não configurado — NF-e ficará sem transportadora. " +
+      "Busque os Correios em Bling → Cadastros → Contatos e adicione o ID numérico.");
+  }
+
   const payload: BlingOrderPayload = {
     observacoes: `Editora Jocum: ${order.order_number}`,
     data: orderDate,
@@ -178,6 +200,8 @@ export async function pushOrderToBling(orderId: string) {
     transporte: {
       fretePorConta: 1,  // 1 = Remetente (Bling v3 usa inteiro, não string "R")
       frete,
+      ...(blingCorreiosContatoId ? { contato: { id: blingCorreiosContatoId, nome: "Correios" } } : {}),
+      ...(serviceName ? { volumes: [{ id: 0, servico: serviceName }] } : {}),
       etiqueta: {
         nome: order.customer_name as string,
         endereco: addr.street ?? "",
