@@ -25,7 +25,7 @@ interface BookEventRow {
   book_id: string;
   event_type: string;
   created_at: string;
-  books: { id: string; title: string; slug: string } | null;
+  books: { id: string; title: string; slug: string; cover_url: string | null } | null;
 }
 
 interface Campaign {
@@ -50,7 +50,7 @@ async function getData() {
       .order("created_at", { ascending: false }),
     supabase
       .from("book_events")
-      .select("book_id, event_type, created_at, books(id, title, slug)")
+      .select("book_id, event_type, created_at, books(id, title, slug, cover_url)")
       .order("created_at", { ascending: false })
       .limit(5000),
     supabase

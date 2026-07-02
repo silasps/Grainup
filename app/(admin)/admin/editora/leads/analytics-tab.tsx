@@ -84,7 +84,7 @@ interface BookEventRow {
   book_id: string;
   event_type: string;
   created_at: string;
-  books: { id: string; title: string; slug: string } | null;
+  books: { id: string; title: string; slug: string; cover_url: string | null } | null;
 }
 
 interface Lead {
@@ -184,12 +184,15 @@ export function AnalyticsTab({
 
   // --- Top livros por compra (ranking dedicado, ordenado por venda real) ---
   const topBooksByPurchase = useMemo(() => {
-    const map = new Map<string, { title: string; view: number; add_to_cart: number; purchase: number }>();
+    const map = new Map<
+      string,
+      { id: string; title: string; coverUrl: string | null; view: number; add_to_cart: number; purchase: number }
+    >();
     for (const e of events) {
       if (!e.books) continue;
       const key = e.book_id;
       if (!map.has(key)) {
-        map.set(key, { title: e.books.title, view: 0, add_to_cart: 0, purchase: 0 });
+        map.set(key, { id: key, title: e.books.title, coverUrl: e.books.cover_url, view: 0, add_to_cart: 0, purchase: 0 });
       }
       const entry = map.get(key)!;
       if (e.event_type === "view") entry.view++;
@@ -199,15 +202,13 @@ export function AnalyticsTab({
     return Array.from(map.values())
       .filter((b) => b.purchase > 0)
       .sort((a, b) => b.purchase - a.purchase)
-      .slice(0, 8)
-      .map((b) => ({
-        name: b.title.length > 26 ? b.title.slice(0, 26) + "…" : b.title,
-        fullTitle: b.title,
-        view: b.view,
-        add_to_cart: b.add_to_cart,
-        purchase: b.purchase,
-      }));
+      .slice(0, 8);
   }, [events]);
+
+  const topBooksById = useMemo(
+    () => new Map(topBooksByPurchase.map((b) => [b.id, b])),
+    [topBooksByPurchase]
+  );
 
   // --- Leads por dia (últimos 30 dias) ---
   const leadsByDay = useMemo(() => {
@@ -246,6 +247,43 @@ export function AnalyticsTab({
     cadastro: "Cadastro",
     novidades: "Novidades",
   };
+
+  // Eixo X customizado: capa do livro (igual à do site) + título embaixo,
+  // no lugar do texto puro do nome. payload.value carrega o book id.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function BookCoverTick(props: any) {
+    const { x, y, payload } = props;
+    const book = topBooksById.get(payload.value);
+    if (!book) return null;
+    const COVER_W = 34;
+    const COVER_H = 48;
+    const shortTitle = book.title.length > 20 ? book.title.slice(0, 20) + "…" : book.title;
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <clipPath id={`cover-clip-${book.id}`}>
+          <rect x={-COVER_W / 2} y={8} width={COVER_W} height={COVER_H} rx={3} />
+        </clipPath>
+        {book.coverUrl ? (
+          <image
+            href={book.coverUrl}
+            x={-COVER_W / 2}
+            y={8}
+            width={COVER_W}
+            height={COVER_H}
+            preserveAspectRatio="xMidYMid slice"
+            clipPath={`url(#cover-clip-${book.id})`}
+          />
+        ) : (
+          <rect x={-COVER_W / 2} y={8} width={COVER_W} height={COVER_H} rx={3} fill="var(--secondary)" />
+        )}
+        <rect x={-COVER_W / 2} y={8} width={COVER_W} height={COVER_H} rx={3} fill="none" stroke="var(--border)" />
+        <title>{book.title}</title>
+        <text x={0} y={8 + COVER_H + 13} textAnchor="middle" fontSize={9.5} fill="var(--muted-foreground)">
+          {shortTitle}
+        </text>
+      </g>
+    );
+  }
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-8">
@@ -426,39 +464,38 @@ export function AnalyticsTab({
             </div>
           </div>
           <div className="bg-white rounded-xl border border-border p-4">
-            <ResponsiveContainer width="100%" height={Math.max(220, topBooksByPurchase.length * 52)}>
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart
                 data={topBooksByPurchase}
-                layout="vertical"
-                barGap={3}
-                margin={{ top: 4, right: 36, left: 8, bottom: 4 }}
+                barGap={2}
+                margin={{ top: 20, right: 8, left: -20, bottom: 4 }}
               >
-                <CartesianGrid strokeDasharray="3" horizontal={false} stroke="#eee" />
-                <XAxis type="number" tick={{ fontSize: 11 }} axisLine={{ stroke: "#eee" }} tickLine={false} allowDecimals={false} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fontSize: 12 }}
-                  width={168}
-                  axisLine={false}
+                <CartesianGrid strokeDasharray="3" vertical={false} stroke="#eee" />
+                <XAxis
+                  dataKey="id"
+                  tick={BookCoverTick}
+                  interval={0}
+                  height={76}
+                  axisLine={{ stroke: "#eee" }}
                   tickLine={false}
                 />
+                <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip
                   cursor={{ fill: "rgba(0,0,0,0.03)" }}
                   formatter={(v, k) => [
                     typeof v === "number" ? v.toLocaleString("pt-BR") : v,
                     FUNNEL_LABEL[k as keyof typeof FUNNEL_LABEL] ?? k,
                   ]}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ""}
+                  labelFormatter={(id) => topBooksById.get(id as string)?.title ?? ""}
                 />
-                <Bar dataKey="view" name="view" fill={PURCHASE_CHART_COLOR.view} radius={[0, 3, 3, 0]} barSize={12}>
-                  <LabelList dataKey="view" position="right" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--muted-foreground)", fontSize: 10 }} />
+                <Bar dataKey="view" name="view" fill={PURCHASE_CHART_COLOR.view} radius={[3, 3, 0, 0]} maxBarSize={16}>
+                  <LabelList dataKey="view" position="top" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--muted-foreground)", fontSize: 10 }} />
                 </Bar>
-                <Bar dataKey="add_to_cart" name="add_to_cart" fill={PURCHASE_CHART_COLOR.add_to_cart} radius={[0, 3, 3, 0]} barSize={12}>
-                  <LabelList dataKey="add_to_cart" position="right" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--muted-foreground)", fontSize: 10 }} />
+                <Bar dataKey="add_to_cart" name="add_to_cart" fill={PURCHASE_CHART_COLOR.add_to_cart} radius={[3, 3, 0, 0]} maxBarSize={16}>
+                  <LabelList dataKey="add_to_cart" position="top" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--muted-foreground)", fontSize: 10 }} />
                 </Bar>
-                <Bar dataKey="purchase" name="purchase" fill={PURCHASE_CHART_COLOR.purchase} radius={[0, 3, 3, 0]} barSize={12}>
-                  <LabelList dataKey="purchase" position="right" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--foreground)", fontSize: 10, fontWeight: 600 }} />
+                <Bar dataKey="purchase" name="purchase" fill={PURCHASE_CHART_COLOR.purchase} radius={[3, 3, 0, 0]} maxBarSize={16}>
+                  <LabelList dataKey="purchase" position="top" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--foreground)", fontSize: 10, fontWeight: 600 }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

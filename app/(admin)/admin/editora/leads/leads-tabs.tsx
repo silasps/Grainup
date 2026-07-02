@@ -25,7 +25,7 @@ interface BookEventRow {
   book_id: string;
   event_type: string;
   created_at: string;
-  books: { id: string; title: string; slug: string } | null;
+  books: { id: string; title: string; slug: string; cover_url: string | null } | null;
 }
 
 interface Campaign {
