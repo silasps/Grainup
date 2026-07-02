@@ -19,7 +19,7 @@ async function getDashboardData() {
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
   const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString();
   const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString();
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString();
+  const fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), 1).toISOString();
 
   const [
     ordersResult,
@@ -67,11 +67,13 @@ async function getDashboardData() {
       .order("sales_count", { ascending: false })
       .limit(5),
 
-    // Financial movements for chart (6 months)
+    // Financial movements for chart (up to 5 years, bucketed client-side by granularity)
     supabase
       .from("financial_movements")
-      .select("net_amount, status, created_at")
-      .gte("created_at", sixMonthsAgo),
+      .select("net_amount, status, paid_at, created_at")
+      .gte("created_at", fiveYearsAgo)
+      .order("created_at", { ascending: false })
+      .limit(3000),
 
     // Reviews
     supabase

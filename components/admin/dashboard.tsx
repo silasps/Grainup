@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -67,24 +68,68 @@ function calcRevenue(orders: AnyRecord[]) {
     .reduce((sum, o) => sum + (o.total as number), 0);
 }
 
-function buildMonthlyChart(movements: AnyRecord[]) {
-  const now = new Date();
-  const months: Record<string, number> = {};
+type ChartGranularity = "day" | "week" | "month" | "year";
 
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
-    months[key] = 0;
+const GRANULARITY_LABEL: Record<ChartGranularity, string> = {
+  day: "Dia", week: "Semana", month: "Mês", year: "Ano",
+};
+const GRANULARITY_SUBTITLE: Record<ChartGranularity, string> = {
+  day: "Últimos 30 dias", week: "Últimas 12 semanas", month: "Últimos 6 meses", year: "Últimos 5 anos",
+};
+const GRANULARITY_BUCKETS: Record<ChartGranularity, number> = {
+  day: 30, week: 12, month: 6, year: 5,
+};
+
+function startOfWeek(date: Date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayOffset = (d.getDay() + 6) % 7; // 0 = segunda-feira
+  d.setDate(d.getDate() - dayOffset);
+  return d;
+}
+
+function buildChartData(movements: AnyRecord[], granularity: ChartGranularity, now: Date) {
+  const paid = movements.filter((m) => m.status === "pago");
+  const count = GRANULARITY_BUCKETS[granularity];
+  const buckets: { key: string; mes: string; end: Date | null }[] = [];
+
+  if (granularity === "day") {
+    for (let i = count - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      buckets.push({ key, mes: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`, end: null });
+    }
+  } else if (granularity === "week") {
+    const thisWeekStart = startOfWeek(now);
+    for (let i = count - 1; i >= 0; i--) {
+      const start = new Date(thisWeekStart.getFullYear(), thisWeekStart.getMonth(), thisWeekStart.getDate() - i * 7);
+      const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+      const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+      buckets.push({ key, mes: `${String(start.getDate()).padStart(2, "0")}/${String(start.getMonth() + 1).padStart(2, "0")}`, end });
+    }
+  } else if (granularity === "month") {
+    for (let i = count - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      buckets.push({ key, mes: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }), end: null });
+    }
+  } else {
+    for (let i = count - 1; i >= 0; i--) {
+      const y = now.getFullYear() - i;
+      buckets.push({ key: String(y), mes: String(y), end: null });
+    }
   }
 
-  for (const m of movements) {
-    if (m.status !== "pago") continue;
-    const d = new Date(m.created_at as string);
-    const key = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
-    if (key in months) months[key] += m.net_amount as number;
-  }
-
-  return Object.entries(months).map(([mes, receita]) => ({ mes, receita }));
+  return buckets.map(({ key, mes, end }) => {
+    const matches = paid.filter((m) => {
+      const moveDate = (m.paid_at ?? m.created_at) as string;
+      if (end) {
+        const d = new Date(moveDate);
+        return d >= new Date(key) && d < end;
+      }
+      return moveDate.startsWith(key);
+    });
+    return { mes, receita: Math.round(matches.reduce((s, m) => s + (m.net_amount as number), 0)) };
+  });
 }
 
 const STATUS_BAR_COLORS: Record<string, string> = {
@@ -168,7 +213,13 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
     ["novo", "em_atendimento", "aguardando_cliente"].includes(t.status as string)
   ).length;
 
-  const chartData = buildMonthlyChart(data.movements);
+  const [chartGranularity, setChartGranularity] = useState<ChartGranularity>("month");
+  const now = new Date();
+  const chartData = useMemo(
+    () => buildChartData(data.movements, chartGranularity, now),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data.movements, chartGranularity]
+  );
   const pieData = buildStatusPie(data.orders);
 
   return (
@@ -239,18 +290,35 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Revenue area chart */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-border p-5">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-5 gap-3">
             <div>
-              <h2 className="font-semibold text-foreground text-sm">Receita mensal</h2>
+              <h2 className="font-semibold text-foreground text-sm">Receita por {GRANULARITY_LABEL[chartGranularity].toLowerCase()}</h2>
               <p className="text-xs text-muted-foreground">
-                Últimos 6 meses
+                {GRANULARITY_SUBTITLE[chartGranularity]}
               </p>
             </div>
-            <Button variant="ghost" size="sm" asChild className="text-xs text-brand h-7">
-              <Link href="/admin/editora/financeiro">
-                Ver detalhes <ArrowRight className="h-3.5 w-3.5 ml-1" />
-              </Link>
-            </Button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center rounded-md border border-border bg-secondary/40 p-0.5">
+                {(Object.keys(GRANULARITY_LABEL) as ChartGranularity[]).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setChartGranularity(g)}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      chartGranularity === g
+                        ? "bg-white text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {GRANULARITY_LABEL[g]}
+                  </button>
+                ))}
+              </div>
+              <Button variant="ghost" size="sm" asChild className="text-xs text-brand h-7">
+                <Link href="/admin/editora/financeiro">
+                  Ver detalhes <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                </Link>
+              </Button>
+            </div>
           </div>
 
           <ResponsiveContainer width="100%" height={200}>
@@ -267,6 +335,7 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
                 tick={{ fontSize: 11, fill: "#888" }}
                 axisLine={false}
                 tickLine={false}
+                interval={chartGranularity === "day" ? 2 : 0}
               />
               <YAxis
                 tick={{ fontSize: 11, fill: "#888" }}
