@@ -2,15 +2,17 @@
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getContratoContent } from "@/lib/contratos/content";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://editorajocum.com.br";
 
-async function sendContractLinkEmail(clientName: string, clientEmail: string, token: string) {
+async function sendContractLinkEmail(clientName: string, clientEmail: string, token: string, contractSlug: string) {
   if (!process.env.RESEND_API_KEY) return;
   const { Resend } = await import("resend");
   const resend = new Resend(process.env.RESEND_API_KEY);
   const signingUrl = `${SITE}/contrato/${token}`;
   const firstName = clientName.split(" ")[0];
+  const contractTitle = getContratoContent(contractSlug).subtitulo;
 
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:'Helvetica Neue',Arial,sans-serif;">
@@ -24,7 +26,7 @@ async function sendContractLinkEmail(clientName: string, clientEmail: string, to
 <tr><td style="padding:36px 40px;">
   <p style="margin:0 0 16px;font-size:15px;color:#333;">Olá, <strong>${firstName}</strong>!</p>
   <p style="margin:0 0 24px;font-size:14px;color:#555;line-height:1.7;">
-    Segue o link para leitura e assinatura digital do contrato de prestação de serviços <strong>GrainUp – Módulo Editora</strong>. O processo é rápido e 100% online — leva menos de 3 minutos.
+    Segue o link para leitura e assinatura digital do documento <strong>${contractTitle}</strong>. O processo é rápido e 100% online — leva menos de 3 minutos.
   </p>
   <div style="text-align:center;margin-bottom:28px;">
     <a href="${signingUrl}" style="display:inline-block;background:#0f172a;color:#fff;text-decoration:none;padding:14px 36px;border-radius:10px;font-size:15px;font-weight:700;letter-spacing:-0.3px;">
@@ -112,31 +114,32 @@ export async function updateAndResendContratoAction(
     .update({ client_email: email })
     .eq("id", id)
     .neq("status", "assinado")
-    .select("client_name, token")
+    .select("client_name, token, contract_slug")
     .single();
 
   if (error || !data) return { error: error?.message ?? "Erro ao atualizar e-mail." };
   revalidatePath("/admin/editora/contratos");
-  sendContractLinkEmail(data.client_name, email, data.token).catch(console.error);
+  sendContractLinkEmail(data.client_name, email, data.token, data.contract_slug).catch(console.error);
   return {};
 }
 
 export async function createContratoAction(
   clientName: string,
   clientEmail: string,
+  contractSlug: string = "editora-jocum-v1",
 ): Promise<{ token?: string; error?: string }> {
   if (!clientName.trim() || !clientEmail.trim()) return { error: "Nome e e-mail são obrigatórios." };
 
   const supabase = await createAdminClient();
   const { data, error } = await supabase
     .from("contratos")
-    .insert({ client_name: clientName.trim(), client_email: clientEmail.trim() })
+    .insert({ client_name: clientName.trim(), client_email: clientEmail.trim(), contract_slug: contractSlug })
     .select("token")
     .single();
 
   if (error || !data) return { error: error?.message ?? "Erro ao criar contrato." };
   revalidatePath("/admin/editora/contratos");
   // Fire-and-forget: envia o link por e-mail ao cliente
-  sendContractLinkEmail(clientName.trim(), clientEmail.trim(), data.token).catch(console.error);
+  sendContractLinkEmail(clientName.trim(), clientEmail.trim(), data.token, contractSlug).catch(console.error);
   return { token: data.token };
 }

@@ -4,6 +4,12 @@ import { useState, useTransition, useEffect } from "react";
 import { AdminHeader } from "@/components/admin/header";
 import { getContratosAction, createContratoAction, deleteContratoAction, updateAndResendContratoAction, type ContratoRow } from "./actions";
 import { Copy, Check, Plus, ExternalLink, X, Loader2, FileSignature, Trash2, Pencil, Send } from "lucide-react";
+import { CONTRATOS_REGISTRY } from "@/lib/contratos/content";
+
+const CONTRACT_TYPE_OPTIONS = Object.values(CONTRATOS_REGISTRY).map((c) => ({
+  slug: c.slug,
+  label: `${c.subtitulo} — ${c.valor}`,
+}));
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://editorajocum.com.br";
 
@@ -136,13 +142,14 @@ function EditEmailDialog({
 function NewContratoDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (url: string) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [contractSlug, setContractSlug] = useState(CONTRACT_TYPE_OPTIONS[0]?.slug ?? "editora-jocum-v1");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
   function handleCreate() {
     setError("");
     startTransition(async () => {
-      const res = await createContratoAction(name, email);
+      const res = await createContratoAction(name, email, contractSlug);
       if (res.error) { setError(res.error); return; }
       const url = `${SITE}/contrato/${res.token}`;
       onCreated(url);
@@ -159,6 +166,18 @@ function NewContratoDialog({ onClose, onCreated }: { onClose: () => void; onCrea
           </button>
         </div>
         <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Tipo de contrato</label>
+            <select
+              value={contractSlug}
+              onChange={(e) => setContractSlug(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 bg-white"
+            >
+              {CONTRACT_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.slug} value={opt.slug}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1.5">Nome do cliente</label>
             <input

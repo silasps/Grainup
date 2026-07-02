@@ -213,3 +213,115 @@ export const CONTRATO_EDITORA_JOCUM: ContratoContent = {
   },
   pdfStoragePath: "contratos/Contrato-GrainUp-Editora-Jocum.pdf",
 };
+
+export const CONTRATO_ADITIVO_CORREIOS: ContratoContent = {
+  slug: "aditivo-correios-v1",
+  titulo: "Termo Aditivo ao Contrato de Prestação de Serviços",
+  subtitulo: "Implantação da API dos Correios · Plataforma GrainUp · Módulo Editora",
+  partes: {
+    contratante: {
+      nome: "Marcos de Souza Borges Edição e Distribuição de Livros",
+      cnpj: "07.112.226/0001-23",
+      email: "editorajocum@gmail.com",
+      endereco: "Rua Vereador Wadislau Bugalski, 3826, Botiatuba, Almirante Tamandaré/PR",
+    },
+    contratado: {
+      nome: "Silas Pereira Silva",
+      cpf: "093.416.016-30",
+      email: "silaspereiras@gmail.com",
+    },
+  },
+  valor: "R$ 500,00",
+  pagamento: "100% no ato da assinatura deste termo, via PIX para a chave CPF 093.416.016-30 (Silas Pereira Silva)",
+  prazo: "Serviço já desenvolvido, implantado e em produção previamente à assinatura deste termo",
+  foro: "Comarca de Almirante Tamandaré, Estado do Paraná",
+  clausulas: [
+    {
+      numero: 1,
+      titulo: "Do Objeto",
+      texto:
+        "O presente termo aditivo tem por objeto a contratação de serviço extra, não previsto no Anexo I do Contrato de Prestação de Serviços firmado entre as partes (\"Contrato Original\", ref. GrainUp – Módulo Editora), consistente na implantação da integração direta com a API oficial dos Correios (CWS – Correios Web Services) na plataforma GrainUp – Módulo Editora, conforme escopo detalhado no Anexo I deste termo.\n\nEsta contratação enquadra-se na hipótese prevista na Cláusula 3ª do Contrato Original (serviços não incluídos e extras), sendo tratada de forma independente e com valor próprio, conforme a Cláusula 3ª deste termo.",
+    },
+    {
+      numero: 2,
+      titulo: "Do Escopo do Serviço Entregue",
+      texto:
+        "Estão incluídos no objeto deste termo, exclusivamente, os itens e funcionalidades descritos no Anexo I.\n\nO serviço já foi desenvolvido, testado e implantado em produção antes da assinatura deste termo, que tem caráter de formalização e faturamento da entrega já realizada.",
+    },
+    {
+      numero: 3,
+      titulo: "Do Valor e da Forma de Pagamento",
+      texto:
+        "Pela execução do serviço descrito no Anexo I, a CONTRATANTE pagará ao CONTRATADO o valor fechado de R$ 500,00 (quinhentos reais), conforme previamente acordado entre as partes.\n\nO pagamento será realizado de forma integral (100%), no ato da assinatura deste termo, via PIX para a chave 093.416.016-30 (CPF), em nome de Silas Pereira Silva.",
+    },
+    {
+      numero: 4,
+      titulo: "Da Garantia",
+      texto:
+        "O CONTRATADO prestará garantia de 30 (trinta) dias, contados da assinatura deste termo, destinada à correção de falhas do item entregue que não funcione conforme o Anexo I, sem custo adicional, observada a distinção entre correção e evolução prevista na Cláusula 3ª do Contrato Original.\n\nEncerrado o período de garantia, manutenções, ajustes e novas funcionalidades relacionadas a este item observarão a Cláusula 8ª do Contrato Original.",
+    },
+    {
+      numero: 5,
+      titulo: "Da Relação com o Contrato Original",
+      texto:
+        "Permanecem inalteradas e em pleno vigor todas as demais cláusulas do Contrato Original (GrainUp – Módulo Editora), inclusive as disposições sobre propriedade intelectual, confidencialidade, custos de terceiros, vigência, rescisão e foro, que se aplicam integralmente a este termo aditivo, no que não conflitarem com o aqui disposto.\n\nOs custos de terceiros relativos à contratação, homologação e uso do CWS (Correios Web Services) junto aos Correios são de responsabilidade exclusiva da CONTRATANTE, nos termos da Cláusula 11ª do Contrato Original.",
+    },
+    {
+      numero: 6,
+      titulo: "Da Vigência",
+      texto:
+        "Este termo aditivo vigora a partir da data de sua assinatura e estende-se até o encerramento do período de garantia previsto na Cláusula 4ª.",
+    },
+    {
+      numero: 7,
+      titulo: "Do Foro",
+      texto:
+        "Fica eleito o foro da comarca de Almirante Tamandaré, Estado do Paraná, para dirimir quaisquer questões oriundas deste termo, com renúncia a qualquer outro, por mais privilegiado que seja.",
+    },
+  ],
+  escopo: {
+    titulo: "Escopo Detalhado — Integração com a API dos Correios",
+    areas: [
+      {
+        titulo: "Cálculo de frete em tempo real",
+        itens: [
+          "Autenticação direta com o CWS (Correios Web Services), com gestão automática de token de acesso",
+          "Cálculo de frete em tempo real no checkout para os serviços PAC, SEDEX e SEDEX 10, com base no peso e nas dimensões reais dos livros",
+          "Consulta direta à API oficial dos Correios, com uso do contrato e cartão de postagem da CONTRATANTE",
+        ],
+      },
+      {
+        titulo: "Rastreamento automático de pedidos",
+        itens: [
+          "Consulta automática do rastreamento (Rastro) dos Correios para pedidos com código de rastreio",
+          "Verificação periódica automatizada (a cada 4 horas) do status de entrega de todos os pedidos enviados",
+          "Atualização automática do status do pedido para \"entregue\" assim que confirmada a entrega pelos Correios",
+          "Disparo automático de e-mail solicitando avaliação do cliente após a confirmação de entrega",
+        ],
+      },
+      {
+        titulo: "Continuidade e confiabilidade",
+        itens: [
+          "Renovação automática do token de autenticação antes do vencimento",
+          "Nova tentativa automática em caso de falha temporária de autenticação ou comunicação com a API",
+        ],
+      },
+    ],
+  },
+  bonus: {
+    titulo: "Itens Entregues como Bônus (Sem Custo Adicional)",
+    itens: [
+      "Fallback automático para o Melhor Envio no cálculo de frete, caso a API dos Correios esteja temporariamente indisponível, garantindo que o checkout nunca fique sem opções de frete",
+    ],
+  },
+  pdfStoragePath: "contratos/Termo-Aditivo-GrainUp-Correios.pdf",
+};
+
+export const CONTRATOS_REGISTRY: Record<string, ContratoContent> = {
+  [CONTRATO_EDITORA_JOCUM.slug]: CONTRATO_EDITORA_JOCUM,
+  [CONTRATO_ADITIVO_CORREIOS.slug]: CONTRATO_ADITIVO_CORREIOS,
+};
+
+export function getContratoContent(slug: string | null | undefined): ContratoContent {
+  return (slug && CONTRATOS_REGISTRY[slug]) || CONTRATO_EDITORA_JOCUM;
+}

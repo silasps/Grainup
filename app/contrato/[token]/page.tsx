@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
-import { CONTRATO_EDITORA_JOCUM } from "@/lib/contratos/content";
+import { getContratoContent } from "@/lib/contratos/content";
 import { SignForm } from "./sign-form";
 
 interface Props {
@@ -13,7 +13,7 @@ export default async function ContratoPage({ params }: Props) {
 
   const { data: contrato, error } = await supabase
     .from("contratos")
-    .select("id, token, client_name, client_email, status, signed_at, expires_at")
+    .select("id, token, client_name, client_email, status, signed_at, expires_at, contract_slug")
     .eq("token", token)
     .single();
 
@@ -60,5 +60,5 @@ export default async function ContratoPage({ params }: Props) {
     );
   }
 
-  return <SignForm contrato={contrato} content={CONTRATO_EDITORA_JOCUM} />;
+  return <SignForm contrato={contrato} content={getContratoContent(contrato.contract_slug)} />;
 }

@@ -3,7 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { createHash, randomInt } from "crypto";
-import { CONTRATO_EDITORA_JOCUM } from "@/lib/contratos/content";
+import { getContratoContent } from "@/lib/contratos/content";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://editorajocum.com.br";
 
@@ -11,8 +11,8 @@ function hashOtp(otp: string, token: string) {
   return createHash("sha256").update(otp + token).digest("hex");
 }
 
-function contractHash() {
-  return createHash("sha256").update(JSON.stringify(CONTRATO_EDITORA_JOCUM)).digest("hex");
+function contractHash(slug: string | null | undefined) {
+  return createHash("sha256").update(JSON.stringify(getContratoContent(slug))).digest("hex");
 }
 
 async function getValidContrato(token: string) {
@@ -123,8 +123,8 @@ export async function signContratoAction(
     signer_ip: ip,
     signer_user_agent: userAgent,
     signer_location: geo ?? null,
-    contract_slug: CONTRATO_EDITORA_JOCUM.slug,
-    contract_sha256: contractHash(),
+    contract_slug: contrato.contract_slug,
+    contract_sha256: contractHash(contrato.contract_slug),
     otp_confirmed: true,
   };
 
@@ -241,9 +241,10 @@ export async function sendContractByEmailAction(
   if (!process.env.RESEND_API_KEY) return { error: "Serviço de e-mail não configurado." };
 
   const supabase = await createAdminClient();
+  const content = getContratoContent(contrato.contract_slug);
   const { data: signedUrlData, error: storageError } = await supabase.storage
     .from("contratos")
-    .createSignedUrl(CONTRATO_EDITORA_JOCUM.pdfStoragePath.replace("contratos/", ""), 60 * 30);
+    .createSignedUrl(content.pdfStoragePath.replace("contratos/", ""), 60 * 30);
 
   if (storageError || !signedUrlData?.signedUrl) {
     return { error: "PDF do contrato não disponível. Entre em contato com silaspereiras@gmail.com." };
@@ -301,9 +302,10 @@ export async function getPdfSignedUrlAction(token: string): Promise<{ url?: stri
   if (!contrato) return { error: "Link inválido ou expirado." };
 
   const supabase = await createAdminClient();
+  const content = getContratoContent(contrato.contract_slug);
   const { data, error } = await supabase.storage
     .from("contratos")
-    .createSignedUrl(CONTRATO_EDITORA_JOCUM.pdfStoragePath.replace("contratos/", ""), 60 * 10);
+    .createSignedUrl(content.pdfStoragePath.replace("contratos/", ""), 60 * 10);
 
   if (error || !data?.signedUrl) {
     return { error: "PDF não disponível. Entre em contato com silaspereiras@gmail.com." };
