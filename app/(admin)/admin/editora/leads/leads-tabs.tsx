@@ -58,7 +58,7 @@ export function LeadsTabs({
   const [tab, setTab] = useState<TabId>("leads");
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Tab bar */}
       <div className="px-4 md:px-6 border-b border-border bg-white">
         <div className="flex gap-0">
@@ -79,7 +79,7 @@ export function LeadsTabs({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "leads" && <LeadsTable leads={leads} origins={origins} />}
         {tab === "analytics" && <AnalyticsTab leads={leads} events={events} />}
         {tab === "campanhas" && (
