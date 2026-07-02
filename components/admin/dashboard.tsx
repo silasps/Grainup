@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
+import { buildRevenueBuckets, GRANULARITY_LABEL, GRANULARITY_SUBTITLE, type ChartGranularity, type MovementLike } from "@/lib/utils/revenue-chart";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -64,72 +65,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 function calcRevenue(orders: AnyRecord[]) {
   return orders
-    .filter((o) => !["cancelado", "aguardando_pagamento"].includes(o.status as string))
+    .filter((o) => !["cancelado", "aguardando_pagamento", "reembolsado"].includes(o.status as string))
     .reduce((sum, o) => sum + (o.total as number), 0);
-}
-
-type ChartGranularity = "day" | "week" | "month" | "year";
-
-const GRANULARITY_LABEL: Record<ChartGranularity, string> = {
-  day: "Dia", week: "Semana", month: "Mês", year: "Ano",
-};
-const GRANULARITY_SUBTITLE: Record<ChartGranularity, string> = {
-  day: "Últimos 30 dias", week: "Últimas 12 semanas", month: "Últimos 6 meses", year: "Últimos 5 anos",
-};
-const GRANULARITY_BUCKETS: Record<ChartGranularity, number> = {
-  day: 30, week: 12, month: 6, year: 5,
-};
-
-function startOfWeek(date: Date) {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const dayOffset = (d.getDay() + 6) % 7; // 0 = segunda-feira
-  d.setDate(d.getDate() - dayOffset);
-  return d;
-}
-
-function buildChartData(movements: AnyRecord[], granularity: ChartGranularity, now: Date) {
-  const paid = movements.filter((m) => m.status === "pago");
-  const count = GRANULARITY_BUCKETS[granularity];
-  const buckets: { key: string; mes: string; end: Date | null }[] = [];
-
-  if (granularity === "day") {
-    for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      buckets.push({ key, mes: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`, end: null });
-    }
-  } else if (granularity === "week") {
-    const thisWeekStart = startOfWeek(now);
-    for (let i = count - 1; i >= 0; i--) {
-      const start = new Date(thisWeekStart.getFullYear(), thisWeekStart.getMonth(), thisWeekStart.getDate() - i * 7);
-      const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
-      const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-      buckets.push({ key, mes: `${String(start.getDate()).padStart(2, "0")}/${String(start.getMonth() + 1).padStart(2, "0")}`, end });
-    }
-  } else if (granularity === "month") {
-    for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      buckets.push({ key, mes: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }), end: null });
-    }
-  } else {
-    for (let i = count - 1; i >= 0; i--) {
-      const y = now.getFullYear() - i;
-      buckets.push({ key: String(y), mes: String(y), end: null });
-    }
-  }
-
-  return buckets.map(({ key, mes, end }) => {
-    const matches = paid.filter((m) => {
-      const moveDate = (m.paid_at ?? m.created_at) as string;
-      if (end) {
-        const d = new Date(moveDate);
-        return d >= new Date(key) && d < end;
-      }
-      return moveDate.startsWith(key);
-    });
-    return { mes, receita: Math.round(matches.reduce((s, m) => s + (m.net_amount as number), 0)) };
-  });
 }
 
 const STATUS_BAR_COLORS: Record<string, string> = {
@@ -216,7 +153,7 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
   const [chartGranularity, setChartGranularity] = useState<ChartGranularity>("month");
   const now = new Date();
   const chartData = useMemo(
-    () => buildChartData(data.movements, chartGranularity, now),
+    () => buildRevenueBuckets(data.movements as unknown as MovementLike[], chartGranularity, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data.movements, chartGranularity]
   );
@@ -331,7 +268,7 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
-                dataKey="mes"
+                dataKey="name"
                 tick={{ fontSize: 11, fill: "#888" }}
                 axisLine={false}
                 tickLine={false}

@@ -19,6 +19,7 @@ import { ChevronUp, ChevronDown, ChevronsUpDown, X, ExternalLink } from "lucide-
 import { formatCurrency } from "@/lib/utils/format";
 import { ExportMenu } from "@/components/admin/export-menu";
 import { FinanceiroBackfillButton } from "@/components/admin/financeiro-backfill-button";
+import { buildRevenueBuckets, GRANULARITY_LABEL, type ChartGranularity } from "@/lib/utils/revenue-chart";
 
 interface Movement {
   id: string;
@@ -44,11 +45,10 @@ const PAY_COLORS: Record<string, string> = {
   debito: "#8b5cf6",
 };
 
-const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-
 export function FinanceiroDashboard({ movements }: Props) {
   const router = useRouter();
   const paid = movements.filter((m) => m.status === "pago");
+  const now = new Date();
 
   const totals = {
     gross: paid.reduce((s, m) => s + m.gross_amount, 0),
@@ -58,21 +58,8 @@ export function FinanceiroDashboard({ movements }: Props) {
     commissions: paid.reduce((s, m) => s + m.affiliate_commission, 0),
   };
 
-  // Monthly breakdown for last 6 months
-  const now = new Date();
-  const monthlyData = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const monthMoves = paid.filter((m) => {
-      const mDate = m.paid_at || m.created_at;
-      return mDate.startsWith(key);
-    });
-    return {
-      name: MONTH_NAMES[d.getMonth()],
-      receita: Math.round(monthMoves.reduce((s, m) => s + m.net_amount, 0)),
-      bruto: Math.round(monthMoves.reduce((s, m) => s + m.gross_amount, 0)),
-    };
-  });
+  // Monthly breakdown for last 6 months (used by PDF export)
+  const monthlyData = buildRevenueBuckets(movements, "month", now);
 
   // Payment method breakdown
   const payBreakdown = ["pix", "credito", "debito"].map((method) => {
@@ -103,71 +90,12 @@ export function FinanceiroDashboard({ movements }: Props) {
   };
 
   // Granularidade do gráfico de receita (drill-down estilo Power BI)
-  type ChartGranularity = "day" | "week" | "month" | "year";
   const [chartGranularity, setChartGranularity] = useState<ChartGranularity>("month");
-
-  const GRANULARITY_LABEL: Record<ChartGranularity, string> = {
-    day: "Dia", week: "Semana", month: "Mês", year: "Ano",
-  };
-  const GRANULARITY_BUCKETS: Record<ChartGranularity, number> = {
-    day: 30, week: 12, month: 6, year: 5,
-  };
-
-  const startOfWeek = (date: Date) => {
-    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const dayOffset = (d.getDay() + 6) % 7; // 0 = segunda-feira
-    d.setDate(d.getDate() - dayOffset);
-    return d;
-  };
-
-  const chartData = useMemo(() => {
-    const count = GRANULARITY_BUCKETS[chartGranularity];
-    const buckets: { key: string; name: string; end: Date | null }[] = [];
-
-    if (chartGranularity === "day") {
-      for (let i = count - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        buckets.push({ key, name: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`, end: null });
-      }
-    } else if (chartGranularity === "week") {
-      const thisWeekStart = startOfWeek(now);
-      for (let i = count - 1; i >= 0; i--) {
-        const start = new Date(thisWeekStart.getFullYear(), thisWeekStart.getMonth(), thisWeekStart.getDate() - i * 7);
-        const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
-        const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-        buckets.push({ key, name: `${String(start.getDate()).padStart(2, "0")}/${String(start.getMonth() + 1).padStart(2, "0")}`, end });
-      }
-    } else if (chartGranularity === "month") {
-      for (let i = count - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        buckets.push({ key, name: MONTH_NAMES[d.getMonth()], end: null });
-      }
-    } else {
-      for (let i = count - 1; i >= 0; i--) {
-        const y = now.getFullYear() - i;
-        buckets.push({ key: String(y), name: String(y), end: null });
-      }
-    }
-
-    return buckets.map(({ key, name, end }) => {
-      const matches = paid.filter((m) => {
-        const moveDate = m.paid_at ?? m.created_at;
-        if (end) {
-          const d = new Date(moveDate);
-          return d >= new Date(key) && d < end;
-        }
-        return moveDate.startsWith(key);
-      });
-      return {
-        name,
-        receita: Math.round(matches.reduce((s, m) => s + m.net_amount, 0)),
-        bruto: Math.round(matches.reduce((s, m) => s + m.gross_amount, 0)),
-      };
-    });
+  const chartData = useMemo(
+    () => buildRevenueBuckets(movements, chartGranularity, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paid, chartGranularity]);
+    [movements, chartGranularity]
+  );
 
   // Filter + sort state
   const [filterPayment, setFilterPayment] = useState("all");
