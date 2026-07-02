@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import {
   BarChart,
   Bar,
+  Cell,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -11,7 +13,6 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
-  Legend,
 } from "recharts";
 import { TrendingUp, Eye, ShoppingCart, CreditCard, Users } from "lucide-react";
 import {
@@ -30,6 +31,42 @@ import {
 // (senão a % ficaria artificialmente alta/quebrada), mas continuam contando
 // no número absoluto de "Compraram", que é real.
 const TRACKING_RELIABLE_SINCE = brasiliaDateToUtcIso(2026, 7, 2);
+
+// Visualização → carrinho → compra é uma sequência (cada estágio é um
+// subconjunto do anterior), não identidades soltas — por isso usa uma rampa
+// ordinal de um hue só (claro→escuro = fundo→fundo do funil) em vez de 3
+// cores categóricas arbitrárias. Validado com scripts/validate_palette.js
+// "#6bb983,#228a4e,#006430" --mode light --ordinal (todos os checks passam).
+const FUNNEL_COLOR = {
+  view: "oklch(0.72 0.11 153)",
+  add_to_cart: "oklch(0.56 0.13 153)",
+  purchase: "oklch(0.44 0.12 153)",
+} as const;
+
+const FUNNEL_LABEL: Record<keyof typeof FUNNEL_COLOR, string> = {
+  view: "Visualizações",
+  add_to_cart: "Carrinho",
+  purchase: "Compras",
+};
+
+function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
+  const pct = max > 0 ? (value / max) * 100 : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 min-w-[48px] rounded-full bg-secondary overflow-hidden">
+        {value > 0 && (
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${Math.max(pct, 6)}%`, backgroundColor: color }}
+          />
+        )}
+      </div>
+      <span className="text-xs font-medium text-foreground tabular-nums w-5 text-right flex-shrink-0">
+        {value}
+      </span>
+    </div>
+  );
+}
 
 interface BookEventRow {
   book_id: string;
@@ -117,10 +154,21 @@ export function AnalyticsTab({
       .slice(0, 10)
       .map((b) => ({
         ...b,
-        title: b.title.length > 22 ? b.title.slice(0, 22) + "…" : b.title,
         taxa: b.view > 0 ? ((b.purchase / b.view) * 100).toFixed(1) + "%" : "0%",
       }));
   }, [events]);
+
+  // Cada coluna escala contra o próprio máximo — livros com 0 visualizações
+  // ainda mostram barras de carrinho/compra proporcionais, em vez de tudo
+  // achatado contra um eixo compartilhado com valores de escalas diferentes.
+  const topBooksMax = useMemo(
+    () => ({
+      view: Math.max(1, ...topBooks.map((b) => b.view)),
+      add_to_cart: Math.max(1, ...topBooks.map((b) => b.add_to_cart)),
+      purchase: Math.max(1, ...topBooks.map((b) => b.purchase)),
+    }),
+    [topBooks]
+  );
 
   // --- Leads por dia (últimos 30 dias) ---
   const leadsByDay = useMemo(() => {
@@ -197,24 +245,29 @@ export function AnalyticsTab({
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={[
-                  { name: "Visualizações", valor: funnel.views, fill: "#6366f1" },
-                  { name: "Carrinho", valor: funnel.carts, fill: "#8b5cf6" },
-                  { name: "Compras", valor: funnel.purchases, fill: "#10b981" },
+                  { key: "view" as const, name: "Visualizações", valor: funnel.views },
+                  { key: "add_to_cart" as const, name: "Carrinho", valor: funnel.carts },
+                  { key: "purchase" as const, name: "Compras", valor: funnel.purchases },
                 ]}
-                margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+                margin={{ top: 20, right: 16, left: 0, bottom: 4 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v) => (typeof v === "number" ? v.toLocaleString("pt-BR") : v)} />
-                <Bar dataKey="valor" radius={[6, 6, 0, 0]}>
-                  {[
-                    { fill: "#6366f1" },
-                    { fill: "#8b5cf6" },
-                    { fill: "#10b981" },
-                  ].map((entry, i) => (
-                    <rect key={i} fill={entry.fill} />
+                <CartesianGrid strokeDasharray="3" vertical={false} stroke="#eee" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={{ stroke: "#eee" }} tickLine={false} />
+                <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
+                <Tooltip
+                  cursor={{ fill: "rgba(0,0,0,0.03)" }}
+                  formatter={(v) => (typeof v === "number" ? v.toLocaleString("pt-BR") : v)}
+                />
+                <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={64}>
+                  {(["view", "add_to_cart", "purchase"] as const).map((k) => (
+                    <Cell key={k} fill={FUNNEL_COLOR[k]} />
                   ))}
+                  <LabelList
+                    dataKey="valor"
+                    position="top"
+                    formatter={(v) => (typeof v === "number" ? v.toLocaleString("pt-BR") : v)}
+                    style={{ fill: "var(--foreground)", fontSize: 12, fontWeight: 600 }}
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -225,60 +278,47 @@ export function AnalyticsTab({
       {/* Top livros */}
       {topBooks.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-foreground mb-3">Top livros por visualização</h2>
-          <div className="bg-white rounded-xl border border-border p-4 h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={topBooks}
-                layout="vertical"
-                margin={{ top: 4, right: 60, left: 8, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="title" tick={{ fontSize: 11 }} width={140} />
-                <Tooltip
-                  formatter={(v, name) => [
-                    typeof v === "number" ? v.toLocaleString("pt-BR") : v,
-                    name === "view"
-                      ? "Visualizações"
-                      : name === "add_to_cart"
-                      ? "Carrinho"
-                      : "Compras",
-                  ]}
-                />
-                <Legend
-                  formatter={(v) =>
-                    v === "view" ? "Visualizações" : v === "add_to_cart" ? "Carrinho" : "Compras"
-                  }
-                />
-                <Bar dataKey="view" fill="#6366f1" radius={[0, 4, 4, 0]} />
-                <Bar dataKey="add_to_cart" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-                <Bar dataKey="purchase" fill="#10b981" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Top livros — funil de conversão</h2>
+            <div className="flex items-center gap-3">
+              {(["view", "add_to_cart", "purchase"] as const).map((k) => (
+                <span key={k} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: FUNNEL_COLOR[k] }} />
+                  {FUNNEL_LABEL[k]}
+                </span>
+              ))}
+            </div>
           </div>
-
-          {/* Tabela de conversão por livro */}
-          <div className="mt-4 bg-white rounded-xl border border-border overflow-hidden">
+          <div className="bg-white rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground w-8">#</th>
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Livro</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Views</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Carrinho</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Compras</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Taxa conversão</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground w-28">Visualizações</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground w-28">Carrinho</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground w-28">Compras</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Conversão</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {topBooks.map((b) => (
-                  <tr key={b.title} className="hover:bg-secondary/20">
-                    <td className="px-4 py-2.5 font-medium text-foreground">{b.title}</td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground">{b.view.toLocaleString("pt-BR")}</td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground">{b.add_to_cart.toLocaleString("pt-BR")}</td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground">{b.purchase.toLocaleString("pt-BR")}</td>
+                {topBooks.map((b, i) => (
+                  <tr key={b.title} className="hover:bg-secondary/20 transition-colors">
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground tabular-nums">{i + 1}</td>
+                    <td className="px-4 py-2.5 font-medium text-foreground max-w-[220px] truncate" title={b.title}>
+                      {b.title}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <MiniBar value={b.view} max={topBooksMax.view} color={FUNNEL_COLOR.view} />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <MiniBar value={b.add_to_cart} max={topBooksMax.add_to_cart} color={FUNNEL_COLOR.add_to_cart} />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <MiniBar value={b.purchase} max={topBooksMax.purchase} color={FUNNEL_COLOR.purchase} />
+                    </td>
                     <td className="px-4 py-2.5 text-right">
-                      <span className={`font-semibold ${parseFloat(b.taxa) >= 5 ? "text-emerald-600" : parseFloat(b.taxa) >= 1 ? "text-amber-600" : "text-muted-foreground"}`}>
+                      <span className={`font-semibold tabular-nums ${parseFloat(b.taxa) >= 5 ? "text-emerald-600" : parseFloat(b.taxa) >= 1 ? "text-amber-600" : "text-muted-foreground"}`}>
                         {b.taxa}
                       </span>
                     </td>
