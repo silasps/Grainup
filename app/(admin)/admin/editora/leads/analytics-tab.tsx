@@ -210,6 +210,48 @@ export function AnalyticsTab({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-8">
+      {/* Leads por dia */}
+      <div>
+        <h2 className="text-sm font-semibold text-foreground mb-3">Captação de leads — últimos 30 dias</h2>
+        <div className="bg-white rounded-xl border border-border p-4 h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={leadsByDay} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 10 }}
+                interval={6}
+              />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="leads"
+                stroke="#6366f1"
+                strokeWidth={2}
+                dot={false}
+                name="Leads"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Leads por origem */}
+      {leadsByOrigin.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-foreground mb-3">Leads por origem</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {leadsByOrigin.map((o) => (
+              <div key={o.origin} className="bg-white rounded-xl border border-border p-4 text-center">
+                <p className="text-xs text-muted-foreground">{ORIGIN_LABELS[o.origin] ?? o.origin}</p>
+                <p className="text-2xl font-bold text-foreground mt-1">{o.count}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* KPIs do funil */}
       <div>
         <h2 className="text-sm font-semibold text-foreground mb-3">Funil de conversão — todos os livros</h2>
@@ -326,48 +368,6 @@ export function AnalyticsTab({
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* Leads por dia */}
-      <div>
-        <h2 className="text-sm font-semibold text-foreground mb-3">Captação de leads — últimos 30 dias</h2>
-        <div className="bg-white rounded-xl border border-border p-4 h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={leadsByDay} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis
-                dataKey="day"
-                tick={{ fontSize: 10 }}
-                interval={6}
-              />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="leads"
-                stroke="#6366f1"
-                strokeWidth={2}
-                dot={false}
-                name="Leads"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Leads por origem */}
-      {leadsByOrigin.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-foreground mb-3">Leads por origem</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {leadsByOrigin.map((o) => (
-              <div key={o.origin} className="bg-white rounded-xl border border-border p-4 text-center">
-                <p className="text-xs text-muted-foreground">{ORIGIN_LABELS[o.origin] ?? o.origin}</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{o.count}</p>
-              </div>
-            ))}
           </div>
         </div>
       )}

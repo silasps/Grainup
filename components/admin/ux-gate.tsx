@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, X } from "lucide-react";
+import { Sparkles, Eye, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils/format";
 import {
@@ -70,11 +70,34 @@ export function UxGate({
     });
   }
 
-  const showingNew = info.status === "trialing" || info.status === "purchased";
+  const showingNew =
+    info.status === "trialing" || info.status === "purchased" || info.superAdminPreview;
+
+  // Super admin vê a versão nova sem consumir o trial do cliente — mostra um
+  // aviso compacto em vez dos banners de ação (não faz sentido super_admin
+  // clicar em "experimentar"/"comprar" pra si mesmo).
+  const showSuperAdminBadge = info.superAdminPreview && info.status !== "trialing" && info.status !== "purchased";
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {info.status === "none" && !dismissed && (
+      {showSuperAdminBadge && !dismissed && (
+        <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-2 bg-violet-50 border-b border-violet-200 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Eye className="h-3.5 w-3.5 text-violet-700 flex-shrink-0" />
+            <p className="text-xs text-violet-900 truncate">
+              Prévia de super admin — <strong>{info.title}</strong>.
+              {info.status === "none" && " O cliente ainda não experimentou."}
+              {info.status === "expired" && " O trial do cliente expirou sem compra."}
+              {" "}Isso não inicia nem consome o trial dele.
+            </p>
+          </div>
+          <button onClick={() => setDismissed(true)} className="text-violet-700/70 hover:text-violet-900 p-1 flex-shrink-0" aria-label="Fechar aviso">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {!info.superAdminPreview && info.status === "none" && !dismissed && (
         <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-2.5 bg-brand-50 border-b border-brand-200 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="h-4 w-4 text-brand flex-shrink-0" />
@@ -107,7 +130,7 @@ export function UxGate({
         </div>
       )}
 
-      {info.status === "expired" && !dismissed && (
+      {!info.superAdminPreview && info.status === "expired" && !dismissed && (
         <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-2.5 bg-secondary border-b border-border flex-shrink-0">
           <p className="text-xs text-foreground">
             Seu período de teste de <strong>{info.title}</strong> acabou. Os dados continuam guardados —

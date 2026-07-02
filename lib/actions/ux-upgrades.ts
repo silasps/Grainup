@@ -13,6 +13,10 @@ export interface UxUpgradeInfo {
   trialDays: number;
   status: UxUpgradeStatus;
   trialEndsAt: string | null;
+  // true quando quem está vendo é super_admin e o status real não é
+  // "purchased" — ele enxerga a versão nova sem consumir o trial do
+  // cliente. Nunca grava nada em ux_upgrade_activations.
+  superAdminPreview: boolean;
 }
 
 function getMpClient() {
@@ -53,14 +57,31 @@ export async function getUxUpgradeStatus(key: string): Promise<UxUpgradeInfo | n
     .eq("upgrade_key", key)
     .maybeSingle();
 
+  const status = computeStatus(activation?.trial_ends_at ?? null, activation?.purchased_at ?? null);
+
+  let superAdminPreview = false;
+  if (status !== "purchased") {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: roleRow } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "super_admin")
+        .maybeSingle();
+      superAdminPreview = !!roleRow;
+    }
+  }
+
   return {
     key: upgrade.key,
     title: upgrade.title,
     description: upgrade.description,
     price: upgrade.price,
     trialDays: upgrade.trial_days,
-    status: computeStatus(activation?.trial_ends_at ?? null, activation?.purchased_at ?? null),
+    status,
     trialEndsAt: activation?.trial_ends_at ?? null,
+    superAdminPreview,
   };
 }
 

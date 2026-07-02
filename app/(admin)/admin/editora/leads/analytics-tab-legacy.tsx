@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import {
   BarChart,
   Bar,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -75,8 +74,11 @@ function StatCard({
  * Versão legada (pré-redesign) do funil de conversão — mantida como fallback
  * gratuito de "Top livros — funil de conversão" (feature paga com trial).
  * Só recebe correção de bugs reais aqui, nunca melhorias de design:
- * - <rect> dentro de <Bar> não é API do Recharts (as barras nunca pintavam) → <Cell>
  * - min-h-0 no container raiz (bug de rolagem — ver system_architecture.md)
+ * - "Funil visual" (gráfico de 3 barras) removido: nunca existiu na versão
+ *   original, e o <rect> dentro de <Bar> que tentava colorir as barras não
+ *   é API do Recharts (as barras nunca pintavam) — sem esse card, o bug
+ *   deixa de existir por completo em vez de precisar de correção
  */
 export function AnalyticsTabLegacy({
   events,
@@ -170,6 +172,48 @@ export function AnalyticsTabLegacy({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-8">
+      {/* Leads por dia */}
+      <div>
+        <h2 className="text-sm font-semibold text-foreground mb-3">Captação de leads — últimos 30 dias</h2>
+        <div className="bg-white rounded-xl border border-border p-4 h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={leadsByDay} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 10 }}
+                interval={6}
+              />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="leads"
+                stroke="#6366f1"
+                strokeWidth={2}
+                dot={false}
+                name="Leads"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Leads por origem */}
+      {leadsByOrigin.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-foreground mb-3">Leads por origem</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {leadsByOrigin.map((o) => (
+              <div key={o.origin} className="bg-white rounded-xl border border-border p-4 text-center">
+                <p className="text-xs text-muted-foreground">{ORIGIN_LABELS[o.origin] ?? o.origin}</p>
+                <p className="text-2xl font-bold text-foreground mt-1">{o.count}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* KPIs do funil */}
       <div>
         <h2 className="text-sm font-semibold text-foreground mb-3">Funil de conversão — todos os livros</h2>
@@ -196,39 +240,6 @@ export function AnalyticsTabLegacy({
           />
         </div>
       </div>
-
-      {/* Funil visual simples */}
-      {funnel.views > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-foreground mb-3">Funil visual</h2>
-          <div className="bg-white rounded-xl border border-border p-4 h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={[
-                  { name: "Visualizações", valor: funnel.views, fill: "#6366f1" },
-                  { name: "Carrinho", valor: funnel.carts, fill: "#8b5cf6" },
-                  { name: "Compras", valor: funnel.purchases, fill: "#10b981" },
-                ]}
-                margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v) => (typeof v === "number" ? v.toLocaleString("pt-BR") : v)} />
-                <Bar dataKey="valor" radius={[6, 6, 0, 0]}>
-                  {[
-                    { fill: "#6366f1" },
-                    { fill: "#8b5cf6" },
-                    { fill: "#10b981" },
-                  ].map((entry, i) => (
-                    <Cell key={i} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
 
       {/* Top livros */}
       {topBooks.length > 0 && (
@@ -294,48 +305,6 @@ export function AnalyticsTabLegacy({
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* Leads por dia */}
-      <div>
-        <h2 className="text-sm font-semibold text-foreground mb-3">Captação de leads — últimos 30 dias</h2>
-        <div className="bg-white rounded-xl border border-border p-4 h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={leadsByDay} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis
-                dataKey="day"
-                tick={{ fontSize: 10 }}
-                interval={6}
-              />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="leads"
-                stroke="#6366f1"
-                strokeWidth={2}
-                dot={false}
-                name="Leads"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Leads por origem */}
-      {leadsByOrigin.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-foreground mb-3">Leads por origem</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {leadsByOrigin.map((o) => (
-              <div key={o.origin} className="bg-white rounded-xl border border-border p-4 text-center">
-                <p className="text-xs text-muted-foreground">{ORIGIN_LABELS[o.origin] ?? o.origin}</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{o.count}</p>
-              </div>
-            ))}
           </div>
         </div>
       )}

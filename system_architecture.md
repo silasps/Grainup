@@ -1016,6 +1016,17 @@ redesigned) alongside the new one, and wrap both in
 funnel redesign (analytics-tab.tsx vs analytics-tab-legacy.tsx), key
 "leads-funnel-redesign-2026-07", seeded at a placeholder R$49.90/7 dias —
 price needs a real business decision before this is treated as live revenue.
+
+super_admin preview: getUxUpgradeStatus() checks the caller's role and sets
+superAdminPreview=true whenever status isn't already "purchased" — UxGate
+then renders newVersion but swaps the trial/buy banner for a read-only
+"Prévia de super admin" notice. Never calls startUxTrialAction or writes to
+ux_upgrade_activations — the client's real trial clock is untouched.
+
+Content parity rule for *_legacy: it mirrors what genuinely shipped before
+the redesign, not a designer's guess. When in doubt, `git show <commit-
+before-redesign>:path/to/file.tsx` to recover the real prior version rather
+than reconstructing from memory.
 ```
 
 ---
