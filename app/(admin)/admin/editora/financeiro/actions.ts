@@ -10,21 +10,21 @@ const MP_FEE_RATE: Record<string, number> = {
   boleto: 0.0149,
 };
 
-async function fetchMPFee(paymentId: string): Promise<number> {
+async function fetchMPPaymentInfo(paymentId: string): Promise<{ fee: number; dateApproved: string | null }> {
   try {
     const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
       next: { revalidate: 0 },
     });
-    if (!res.ok) return 0;
+    if (!res.ok) return { fee: 0, dateApproved: null };
     const payment = await res.json();
-    return (
+    const fee =
       (payment.fee_details as Array<{ type: string; amount: number }> | null)
         ?.filter((f) => f.type === "mercadopago_fee")
-        .reduce((sum, f) => sum + f.amount, 0) ?? 0
-    );
+        .reduce((sum, f) => sum + f.amount, 0) ?? 0;
+    return { fee, dateApproved: payment.date_approved ?? null };
   } catch {
-    return 0;
+    return { fee: 0, dateApproved: null };
   }
 }
 
@@ -51,11 +51,14 @@ export async function backfillFinancialMovements(): Promise<{ count: number }> {
 
   let count = 0;
   for (const order of pending) {
-    // Taxa real do MP quando temos o payment ID nos notes
+    // Taxa e data real de aprovação do MP quando temos o payment ID nos notes
     let gatewayFee = 0;
+    let paidAt = order.updated_at as string;
     const mpMatch = (order.notes as string | null)?.match(/MP:(\d+)/);
     if (mpMatch) {
-      gatewayFee = await fetchMPFee(mpMatch[1]);
+      const info = await fetchMPPaymentInfo(mpMatch[1]);
+      gatewayFee = info.fee;
+      if (info.dateApproved) paidAt = info.dateApproved;
     }
     // Fallback: taxa estimada pela forma de pagamento
     if (gatewayFee === 0 && order.payment_method) {
@@ -89,7 +92,7 @@ export async function backfillFinancialMovements(): Promise<{ count: number }> {
       gateway: "mercadopago",
       gateway_transaction_id: mpMatch?.[1] ?? null,
       status: "pago",
-      paid_at: order.updated_at,
+      paid_at: paidAt,
     });
 
     if (!error) count++;
