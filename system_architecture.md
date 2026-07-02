@@ -847,6 +847,10 @@ SUPABASE_ACCESS_TOKEN=...            # CLI token for migrations
 > financial_movements row, /admin/editora/financeiro has a "Sincronizar
 > histórico" button (backfillFinancialMovements() in
 > app/(admin)/admin/editora/financeiro/actions.ts) that reconciles them.
+> `financial_movements.paid_at` must come from the payment's real
+> `date_approved` at Mercado Pago — never from `orders.updated_at`, which
+> reflects the last edit to the order (fulfillment status, tracking code,
+> etc.) and silently produces the wrong date on the revenue chart.
 ```
 
 ### Order Fulfillment (Admin)
