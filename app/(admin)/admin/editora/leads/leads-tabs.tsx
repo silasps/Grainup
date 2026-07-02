@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { LeadsTable } from "./leads-table";
 import { AnalyticsTab } from "./analytics-tab";
+import { AnalyticsTabLegacy } from "./analytics-tab-legacy";
 import { CampaignsTab } from "./campaigns-tab";
+import { UxGate } from "@/components/admin/ux-gate";
+import type { UxUpgradeInfo } from "@/lib/actions/ux-upgrades";
 
 interface Lead {
   id: string;
@@ -49,11 +52,13 @@ export function LeadsTabs({
   origins,
   events,
   campaigns,
+  uxInfo,
 }: {
   leads: Lead[];
   origins: string[];
   events: BookEventRow[];
   campaigns: Campaign[];
+  uxInfo: UxUpgradeInfo | null;
 }) {
   const [tab, setTab] = useState<TabId>("leads");
 
@@ -81,7 +86,13 @@ export function LeadsTabs({
       {/* Tab content */}
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         {tab === "leads" && <LeadsTable leads={leads} origins={origins} />}
-        {tab === "analytics" && <AnalyticsTab leads={leads} events={events} />}
+        {tab === "analytics" && (
+          <UxGate
+            info={uxInfo}
+            newVersion={<AnalyticsTab leads={leads} events={events} />}
+            oldVersion={<AnalyticsTabLegacy leads={leads} events={events} />}
+          />
+        )}
         {tab === "campanhas" && (
           <CampaignsTab campaigns={campaigns} totalLeads={leads.length} consentLeads={leads.filter((l) => l.marketing_consent).length} />
         )}

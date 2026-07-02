@@ -618,6 +618,17 @@ contratos (
 bling_tokens (id, access_token text, refresh_token text, expires_at timestamptz, updated_at)
 email_logs (id, email_type text, sent_at timestamptz)
 admin_logs (id, user_id FK, action text, entity text, entity_id text, details jsonb, ip text, created_at)
+
+-- Paid UX/design upgrades — see section 9 "UX Upgrades". Bug fixes never
+-- use these tables; they ship free and directly.
+ux_upgrades (key text PK, title, description, price numeric, trial_days int, is_active bool, created_at)
+ux_upgrade_activations (
+  id, upgrade_key text FK UNIQUE → ux_upgrades,  -- one row per upgrade, account-wide (not per-user)
+  trial_started_at, trial_ends_at,
+  purchased_at, payment_id text,
+  frozen_at,  -- set when trial expires unpurchased; data stays, just not shown
+  created_at, updated_at
+)
 ```
 
 ---
@@ -971,6 +982,42 @@ Admin route: /admin/editora/livros/lote
 5. Stock column intentionally excluded — Bling is source of truth for stock
 ```
 
+### UX Upgrades (paid design/feature trials — bug fixes are ALWAYS free)
+```
+Business rule (2026-07-02): bug fixes and corrections ship free and
+automatically, always. Only genuine UX/design/feature improvements — things
+that already worked, just not as nicely — are sold as opt-in upgrades with a
+trial period. Never gate a correctness fix behind this.
+
+Tables: ux_upgrades (catalog: key, title, price, trial_days), 
+ux_upgrade_activations (one row per upgrade — trial is account-wide, not
+per-admin-user: the whole business shares one clock).
+
+Flow:
+1. Admin sees a banner on a gated screen: "<title> — experimente N dias
+   grátis" → startUxTrialAction() sets trial_started_at/trial_ends_at
+2. During trial: new version renders, banner shows days left + "Comprar
+   acesso vitalício" button
+3. createUxUpgradePaymentAction() creates a Mercado Pago Preference
+   (hosted checkout, not the embedded card flow used by the storefront)
+   with external_reference = "ux:<key>"
+4. /api/ux-upgrade-webhook (isolated from /api/mp-webhook — never touches
+   orders/financial_movements) sets purchased_at on approval
+5. Trial expires without purchase → UxGate falls back to the *_legacy
+   component. Any data the new version created stays in the DB untouched
+   ("frozen", not deleted) — resurfaces if they buy later. Pure design
+   swaps (no new data shape) don't need this; only relevant once an
+   upgrade introduces a genuinely new data model.
+
+Pattern for each gated feature: keep an old_component.tsx (bug-fixed, never
+redesigned) alongside the new one, and wrap both in
+<UxGate info={uxInfo} newVersion={...} oldVersion={...} />
+(components/admin/ux-gate.tsx). First and so far only instance: the Leads
+funnel redesign (analytics-tab.tsx vs analytics-tab-legacy.tsx), key
+"leads-funnel-redesign-2026-07", seeded at a placeholder R$49.90/7 dias —
+price needs a real business decision before this is treated as live revenue.
+```
+
 ---
 
 ## 10. Multi-Tenancy (EAD)
@@ -1107,6 +1154,9 @@ NODE_ENV=production
 | `lib/orders/process-approved-payment.ts` | `processApprovedPayment()` — single, idempotent source of truth for marking an order paid (status, affiliate commission, `financial_movements`, stock, email, Bling). Called by the MP webhook, checkout polling, and admin manual sync — never update `orders.status='pago'` directly |
 | `lib/utils/brasilia-time.ts` | Brasília calendar helpers (`America/Sao_Paulo`) for admin/reporting date ranges and chart buckets. Use these to build UTC query boundaries for "today", "this month", month offsets, and lead day keys so localhost, production, and browser rendering agree |
 | `lib/utils/revenue-chart.ts` | `buildRevenueBuckets()` — shared day/week/month/year bucketing for revenue charts, using the Brasília calendar (not UTC string prefixes) so charts, KPIs, and movement tables agree. Used by `financeiro-dashboard.tsx` and `dashboard.tsx` |
+| `lib/actions/ux-upgrades.ts` | `getUxUpgradeStatus()`, `startUxTrialAction()`, `createUxUpgradePaymentAction()` — the paid UX-upgrade trial/paywall system (see section 9, "UX Upgrades"). Bug fixes never go through this |
+| `components/admin/ux-gate.tsx` | `<UxGate>` — renders the new (paid) or `*_legacy` (free fallback) version of a component based on trial/purchase status, plus the trial/buy banner |
+| `app/api/ux-upgrade-webhook/route.ts` | MP webhook for UX-upgrade purchases only (`external_reference` prefixed `ux:`) — deliberately isolated from `/api/mp-webhook`, never touches `orders`/`financial_movements` |
 | `lib/supabase/server.ts` | Server-side Supabase client factory (SSR cookies) |
 | `lib/supabase/middleware.ts` | Session refresh middleware |
 | `lib/email/index.ts` | All transactional email send functions |

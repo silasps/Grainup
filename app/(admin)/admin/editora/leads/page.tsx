@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { AdminHeader } from "@/components/admin/header";
+import { getUxUpgradeStatus } from "@/lib/actions/ux-upgrades";
 import { LeadsTabs } from "./leads-tabs";
+
+export const LEADS_FUNNEL_UX_UPGRADE_KEY = "leads-funnel-redesign-2026-07";
 
 export const metadata: Metadata = { title: "Leads — Admin Editora Jocum" };
 export const dynamic = "force-dynamic";
@@ -64,7 +67,10 @@ async function getData() {
 }
 
 export default async function AdminLeadsPage() {
-  const { leads, events, campaigns } = await getData();
+  const [{ leads, events, campaigns }, uxInfo] = await Promise.all([
+    getData(),
+    getUxUpgradeStatus(LEADS_FUNNEL_UX_UPGRADE_KEY),
+  ]);
 
   const withConsent = leads.filter((l) => l.marketing_consent).length;
   const origins = [...new Set(leads.map((l) => l.origin).filter(Boolean))];
@@ -80,6 +86,7 @@ export default async function AdminLeadsPage() {
         origins={origins}
         events={events}
         campaigns={campaigns}
+        uxInfo={uxInfo}
       />
     </div>
   );
