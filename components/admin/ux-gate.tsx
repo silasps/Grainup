@@ -45,20 +45,24 @@ export function UxGate({
   info,
   newVersion,
   oldVersion,
-  dismissed,
-  onDismiss,
+  dismissed: dismissedProp,
+  onDismiss: onDismissProp,
 }: {
   info: UxUpgradeInfo | null;
   newVersion: React.ReactNode;
   oldVersion: React.ReactNode;
-  // Controlado pelo pai (LeadsTabs) pra sobreviver a troca de aba — fechar o
-  // aviso não pode ser "esquecido" quando o componente desmonta. O pai
-  // mostra um badge fixo na barra de abas pra reabrir quando dismissed=true.
-  dismissed: boolean;
-  onDismiss: () => void;
+  // Opcional: quando o pai passa os dois (ex. LeadsTabs, que sobrevive à
+  // troca de aba e mostra um badge fixo pra reabrir), o estado de "fechado"
+  // fica com ele. Sem isso, o gate cuida do próprio estado — bom o
+  // suficiente pra um uso isolado, sem badge de reabertura em outro lugar.
+  dismissed?: boolean;
+  onDismiss?: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [dismissedState, setDismissedState] = useState(false);
+  const dismissed = dismissedProp ?? dismissedState;
+  const onDismiss = onDismissProp ?? (() => setDismissedState(true));
   // Só super admin pode alternar manualmente — pra qualquer outro papel isso
   // fica sempre null e não tem efeito nenhum na lógica normal do gate.
   const [previewOverride, setPreviewOverride] = useState<"new" | "old" | null>(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -17,17 +17,12 @@ import {
 import { TrendingUp, Eye, ShoppingCart, CreditCard, Users } from "lucide-react";
 import {
   addBrasiliaCalendarDays,
-  addBrasiliaCalendarMonths,
   brasiliaDateToUtcIso,
   formatBrasiliaDayMonth,
   getBrasiliaDateKey,
   getBrasiliaDateParts,
 } from "@/lib/utils/brasilia-time";
-
-const MONTH_NAMES_FULL = [
-  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
-  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
-];
+import { TopBooksByPurchaseChart } from "@/components/admin/top-books-by-purchase-chart";
 
 // book_events só passou a ser gravado de forma confiável a partir desta data
 // (antes disso a tabela nem existia em produção — ver system_architecture.md,
@@ -54,18 +49,6 @@ const FUNNEL_LABEL: Record<keyof typeof FUNNEL_COLOR, string> = {
   add_to_cart: "Carrinho",
   purchase: "Compras",
 };
-
-// Aqui as 3 métricas são identidades distintas lado a lado num mesmo gráfico
-// (não uma sequência de funil), então usa 3 cores categóricas de verdade —
-// uma por métrica — em vez da rampa ordinal de um hue só usada acima.
-// Validado com scripts/validate_palette.js "#0f74c5,#c87b00,#006430"
-// --mode light (todos os checks passam; verde+terracota falhava CVD, por
-// isso o carrinho é âmbar aqui em vez da cor terracota da marca).
-const PURCHASE_CHART_COLOR = {
-  view: "#0f74c5",
-  add_to_cart: "#c87b00",
-  purchase: "#006430",
-} as const;
 
 function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
@@ -132,8 +115,6 @@ export function AnalyticsTab({
   events: BookEventRow[];
   leads: Lead[];
 }) {
-  const now = new Date();
-
   // --- Funil global ---
   const funnel = useMemo(() => {
     // Números absolutos: todo evento registrado, incluindo o backfill de
@@ -190,97 +171,6 @@ export function AnalyticsTab({
     [topBooks]
   );
 
-  // --- Filtro de período do "Top livros por compra" ---
-  // "all" | "15d" | "30d" | "90d" | "m:YYYY-MM" | "y:YYYY"
-  const [purchasePeriod, setPurchasePeriod] = useState("all");
-
-  // Meses e anos com pelo menos um evento — só oferece no seletor o que
-  // existe de fato, em vez de uma lista fixa (a maioria vazia).
-  const { availableMonths, availableYears } = useMemo(() => {
-    const months = new Set<string>();
-    const years = new Set<number>();
-    for (const e of events) {
-      const parts = getBrasiliaDateParts(new Date(e.created_at));
-      months.add(`${parts.year}-${String(parts.month).padStart(2, "0")}`);
-      years.add(parts.year);
-    }
-    return {
-      availableMonths: Array.from(months)
-        .sort()
-        .reverse()
-        .map((key) => {
-          const [y, m] = key.split("-").map(Number);
-          return { key: `m:${key}`, label: `${MONTH_NAMES_FULL[m - 1]} de ${y}` };
-        }),
-      availableYears: Array.from(years)
-        .sort((a, b) => b - a)
-        .map((y) => ({ key: `y:${y}`, label: String(y) })),
-    };
-  }, [events]);
-
-  const { purchaseFromIso, purchaseToIso } = useMemo(() => {
-    if (purchasePeriod === "all") return { purchaseFromIso: null, purchaseToIso: null };
-    if (purchasePeriod === "15d" || purchasePeriod === "30d" || purchasePeriod === "90d") {
-      const days = { "15d": 15, "30d": 30, "90d": 90 }[purchasePeriod];
-      const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-      return { purchaseFromIso: from.toISOString(), purchaseToIso: null };
-    }
-    if (purchasePeriod.startsWith("m:")) {
-      const [y, m] = purchasePeriod.slice(2).split("-").map(Number);
-      const nextMonth = addBrasiliaCalendarMonths({ year: y, month: m, day: 1 }, 1);
-      return {
-        purchaseFromIso: brasiliaDateToUtcIso(y, m, 1),
-        purchaseToIso: brasiliaDateToUtcIso(nextMonth.year, nextMonth.month, nextMonth.day),
-      };
-    }
-    if (purchasePeriod.startsWith("y:")) {
-      const y = Number(purchasePeriod.slice(2));
-      return {
-        purchaseFromIso: brasiliaDateToUtcIso(y, 1, 1),
-        purchaseToIso: brasiliaDateToUtcIso(y + 1, 1, 1),
-      };
-    }
-    return { purchaseFromIso: null, purchaseToIso: null };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [purchasePeriod]);
-
-  // --- Top livros por compra (ranking dedicado, ordenado por venda real) ---
-  const topBooksByPurchase = useMemo(() => {
-    const scopedEvents =
-      purchaseFromIso || purchaseToIso
-        ? events.filter(
-            (e) =>
-              (!purchaseFromIso || e.created_at >= purchaseFromIso) &&
-              (!purchaseToIso || e.created_at < purchaseToIso)
-          )
-        : events;
-
-    const map = new Map<
-      string,
-      { id: string; title: string; coverUrl: string | null; view: number; add_to_cart: number; purchase: number }
-    >();
-    for (const e of scopedEvents) {
-      if (!e.books) continue;
-      const key = e.book_id;
-      if (!map.has(key)) {
-        map.set(key, { id: key, title: e.books.title, coverUrl: e.books.cover_url, view: 0, add_to_cart: 0, purchase: 0 });
-      }
-      const entry = map.get(key)!;
-      if (e.event_type === "view") entry.view++;
-      else if (e.event_type === "add_to_cart") entry.add_to_cart++;
-      else if (e.event_type === "purchase") entry.purchase++;
-    }
-    return Array.from(map.values())
-      .filter((b) => b.purchase > 0)
-      .sort((a, b) => b.purchase - a.purchase)
-      .slice(0, 8);
-  }, [events, purchaseFromIso, purchaseToIso]);
-
-  const topBooksById = useMemo(
-    () => new Map(topBooksByPurchase.map((b) => [b.id, b])),
-    [topBooksByPurchase]
-  );
-
   // --- Leads por dia (últimos 30 dias) ---
   const leadsByDay = useMemo(() => {
     const today = getBrasiliaDateParts(new Date());
@@ -318,43 +208,6 @@ export function AnalyticsTab({
     cadastro: "Cadastro",
     novidades: "Novidades",
   };
-
-  // Eixo X customizado: capa do livro (igual à do site) + título embaixo,
-  // no lugar do texto puro do nome. payload.value carrega o book id.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function BookCoverTick(props: any) {
-    const { x, y, payload } = props;
-    const book = topBooksById.get(payload.value);
-    if (!book) return null;
-    const COVER_W = 34;
-    const COVER_H = 48;
-    const shortTitle = book.title.length > 20 ? book.title.slice(0, 20) + "…" : book.title;
-    return (
-      <g transform={`translate(${x},${y})`}>
-        <clipPath id={`cover-clip-${book.id}`}>
-          <rect x={-COVER_W / 2} y={8} width={COVER_W} height={COVER_H} rx={3} />
-        </clipPath>
-        {book.coverUrl ? (
-          <image
-            href={book.coverUrl}
-            x={-COVER_W / 2}
-            y={8}
-            width={COVER_W}
-            height={COVER_H}
-            preserveAspectRatio="xMidYMid slice"
-            clipPath={`url(#cover-clip-${book.id})`}
-          />
-        ) : (
-          <rect x={-COVER_W / 2} y={8} width={COVER_W} height={COVER_H} rx={3} fill="var(--secondary)" />
-        )}
-        <rect x={-COVER_W / 2} y={8} width={COVER_W} height={COVER_H} rx={3} fill="none" stroke="var(--border)" />
-        <title>{book.title}</title>
-        <text x={0} y={8 + COVER_H + 13} textAnchor="middle" fontSize={9.5} fill="var(--muted-foreground)">
-          {shortTitle}
-        </text>
-      </g>
-    );
-  }
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-8">
@@ -521,94 +374,7 @@ export function AnalyticsTab({
       )}
 
       {/* Top livros por compra */}
-      {events.some((e) => e.event_type === "purchase") && (
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Top livros por compra</h2>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-3">
-                {(["view", "add_to_cart", "purchase"] as const).map((k) => (
-                  <span key={k} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PURCHASE_CHART_COLOR[k] }} />
-                    {FUNNEL_LABEL[k]}
-                  </span>
-                ))}
-              </div>
-              <select
-                value={purchasePeriod}
-                onChange={(e) => setPurchasePeriod(e.target.value)}
-                className="h-8 rounded-md border border-border bg-white pl-2.5 pr-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand cursor-pointer"
-              >
-                <option value="all">Todo período</option>
-                <option value="15d">Últimos 15 dias</option>
-                <option value="30d">Últimos 30 dias</option>
-                <option value="90d">Últimos 90 dias</option>
-                {availableMonths.length > 0 && (
-                  <optgroup label="Por mês">
-                    {availableMonths.map((m) => (
-                      <option key={m.key} value={m.key}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {availableYears.length > 0 && (
-                  <optgroup label="Por ano">
-                    {availableYears.map((y) => (
-                      <option key={y.key} value={y.key}>
-                        {y.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-border p-4">
-            {topBooksByPurchase.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-16">
-                Nenhuma venda nesse período.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={topBooksByPurchase}
-                  barGap={2}
-                  margin={{ top: 20, right: 8, left: -20, bottom: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3" vertical={false} stroke="#eee" />
-                  <XAxis
-                    dataKey="id"
-                    tick={BookCoverTick}
-                    interval={0}
-                    height={76}
-                    axisLine={{ stroke: "#eee" }}
-                    tickLine={false}
-                  />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip
-                    cursor={{ fill: "rgba(0,0,0,0.03)" }}
-                    formatter={(v, k) => [
-                      typeof v === "number" ? v.toLocaleString("pt-BR") : v,
-                      FUNNEL_LABEL[k as keyof typeof FUNNEL_LABEL] ?? k,
-                    ]}
-                    labelFormatter={(id) => topBooksById.get(id as string)?.title ?? ""}
-                  />
-                  <Bar dataKey="view" name="view" fill={PURCHASE_CHART_COLOR.view} radius={[3, 3, 0, 0]} maxBarSize={16}>
-                    <LabelList dataKey="view" position="top" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--muted-foreground)", fontSize: 10 }} />
-                  </Bar>
-                  <Bar dataKey="add_to_cart" name="add_to_cart" fill={PURCHASE_CHART_COLOR.add_to_cart} radius={[3, 3, 0, 0]} maxBarSize={16}>
-                    <LabelList dataKey="add_to_cart" position="top" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--muted-foreground)", fontSize: 10 }} />
-                  </Bar>
-                  <Bar dataKey="purchase" name="purchase" fill={PURCHASE_CHART_COLOR.purchase} radius={[3, 3, 0, 0]} maxBarSize={16}>
-                    <LabelList dataKey="purchase" position="top" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--foreground)", fontSize: 10, fontWeight: 600 }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-      )}
+      <TopBooksByPurchaseChart events={events} limit={8} />
 
       {events.length === 0 && leads.length === 0 && (
         <div className="text-center py-20 text-muted-foreground text-sm">

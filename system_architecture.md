@@ -1012,10 +1012,25 @@ Flow:
 Pattern for each gated feature: keep an old_component.tsx (bug-fixed, never
 redesigned) alongside the new one, and wrap both in
 <UxGate info={uxInfo} newVersion={...} oldVersion={...} />
-(components/admin/ux-gate.tsx). First and so far only instance: the Leads
-funnel redesign (analytics-tab.tsx vs analytics-tab-legacy.tsx), key
-"leads-funnel-redesign-2026-07", seeded at a placeholder R$49.90/7 dias —
-price needs a real business decision before this is treated as live revenue.
+(components/admin/ux-gate.tsx). First instance: the Leads funnel redesign
+(analytics-tab.tsx vs analytics-tab-legacy.tsx), key
+"leads-funnel-redesign-2026-07" (exported from lib/ux-upgrade-keys.ts —
+not from lib/actions/ux-upgrades.ts, which is "use server" and can only
+export async functions), seeded at a placeholder R$49.90/7 dias — price
+needs a real business decision before this is treated as live revenue.
+
+A single purchased upgrade can unlock UI in more than one place — no need
+for a separate ux_upgrades row per screen. The "Top livros por compra"
+chart (components/admin/top-books-by-purchase-chart.tsx, extracted so
+both usages share one implementation) is gated by the same
+"leads-funnel-redesign-2026-07" key on two pages: full version (top 8) on
+/admin/editora/leads Analytics, reduced version (top 5) on
+/admin/editora/livros. The livros usage has no *_legacy — the widget
+never existed there before, so `oldVersion={null}` is correct: not
+purchased/trialing/previewing means nothing renders, not a fallback.
+UxGate's dismissed/onDismiss props are optional (self-manages state if
+the parent doesn't pass them) precisely to support this — a lone
+UxGate on livros doesn't need LeadsTabs' cross-tab reopen badge.
 
 super_admin preview: getUxUpgradeStatus() checks the caller's role and sets
 superAdminPreview=true whenever status isn't already "purchased" — UxGate

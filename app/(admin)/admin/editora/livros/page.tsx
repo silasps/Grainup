@@ -5,6 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { AdminHeader } from "@/components/admin/header";
 import { Button } from "@/components/ui/button";
 import { Plus, LayoutList } from "lucide-react";
+import { UxGate } from "@/components/admin/ux-gate";
+import { TopBooksByPurchaseChart, type BookEventRow } from "@/components/admin/top-books-by-purchase-chart";
+import { getUxUpgradeStatus } from "@/lib/actions/ux-upgrades";
+import { LEADS_FUNNEL_UX_UPGRADE_KEY } from "@/lib/ux-upgrade-keys";
 import { BooksTable } from "./books-table";
 
 export const metadata: Metadata = { title: "Livros — Admin Editora Jocum" };
@@ -40,8 +44,22 @@ async function getBooks(): Promise<BookRow[]> {
   return (data ?? []) as unknown as BookRow[];
 }
 
+async function getBookEvents(): Promise<BookEventRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("book_events")
+    .select("book_id, event_type, created_at, books(id, title, slug, cover_url)")
+    .order("created_at", { ascending: false })
+    .limit(5000);
+  return (data ?? []) as unknown as BookEventRow[];
+}
+
 export default async function AdminLivrosPage() {
-  const books = await getBooks();
+  const [books, events, uxInfo] = await Promise.all([
+    getBooks(),
+    getBookEvents(),
+    getUxUpgradeStatus(LEADS_FUNNEL_UX_UPGRADE_KEY),
+  ]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -50,6 +68,19 @@ export default async function AdminLivrosPage() {
         subtitle={`${books.length} livros cadastrados`}
       />
       <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        {/* Top 5 livros por compra — só visível com a atualização paga
+            (trial ou comprada) ou em prévia de super admin. Sem versão
+            antiga: esse widget nunca existiu nessa página antes. */}
+        <UxGate
+          info={uxInfo}
+          newVersion={
+            <div className="mb-6">
+              <TopBooksByPurchaseChart events={events} limit={5} />
+            </div>
+          }
+          oldVersion={null}
+        />
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{books.filter((b) => b.is_active).length}</span> ativos ·{" "}

@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { AdminHeader } from "@/components/admin/header";
 import { getUxUpgradeStatus } from "@/lib/actions/ux-upgrades";
+import { LEADS_FUNNEL_UX_UPGRADE_KEY } from "@/lib/ux-upgrade-keys";
 import { LeadsTabs } from "./leads-tabs";
-
-export const LEADS_FUNNEL_UX_UPGRADE_KEY = "leads-funnel-redesign-2026-07";
 
 export const metadata: Metadata = { title: "Leads — Admin Editora Jocum" };
 export const dynamic = "force-dynamic";
