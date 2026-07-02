@@ -45,13 +45,19 @@ export function UxGate({
   info,
   newVersion,
   oldVersion,
+  dismissed,
+  onDismiss,
 }: {
   info: UxUpgradeInfo | null;
   newVersion: React.ReactNode;
   oldVersion: React.ReactNode;
+  // Controlado pelo pai (LeadsTabs) pra sobreviver a troca de aba — fechar o
+  // aviso não pode ser "esquecido" quando o componente desmonta. O pai
+  // mostra um badge fixo na barra de abas pra reabrir quando dismissed=true.
+  dismissed: boolean;
+  onDismiss: () => void;
 }) {
   const router = useRouter();
-  const [dismissed, setDismissed] = useState(false);
   const [pending, startTransition] = useTransition();
   // Só super admin pode alternar manualmente — pra qualquer outro papel isso
   // fica sempre null e não tem efeito nenhum na lógica normal do gate.
@@ -100,7 +106,7 @@ export function UxGate({
             >
               Ver versão {showingNew ? "antiga" : "nova"}
             </button>
-            <button onClick={() => setDismissed(true)} className="text-violet-700/70 hover:text-violet-900 p-1" aria-label="Fechar aviso">
+            <button onClick={onDismiss} className="text-violet-700/70 hover:text-violet-900 p-1" aria-label="Fechar aviso">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -123,7 +129,7 @@ export function UxGate({
             >
               {pending ? "Ativando…" : "Experimentar grátis"}
             </button>
-            <button onClick={() => setDismissed(true)} className="text-muted-foreground hover:text-foreground p-1" aria-label="Fechar aviso">
+            <button onClick={onDismiss} className="text-muted-foreground hover:text-foreground p-1" aria-label="Fechar aviso">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -148,7 +154,7 @@ export function UxGate({
           </p>
           <div className="flex items-center gap-2 flex-shrink-0">
             <BuyButton upgradeKey={info.key} label={`Comprar — ${formatCurrency(info.price)}`} />
-            <button onClick={() => setDismissed(true)} className="text-muted-foreground hover:text-foreground p-1" aria-label="Fechar aviso">
+            <button onClick={onDismiss} className="text-muted-foreground hover:text-foreground p-1" aria-label="Fechar aviso">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
