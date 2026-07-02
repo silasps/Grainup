@@ -6,6 +6,7 @@ import { ShoppingCart } from "lucide-react";
 import { useCartStore } from "@/stores/cart";
 import { formatCurrency } from "@/lib/utils/format";
 import { toast } from "sonner";
+import { trackBookEvent } from "@/lib/actions/track-event";
 
 type BookRec = {
   id: string;
@@ -31,6 +32,7 @@ export function CartRecommendations({ books }: { books: BookRec[] }) {
       coverUrl: book.cover_url,
       price: book.price_promotional ?? book.price,
     });
+    trackBookEvent(book.id, "add_to_cart");
     toast.success("Adicionado ao carrinho", { description: book.title });
   }
 

@@ -3,7 +3,6 @@
 import { cookies } from "next/headers";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
-import { trackBookEvent } from "@/lib/actions/track-event";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 import { processApprovedPayment } from "@/lib/orders/process-approved-payment";
 
@@ -271,11 +270,8 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     return { error: itemsError.message ?? "Erro ao salvar itens do pedido." };
   }
 
-  // Registra evento de purchase para livros (fire-and-forget)
-  const bookItems = input.items.filter((i) => i.type === "book");
-  await Promise.allSettled(
-    bookItems.map((item) => trackBookEvent(item.id, "purchase"))
-  );
+  // Evento de "purchase" só é registrado quando o pagamento é de fato aprovado
+  // (processApprovedPayment) — não aqui, pra não contar pedido criado e nunca pago.
 
   return { error: null, orderNumber: order.order_number, orderId: order.id };
 }

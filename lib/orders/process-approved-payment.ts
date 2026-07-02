@@ -34,7 +34,7 @@ export async function processApprovedPayment(
 
   const { data: order } = await supabase
     .from("orders")
-    .select("total, subtotal, discount, shipping_cost, payment_method, affiliate_id, coupon_code")
+    .select("total, subtotal, discount, shipping_cost, payment_method, affiliate_id, coupon_code, user_id")
     .eq("id", orderId)
     .single();
 
@@ -178,6 +178,21 @@ export async function processApprovedPayment(
               await (supabase.rpc as any)("decrement_book_stock", { p_book_id: cb.book_id, p_qty: item.quantity * cb.quantity });
             }
           }
+        }
+
+        // Evento de funil "purchase" — só livros comprados diretamente (não os
+        // que vêm dentro de um combo), registrado aqui pra refletir pagamento
+        // aprovado de verdade, não só pedido criado.
+        const purchaseEvents = items
+          .filter((item): item is typeof item & { book_id: string } => !!item.book_id)
+          .map((item) => ({
+            book_id: item.book_id,
+            event_type: "purchase",
+            user_id: order.user_id,
+            session_id: null,
+          }));
+        if (purchaseEvents.length > 0) {
+          await supabase.from("book_events").insert(purchaseEvents);
         }
       }
 

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/format";
 import { useCartStore } from "@/stores/cart";
 import { toast } from "sonner";
+import { trackBookEvent } from "@/lib/actions/track-event";
 
 export interface BookCardData {
   id: string;
@@ -62,12 +63,14 @@ export function BookCard({ book, className }: BookCardProps) {
   function handleBuyNow(e: React.MouseEvent) {
     e.preventDefault();
     setBuyNow(cartItem());
+    trackBookEvent(book.id, "add_to_cart");
     router.push("/checkout");
   }
 
   function handleAddToCart(e: React.MouseEvent) {
     e.preventDefault();
     addItem(cartItem());
+    trackBookEvent(book.id, "add_to_cart");
     toast.success("Adicionado ao carrinho", {
       description: book.title,
       action: { label: "Ver carrinho", onClick: () => router.push("/editora/carrinho") },
