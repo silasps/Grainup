@@ -1,8 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { sendOrderConfirmationEmail } from "@/lib/email";
-import { pushOrderToBling } from "@/lib/bling";
+import { processApprovedPayment } from "@/lib/orders/process-approved-payment";
 
 export async function adminSyncPaymentAction(orderId: string): Promise<{
   status: "aprovado" | "recusado" | "pendente" | "sem_id" | "erro";
@@ -41,17 +40,14 @@ export async function adminSyncPaymentAction(orderId: string): Promise<{
 
   if (!res.ok) return { status: "erro", message: `Erro ao consultar MP: ${res.status}` };
 
-  const payment = await res.json() as { status?: string };
+  const payment = await res.json() as {
+    status?: string;
+    fee_details?: Array<{ type: string; amount: number }> | null;
+    date_approved?: string | null;
+  };
 
   if (payment.status === "approved") {
-    await supabase
-      .from("orders")
-      .update({ status: "pago", payment_status: "aprovado" })
-      .eq("id", orderId);
-
-    sendOrderConfirmationEmail(orderId).catch(console.error);
-    pushOrderToBling(orderId).catch((err) => console.error("[Bling]", err));
-
+    await processApprovedPayment(orderId, mpId, payment);
     return { status: "aprovado", message: "Pagamento confirmado e pedido atualizado." };
   }
 

@@ -1,11 +1,13 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { backfillFinancialMovements } from "@/app/(admin)/admin/editora/financeiro/actions";
 
 export function FinanceiroBackfillButton() {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function handleSync() {
@@ -15,6 +17,7 @@ export function FinanceiroBackfillButton() {
         toast.info("Tudo sincronizado — nenhum pedido novo encontrado.");
       } else {
         toast.success(`${count} pedido${count !== 1 ? "s" : ""} sincronizado${count !== 1 ? "s" : ""} com sucesso.`);
+        router.refresh();
       }
     });
   }

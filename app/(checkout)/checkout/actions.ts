@@ -5,6 +5,7 @@ import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { trackBookEvent } from "@/lib/actions/track-event";
 import { sendOrderConfirmationEmail } from "@/lib/email";
+import { processApprovedPayment } from "@/lib/orders/process-approved-payment";
 
 function getMpClient() {
   return new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN! });
@@ -378,16 +379,12 @@ export async function createMpCardPaymentAction(input: {
       },
     });
 
-    const supabase = await createAdminClient();
-
     if (result.status === "approved") {
-      await supabase
-        .from("orders")
-        .update({ status: "pago", payment_status: "aprovado", notes: `MP:${result.id}` })
-        .eq("id", input.orderId);
-      sendOrderConfirmationEmail(input.orderId).catch(console.error);
+      await processApprovedPayment(input.orderId, result.id!, result);
       return { error: null, status: "approved" as const };
     }
+
+    const supabase = await createAdminClient();
 
     if (result.status === "in_process" || result.status === "pending") {
       await supabase
@@ -433,13 +430,13 @@ export async function checkOrderPaymentStatusAction(orderId: string) {
       cache: "no-store",
     });
     if (res.ok) {
-      const payment = await res.json() as { status?: string };
+      const payment = await res.json() as {
+        status?: string;
+        fee_details?: Array<{ type: string; amount: number }> | null;
+        date_approved?: string | null;
+      };
       if (payment.status === "approved") {
-        await supabase
-          .from("orders")
-          .update({ status: "pago", payment_status: "aprovado" })
-          .eq("id", orderId);
-        sendOrderConfirmationEmail(orderId).catch(console.error);
+        await processApprovedPayment(orderId, mpId, payment);
         return { paymentStatus: "aprovado" };
       }
       if (payment.status === "rejected" || payment.status === "cancelled") {
