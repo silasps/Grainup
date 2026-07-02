@@ -822,15 +822,31 @@ SUPABASE_ACCESS_TOKEN=...            # CLI token for migrations
 3. Enters shipping address → freight calculated via /api/shipping
 4. Applies coupon code (discount validated server-side)
 5. MP payment widget shown → customer pays
-6. /api/mp-webhook fires with payment.approved
-7. Webhook handler:
-   a. Verifies MP signature
-   b. Creates order record with status='pago'
-   c. Decrements book stock
-   d. Records financial_movement (gross, fees, affiliate commission)
+6. Payment approval reaches the order through one of three paths:
+   a. /api/mp-webhook fires with payment.approved (primary path)
+   b. checkOrderPaymentStatusAction() polls MP directly from the client
+      (fallback when the webhook is slow/unregistered, e.g. localhost)
+   c. Admin clicks "Verificar pagamento no MP" → adminSyncPaymentAction()
+      (manual reconciliation when the webhook never arrived)
+7. All three call the shared, idempotent processApprovedPayment()
+   (lib/orders/process-approved-payment.ts), which:
+   a. Updates order status='pago', payment_status='aprovado'
+   b. Calculates affiliate commission and updates affiliate_sales/balance
+   c. Records financial_movement (gross, fees, affiliate commission) —
+      keyed by order_id, so re-running any path is a no-op
+   d. Decrements book stock (only on first run per order)
    e. Calls pushOrderToBling() → creates Bling sales order + NF-e
-   f. Sends order confirmation email via Resend
+   f. Sends order confirmation email via Resend (only on first approval)
 8. Customer sees order in /minha-conta/pedidos
+
+> **Data-integrity note:** financial_movements must only ever be written by
+> processApprovedPayment(). Any new code path that marks an order 'pago'
+> has to call it instead of updating orders directly — otherwise the order
+> shows up in /admin/editora/pedidos but silently vanishes from
+> /admin/editora/financeiro. If historical orders are ever found missing a
+> financial_movements row, /admin/editora/financeiro has a "Sincronizar
+> histórico" button (backfillFinancialMovements() in
+> app/(admin)/admin/editora/financeiro/actions.ts) that reconciles them.
 ```
 
 ### Order Fulfillment (Admin)
@@ -1060,6 +1076,7 @@ NODE_ENV=production
 | `lib/bling/sync.ts` | `pushOrderToBling()` and stock sync logic |
 | `lib/bling/auth.ts` | Bling OAuth token management (refresh, store) |
 | `lib/correios/client.ts` | Correios CWS REST client with in-memory token cache |
+| `lib/orders/process-approved-payment.ts` | `processApprovedPayment()` — single, idempotent source of truth for marking an order paid (status, affiliate commission, `financial_movements`, stock, email, Bling). Called by the MP webhook, checkout polling, and admin manual sync — never update `orders.status='pago'` directly |
 | `lib/supabase/server.ts` | Server-side Supabase client factory (SSR cookies) |
 | `lib/supabase/middleware.ts` | Session refresh middleware |
 | `lib/email/index.ts` | All transactional email send functions |
@@ -1067,7 +1084,8 @@ NODE_ENV=production
 | `lib/mp-refund.ts` | Mercado Pago refund handling |
 | `stores/cart.ts` | Zustand cart store (client-side) |
 | `types/database.ts` | Full auto-generated Supabase TypeScript types |
-| `app/api/mp-webhook/route.ts` | Payment confirmation entry point |
+| `app/api/mp-webhook/route.ts` | Payment confirmation entry point (primary) — delegates to `processApprovedPayment()` |
+| `app/(admin)/admin/editora/financeiro/actions.ts` | `backfillFinancialMovements()` — reconciles `orders` marked paid with missing `financial_movements` rows |
 | `app/api/shipping/route.ts` | Freight calculation (Correios + Melhor Envio) |
 | `app/(checkout)/checkout/actions.ts` | Checkout server actions |
 | `components/admin/admin-loading/` | Reusable admin skeleton component |
