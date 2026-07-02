@@ -292,7 +292,7 @@ user_roles (
   user_id uuid FK → auth.users,
   role text CHECK (role IN (
     'super_admin','admin_editora','admin_ead','admin_eifol',
-    'cliente','afiliado_jocum','afiliado_diretor','lider_jocum'
+    'cliente','afiliado_jocum','afiliado_diretor','lider_jocum','afiliado_geral'
   )),
   created_at timestamptz
 )
@@ -630,7 +630,7 @@ admin_logs (id, user_id FK, action text, entity text, entity_id text, details js
 3. All server requests use Supabase SSR client with cookie-based session
 4. Middleware (`lib/supabase/middleware.ts`) refreshes sessions on every request
 
-### Roles (8 total)
+### Roles (9 total)
 | Role | Access |
 |---|---|
 | `super_admin` | Full system access |
@@ -641,6 +641,9 @@ admin_logs (id, user_id FK, action text, entity text, entity_id text, details js
 | `afiliado_jocum` | Affiliate dashboard, 50% fixed commission |
 | `afiliado_diretor` | Director affiliate, 50% fixed commission |
 | `lider_jocum` | Team leader, approves new Jocum affiliates |
+| `afiliado_geral` | General/public affiliate program, progressive commission tier (10%→50%) |
+
+**Note on `admin`-style RLS policies:** several early policies (pre-2026-07 migrations) were written checking `role = 'admin'` — a value that has never existed in this enum. Any policy like that silently blocks every real admin. Always check against the actual enum values above, typically `role IN ('super_admin', 'admin_editora')`.
 
 ### RLS Policy Groups
 | Resource | Public | Logged-in | Admin |
@@ -1072,7 +1075,8 @@ NODE_ENV=production
 
 - **Host:** Vercel (automatic deploys from `main` branch)
 - **Database:** Supabase cloud (PostgreSQL)
-- **Migrations:** Applied via Supabase CLI (`supabase db push`)
+- **Migrations:** Nominally applied via Supabase CLI (`supabase db push`), but in practice most of this project's migration history was applied by executing SQL directly against production (there is no `supabase/config.toml` / linked project in this repo, and `supabase_migrations.schema_migrations` only tracks version `001`). **A migration file existing in `supabase/migrations/` is not proof it ran in production.**
+  > On 2026-07-02 this was found to have caused real drift: migrations `003` (`admin_user_creations`), `006` (`book_events`, `campaigns`), and `026` (`promo_coupons`) were present in the repo but their tables had never been created in production — silently breaking the leads conversion funnel, email campaigns, admin-user audit log, and non-affiliate promo coupons for the entire time those features existed in the codebase, because the app code wraps tracking/coupon lookups in try/catch and never surfaced the "table does not exist" errors. Applied directly via the Supabase Management API and verified with `to_regclass('public.<table>')` (`NULL` = table genuinely absent, not an RLS/cache issue). **Before trusting that a feature backed by a table/migration works in production, verify the table actually exists** — don't assume from the migration file or from the app not throwing visible errors.
 - **Webhooks:** All external webhook endpoints must be registered in their respective services (MP, Bling, Melhor Envio) pointing to the production URL
 
 ---
