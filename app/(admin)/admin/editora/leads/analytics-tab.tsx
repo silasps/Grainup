@@ -16,10 +16,20 @@ import {
 import { TrendingUp, Eye, ShoppingCart, CreditCard, Users } from "lucide-react";
 import {
   addBrasiliaCalendarDays,
+  brasiliaDateToUtcIso,
   formatBrasiliaDayMonth,
   getBrasiliaDateKey,
   getBrasiliaDateParts,
 } from "@/lib/utils/brasilia-time";
+
+// book_events só passou a ser gravado de forma confiável a partir desta data
+// (antes disso a tabela nem existia em produção — ver system_architecture.md,
+// seção 13). Os 35 eventos de "purchase" anteriores a essa data são um
+// backfill reconstruído de pedidos pagos, sem visualização/carrinho
+// correspondentes — por isso ficam de fora do cálculo de taxa de conversão
+// (senão a % ficaria artificialmente alta/quebrada), mas continuam contando
+// no número absoluto de "Compraram", que é real.
+const TRACKING_RELIABLE_SINCE = brasiliaDateToUtcIso(2026, 7, 2);
 
 interface BookEventRow {
   book_id: string;
@@ -69,11 +79,22 @@ export function AnalyticsTab({
 }) {
   // --- Funil global ---
   const funnel = useMemo(() => {
+    // Números absolutos: todo evento registrado, incluindo o backfill de
+    // compras anteriores ao tracking (é a contagem real de vendas).
     const views = events.filter((e) => e.event_type === "view").length;
     const carts = events.filter((e) => e.event_type === "add_to_cart").length;
     const purchases = events.filter((e) => e.event_type === "purchase").length;
-    const cartRate = views > 0 ? ((carts / views) * 100).toFixed(1) : "0";
-    const purchaseRate = views > 0 ? ((purchases / views) * 100).toFixed(1) : "0";
+
+    // Taxas de conversão: só eventos gravados organicamente (a partir de
+    // TRACKING_RELIABLE_SINCE), pra não misturar compras retroativas sem
+    // visualização/carrinho correspondentes e inflar a % artificialmente.
+    const trackedEvents = events.filter((e) => e.created_at >= TRACKING_RELIABLE_SINCE);
+    const trackedViews = trackedEvents.filter((e) => e.event_type === "view").length;
+    const trackedCarts = trackedEvents.filter((e) => e.event_type === "add_to_cart").length;
+    const trackedPurchases = trackedEvents.filter((e) => e.event_type === "purchase").length;
+    const cartRate = trackedViews > 0 ? ((trackedCarts / trackedViews) * 100).toFixed(1) : "0";
+    const purchaseRate = trackedViews > 0 ? ((trackedPurchases / trackedViews) * 100).toFixed(1) : "0";
+
     return { views, carts, purchases, cartRate, purchaseRate };
   }, [events]);
 
@@ -150,13 +171,13 @@ export function AnalyticsTab({
             label="Adicionaram ao carrinho"
             value={funnel.carts.toLocaleString("pt-BR")}
             icon={ShoppingCart}
-            sub={`${funnel.cartRate}% das visualizações`}
+            sub={`${funnel.cartRate}% das visualizações (desde 02/07)`}
           />
           <StatCard
             label="Compraram"
             value={funnel.purchases.toLocaleString("pt-BR")}
             icon={CreditCard}
-            sub={`${funnel.purchaseRate}% das visualizações`}
+            sub={`${funnel.purchaseRate}% das visualizações (desde 02/07)`}
           />
           <StatCard label="Total de leads" value={leads.length.toLocaleString("pt-BR")} icon={Users} />
           <StatCard
