@@ -53,6 +53,9 @@ export function UxGate({
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Só super admin pode alternar manualmente — pra qualquer outro papel isso
+  // fica sempre null e não tem efeito nenhum na lógica normal do gate.
+  const [previewOverride, setPreviewOverride] = useState<"new" | "old" | null>(null);
 
   if (!info) {
     return <>{oldVersion}</>;
@@ -70,13 +73,11 @@ export function UxGate({
     });
   }
 
-  const showingNew =
-    info.status === "trialing" || info.status === "purchased" || info.superAdminPreview;
-
-  // Super admin vê a versão nova sem consumir o trial do cliente — mostra um
-  // aviso compacto em vez dos banners de ação (não faz sentido super_admin
-  // clicar em "experimentar"/"comprar" pra si mesmo).
   const showSuperAdminBadge = info.superAdminPreview && info.status !== "trialing" && info.status !== "purchased";
+
+  const showingNew = showSuperAdminBadge
+    ? previewOverride !== "old" // super admin: novo por padrão, "old" só se ele escolher
+    : info.status === "trialing" || info.status === "purchased";
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -85,15 +86,24 @@ export function UxGate({
           <div className="flex items-center gap-2 min-w-0">
             <Eye className="h-3.5 w-3.5 text-violet-700 flex-shrink-0" />
             <p className="text-xs text-violet-900 truncate">
-              Prévia de super admin — <strong>{info.title}</strong>.
+              Prévia de super admin — vendo a versão <strong>{showingNew ? "nova" : "antiga"}</strong> de{" "}
+              <strong>{info.title}</strong>.
               {info.status === "none" && " O cliente ainda não experimentou."}
               {info.status === "expired" && " O trial do cliente expirou sem compra."}
               {" "}Isso não inicia nem consome o trial dele.
             </p>
           </div>
-          <button onClick={() => setDismissed(true)} className="text-violet-700/70 hover:text-violet-900 p-1 flex-shrink-0" aria-label="Fechar aviso">
-            <X className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setPreviewOverride(showingNew ? "old" : "new")}
+              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md border border-violet-300 bg-white text-violet-900 text-xs font-medium hover:bg-violet-100 transition-colors"
+            >
+              Ver versão {showingNew ? "antiga" : "nova"}
+            </button>
+            <button onClick={() => setDismissed(true)} className="text-violet-700/70 hover:text-violet-900 p-1" aria-label="Fechar aviso">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       )}
 
