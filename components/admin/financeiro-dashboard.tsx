@@ -18,6 +18,7 @@ import {
 import { ChevronUp, ChevronDown, ChevronsUpDown, X, ExternalLink } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
 import { ExportMenu } from "@/components/admin/export-menu";
+import { FinanceiroBackfillButton } from "@/components/admin/financeiro-backfill-button";
 
 interface Movement {
   id: string;
@@ -100,6 +101,73 @@ export function FinanceiroDashboard({ movements }: Props) {
     debito: "Débito",
     boleto: "Boleto",
   };
+
+  // Granularidade do gráfico de receita (drill-down estilo Power BI)
+  type ChartGranularity = "day" | "week" | "month" | "year";
+  const [chartGranularity, setChartGranularity] = useState<ChartGranularity>("month");
+
+  const GRANULARITY_LABEL: Record<ChartGranularity, string> = {
+    day: "Dia", week: "Semana", month: "Mês", year: "Ano",
+  };
+  const GRANULARITY_BUCKETS: Record<ChartGranularity, number> = {
+    day: 30, week: 12, month: 6, year: 5,
+  };
+
+  const startOfWeek = (date: Date) => {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dayOffset = (d.getDay() + 6) % 7; // 0 = segunda-feira
+    d.setDate(d.getDate() - dayOffset);
+    return d;
+  };
+
+  const chartData = useMemo(() => {
+    const count = GRANULARITY_BUCKETS[chartGranularity];
+    const buckets: { key: string; name: string; end: Date | null }[] = [];
+
+    if (chartGranularity === "day") {
+      for (let i = count - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        buckets.push({ key, name: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`, end: null });
+      }
+    } else if (chartGranularity === "week") {
+      const thisWeekStart = startOfWeek(now);
+      for (let i = count - 1; i >= 0; i--) {
+        const start = new Date(thisWeekStart.getFullYear(), thisWeekStart.getMonth(), thisWeekStart.getDate() - i * 7);
+        const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+        const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+        buckets.push({ key, name: `${String(start.getDate()).padStart(2, "0")}/${String(start.getMonth() + 1).padStart(2, "0")}`, end });
+      }
+    } else if (chartGranularity === "month") {
+      for (let i = count - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        buckets.push({ key, name: MONTH_NAMES[d.getMonth()], end: null });
+      }
+    } else {
+      for (let i = count - 1; i >= 0; i--) {
+        const y = now.getFullYear() - i;
+        buckets.push({ key: String(y), name: String(y), end: null });
+      }
+    }
+
+    return buckets.map(({ key, name, end }) => {
+      const matches = paid.filter((m) => {
+        const moveDate = m.paid_at ?? m.created_at;
+        if (end) {
+          const d = new Date(moveDate);
+          return d >= new Date(key) && d < end;
+        }
+        return moveDate.startsWith(key);
+      });
+      return {
+        name,
+        receita: Math.round(matches.reduce((s, m) => s + m.net_amount, 0)),
+        bruto: Math.round(matches.reduce((s, m) => s + m.gross_amount, 0)),
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paid, chartGranularity]);
 
   // Filter + sort state
   const [filterPayment, setFilterPayment] = useState("all");
@@ -186,7 +254,10 @@ export function FinanceiroDashboard({ movements }: Props) {
           ? <p className="text-xs text-muted-foreground">Totais pagos · {periodLabel}</p>
           : <span />
         }
-        <ExportMenu movements={movements} mode="dashboard" monthlyData={monthlyData} />
+        <div className="flex items-center gap-2">
+          <FinanceiroBackfillButton />
+          <ExportMenu movements={movements} mode="dashboard" monthlyData={monthlyData} />
+        </div>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
@@ -207,9 +278,26 @@ export function FinanceiroDashboard({ movements }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Area chart */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-border p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Receita por mês (líquida)</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-foreground">Receita por {GRANULARITY_LABEL[chartGranularity].toLowerCase()} (líquida)</h3>
+            <div className="flex items-center rounded-md border border-border bg-secondary/40 p-0.5">
+              {(Object.keys(GRANULARITY_LABEL) as ChartGranularity[]).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setChartGranularity(g)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    chartGranularity === g
+                      ? "bg-white text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {GRANULARITY_LABEL[g]}
+                </button>
+              ))}
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={monthlyData}>
+            <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="netGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="oklch(0.54 0.135 152)" stopOpacity={0.2} />
@@ -217,7 +305,7 @@ export function FinanceiroDashboard({ movements }: Props) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={chartGranularity === "day" ? 2 : 0} />
               <YAxis
                 tick={{ fontSize: 11 }}
                 tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
