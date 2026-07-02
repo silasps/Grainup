@@ -49,6 +49,18 @@ const FUNNEL_LABEL: Record<keyof typeof FUNNEL_COLOR, string> = {
   purchase: "Compras",
 };
 
+// Aqui as 3 métricas são identidades distintas lado a lado num mesmo gráfico
+// (não uma sequência de funil), então usa 3 cores categóricas de verdade —
+// uma por métrica — em vez da rampa ordinal de um hue só usada acima.
+// Validado com scripts/validate_palette.js "#0f74c5,#c87b00,#006430"
+// --mode light (todos os checks passam; verde+terracota falhava CVD, por
+// isso o carrinho é âmbar aqui em vez da cor terracota da marca).
+const PURCHASE_CHART_COLOR = {
+  view: "#0f74c5",
+  add_to_cart: "#c87b00",
+  purchase: "#006430",
+} as const;
+
 function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
@@ -169,6 +181,33 @@ export function AnalyticsTab({
     }),
     [topBooks]
   );
+
+  // --- Top livros por compra (ranking dedicado, ordenado por venda real) ---
+  const topBooksByPurchase = useMemo(() => {
+    const map = new Map<string, { title: string; view: number; add_to_cart: number; purchase: number }>();
+    for (const e of events) {
+      if (!e.books) continue;
+      const key = e.book_id;
+      if (!map.has(key)) {
+        map.set(key, { title: e.books.title, view: 0, add_to_cart: 0, purchase: 0 });
+      }
+      const entry = map.get(key)!;
+      if (e.event_type === "view") entry.view++;
+      else if (e.event_type === "add_to_cart") entry.add_to_cart++;
+      else if (e.event_type === "purchase") entry.purchase++;
+    }
+    return Array.from(map.values())
+      .filter((b) => b.purchase > 0)
+      .sort((a, b) => b.purchase - a.purchase)
+      .slice(0, 8)
+      .map((b) => ({
+        name: b.title.length > 26 ? b.title.slice(0, 26) + "…" : b.title,
+        fullTitle: b.title,
+        view: b.view,
+        add_to_cart: b.add_to_cart,
+        purchase: b.purchase,
+      }));
+  }, [events]);
 
   // --- Leads por dia (últimos 30 dias) ---
   const leadsByDay = useMemo(() => {
@@ -368,6 +407,61 @@ export function AnalyticsTab({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Top livros por compra */}
+      {topBooksByPurchase.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Top livros por compra</h2>
+            <div className="flex items-center gap-3">
+              {(["view", "add_to_cart", "purchase"] as const).map((k) => (
+                <span key={k} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PURCHASE_CHART_COLOR[k] }} />
+                  {FUNNEL_LABEL[k]}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-border p-4">
+            <ResponsiveContainer width="100%" height={Math.max(220, topBooksByPurchase.length * 52)}>
+              <BarChart
+                data={topBooksByPurchase}
+                layout="vertical"
+                barGap={3}
+                margin={{ top: 4, right: 36, left: 8, bottom: 4 }}
+              >
+                <CartesianGrid strokeDasharray="3" horizontal={false} stroke="#eee" />
+                <XAxis type="number" tick={{ fontSize: 11 }} axisLine={{ stroke: "#eee" }} tickLine={false} allowDecimals={false} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 12 }}
+                  width={168}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(0,0,0,0.03)" }}
+                  formatter={(v, k) => [
+                    typeof v === "number" ? v.toLocaleString("pt-BR") : v,
+                    FUNNEL_LABEL[k as keyof typeof FUNNEL_LABEL] ?? k,
+                  ]}
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ""}
+                />
+                <Bar dataKey="view" name="view" fill={PURCHASE_CHART_COLOR.view} radius={[0, 3, 3, 0]} barSize={12}>
+                  <LabelList dataKey="view" position="right" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--muted-foreground)", fontSize: 10 }} />
+                </Bar>
+                <Bar dataKey="add_to_cart" name="add_to_cart" fill={PURCHASE_CHART_COLOR.add_to_cart} radius={[0, 3, 3, 0]} barSize={12}>
+                  <LabelList dataKey="add_to_cart" position="right" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--muted-foreground)", fontSize: 10 }} />
+                </Bar>
+                <Bar dataKey="purchase" name="purchase" fill={PURCHASE_CHART_COLOR.purchase} radius={[0, 3, 3, 0]} barSize={12}>
+                  <LabelList dataKey="purchase" position="right" formatter={(v) => (typeof v === "number" && v > 0 ? v : "")} style={{ fill: "var(--foreground)", fontSize: 10, fontWeight: 600 }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
