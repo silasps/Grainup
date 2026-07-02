@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { importLeadsAction } from "./actions";
+import { BRASILIA_TIME_ZONE } from "@/lib/utils/brasilia-time";
 
 interface Lead {
   id: string;
@@ -279,7 +280,7 @@ function exportCSV(leads: Lead[]) {
     originLabel(l.origin),
     (l.books as { title: string } | null)?.title ?? "",
     l.marketing_consent ? "Sim" : "Não",
-    new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(l.created_at)),
+    new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: BRASILIA_TIME_ZONE }).format(new Date(l.created_at)),
   ]);
   const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -474,9 +475,9 @@ export function LeadsTable({ leads, origins }: { leads: Lead[]; origins: string[
                         )}
                       </td>
                       <td className="px-5 py-3 text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">
-                        <span>{new Intl.DateTimeFormat("pt-BR").format(new Date(lead.created_at))}</span>
+                        <span>{new Intl.DateTimeFormat("pt-BR", { timeZone: BRASILIA_TIME_ZONE }).format(new Date(lead.created_at))}</span>
                         <span className="block text-muted-foreground/60">
-                          {new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(lead.created_at))}
+                          {new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: BRASILIA_TIME_ZONE }).format(new Date(lead.created_at))}
                         </span>
                       </td>
                     </tr>

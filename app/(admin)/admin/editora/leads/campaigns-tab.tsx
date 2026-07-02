@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { createCampaignAction, sendCampaignAction, deleteCampaignAction } from "./actions";
+import { BRASILIA_TIME_ZONE } from "@/lib/utils/brasilia-time";
 
 interface Campaign {
   id: string;
@@ -307,7 +308,7 @@ export function CampaignsTab({
                         <CheckCircle className="h-3 w-3" />
                         {campaign.sent_count.toLocaleString("pt-BR")} enviados
                         {campaign.sent_at &&
-                          ` · ${new Intl.DateTimeFormat("pt-BR").format(new Date(campaign.sent_at))}`}
+                          ` · ${new Intl.DateTimeFormat("pt-BR", { timeZone: BRASILIA_TIME_ZONE }).format(new Date(campaign.sent_at))}`}
                       </span>
                     )}
                     {campaign.status === "failed" && (

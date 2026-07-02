@@ -864,6 +864,11 @@ SUPABASE_ACCESS_TOKEN=...            # CLI token for migrations
 > revenue chart buckets — used by both
 > `components/admin/financeiro-dashboard.tsx` and
 > `components/admin/dashboard.tsx`.
+> Lead analytics follows the same rule: never group `leads.created_at` with
+> `created_at.slice(0, 10)` because that is a UTC day. Use
+> `getBrasiliaDateKey()`/`formatBrasiliaDayMonth()` from
+> `lib/utils/brasilia-time.ts` so `/admin/editora` lead KPIs and
+> `/admin/editora/leads` analytics agree.
 ```
 
 ### Order Fulfillment (Admin)
@@ -1094,7 +1099,7 @@ NODE_ENV=production
 | `lib/bling/auth.ts` | Bling OAuth token management (refresh, store) |
 | `lib/correios/client.ts` | Correios CWS REST client with in-memory token cache |
 | `lib/orders/process-approved-payment.ts` | `processApprovedPayment()` — single, idempotent source of truth for marking an order paid (status, affiliate commission, `financial_movements`, stock, email, Bling). Called by the MP webhook, checkout polling, and admin manual sync — never update `orders.status='pago'` directly |
-| `lib/utils/brasilia-time.ts` | Brasília calendar helpers (`America/Sao_Paulo`) for admin/reporting date ranges. Use these to build UTC query boundaries for "today", "this month", and month offsets so localhost, production, and browser rendering agree |
+| `lib/utils/brasilia-time.ts` | Brasília calendar helpers (`America/Sao_Paulo`) for admin/reporting date ranges and chart buckets. Use these to build UTC query boundaries for "today", "this month", month offsets, and lead day keys so localhost, production, and browser rendering agree |
 | `lib/utils/revenue-chart.ts` | `buildRevenueBuckets()` — shared day/week/month/year bucketing for revenue charts, using the Brasília calendar (not UTC string prefixes) so charts, KPIs, and movement tables agree. Used by `financeiro-dashboard.tsx` and `dashboard.tsx` |
 | `lib/supabase/server.ts` | Server-side Supabase client factory (SSR cookies) |
 | `lib/supabase/middleware.ts` | Session refresh middleware |

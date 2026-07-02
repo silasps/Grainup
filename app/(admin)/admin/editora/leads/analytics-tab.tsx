@@ -14,8 +14,12 @@ import {
   Legend,
 } from "recharts";
 import { TrendingUp, Eye, ShoppingCart, CreditCard, Users } from "lucide-react";
-import { format, subDays, eachDayOfInterval, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import {
+  addBrasiliaCalendarDays,
+  formatBrasiliaDayMonth,
+  getBrasiliaDateKey,
+  getBrasiliaDateParts,
+} from "@/lib/utils/brasilia-time";
 
 interface BookEventRow {
   book_id: string;
@@ -99,17 +103,17 @@ export function AnalyticsTab({
 
   // --- Leads por dia (últimos 30 dias) ---
   const leadsByDay = useMemo(() => {
-    const today = new Date();
-    const days = eachDayOfInterval({ start: subDays(today, 29), end: today });
+    const today = getBrasiliaDateParts(new Date());
+    const days = Array.from({ length: 30 }, (_, i) => addBrasiliaCalendarDays(today, i - 29));
     const counts = new Map<string, number>();
     for (const lead of leads) {
-      const day = lead.created_at.slice(0, 10);
+      const day = getBrasiliaDateKey(lead.created_at);
       counts.set(day, (counts.get(day) ?? 0) + 1);
     }
     return days.map((d) => {
-      const key = format(d, "yyyy-MM-dd");
+      const key = `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
       return {
-        day: format(d, "dd/MM", { locale: ptBR }),
+        day: formatBrasiliaDayMonth(d),
         leads: counts.get(key) ?? 0,
       };
     });

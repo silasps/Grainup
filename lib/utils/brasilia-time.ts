@@ -72,6 +72,26 @@ export function addBrasiliaCalendarMonths(parts: BrasiliaDateParts, months: numb
   };
 }
 
+export function addBrasiliaCalendarDays(parts: BrasiliaDateParts, days: number): BrasiliaDateParts {
+  const d = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
+
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth() + 1,
+    day: d.getUTCDate(),
+  };
+}
+
+export function getBrasiliaDateKey(date: Date | string) {
+  const parts = getBrasiliaDateParts(typeof date === "string" ? new Date(date) : date);
+
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+export function formatBrasiliaDayMonth(parts: BrasiliaDateParts) {
+  return `${String(parts.day).padStart(2, "0")}/${String(parts.month).padStart(2, "0")}`;
+}
+
 export function getBrasiliaMonthRange(now: Date, monthOffset = 0) {
   const current = getBrasiliaDateParts(now);
   const start = addBrasiliaCalendarMonths({ year: current.year, month: current.month, day: 1 }, monthOffset);
