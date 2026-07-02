@@ -63,12 +63,6 @@ const STATUS_COLORS: Record<string, string> = {
   cancelado: "bg-red-100 text-red-700",
 };
 
-function calcRevenue(orders: AnyRecord[]) {
-  return orders
-    .filter((o) => !["cancelado", "aguardando_pagamento", "reembolsado"].includes(o.status as string))
-    .reduce((sum, o) => sum + (o.total as number), 0);
-}
-
 const STATUS_BAR_COLORS: Record<string, string> = {
   aguardando_pagamento: "#ca8a04",
   pago: "#16a34a",
@@ -136,8 +130,10 @@ function KpiCard({
 }
 
 export function AdminDashboard({ data }: { data: DashboardData }) {
-  const thisRevenue = calcRevenue(data.thisMonthOrders);
-  const lastRevenue = calcRevenue(data.lastMonthOrders);
+  const now = new Date();
+  const monthlyRevenue = buildRevenueBuckets(data.movements as unknown as MovementLike[], "month", now);
+  const thisRevenue = monthlyRevenue.at(-1)?.receita ?? 0;
+  const lastRevenue = monthlyRevenue.at(-2)?.receita ?? 0;
   const revenueTrend =
     lastRevenue > 0 ? ((thisRevenue - lastRevenue) / lastRevenue) * 100 : 100;
 
@@ -151,7 +147,6 @@ export function AdminDashboard({ data }: { data: DashboardData }) {
   ).length;
 
   const [chartGranularity, setChartGranularity] = useState<ChartGranularity>("month");
-  const now = new Date();
   const chartData = useMemo(
     () => buildRevenueBuckets(data.movements as unknown as MovementLike[], chartGranularity, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps

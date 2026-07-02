@@ -1,3 +1,5 @@
+import { BRASILIA_TIME_ZONE } from "@/lib/utils/brasilia-time";
+
 export function formatCurrencyShort(value: number): string {
   if (value >= 1_000_000) return `R$${(value / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}M`;
   if (value >= 1_000) return `R$${(value / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}k`;
@@ -12,13 +14,14 @@ export function formatCurrency(value: number): string {
 }
 
 export function formatDate(date: string | Date): string {
-  return new Intl.DateTimeFormat("pt-BR").format(new Date(date));
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: BRASILIA_TIME_ZONE }).format(new Date(date));
 }
 
 export function formatDateTime(date: string | Date): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: BRASILIA_TIME_ZONE,
   }).format(new Date(date));
 }
 

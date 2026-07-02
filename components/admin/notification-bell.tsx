@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { getBrasiliaMonthRange } from "@/lib/utils/brasilia-time";
 
 const STORAGE_KEY = "admin_notif_dismissed";
 const POLL_MS = 30_000;
@@ -71,7 +72,7 @@ export function AdminNotificationBell() {
   const fetchCounts = useCallback(async () => {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const thisMonth = getBrasiliaMonthRange(now);
 
     const [ordersRes, reviewsRes, ticketsRes, usersRes, leadsRes, affiliatesRes] =
       await Promise.all([
@@ -79,7 +80,7 @@ export function AdminNotificationBell() {
         supabase.from("reviews").select("id", { count: "exact", head: true }).eq("status", "pendente"),
         supabase.from("support_tickets").select("id", { count: "exact", head: true }).in("status", ["novo", "em_atendimento"]),
         supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", sevenDaysAgo),
-        supabase.from("leads").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth),
+        supabase.from("leads").select("id", { count: "exact", head: true }).gte("created_at", thisMonth.startIso).lt("created_at", thisMonth.endIso),
         supabase.from("affiliate_withdrawals").select("id", { count: "exact", head: true }).eq("status", "pendente"),
       ]);
 

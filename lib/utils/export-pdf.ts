@@ -1,4 +1,5 @@
 import { formatCurrency } from "./format";
+import { BRASILIA_TIME_ZONE } from "@/lib/utils/brasilia-time";
 
 interface Movement {
   id: string;
@@ -38,11 +39,11 @@ const PAY_LABEL: Record<string, string> = {
 };
 
 function fmtDate(iso: string) {
-  return new Intl.DateTimeFormat("pt-BR").format(new Date(iso));
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: BRASILIA_TIME_ZONE }).format(new Date(iso));
 }
 
 function fmtDateLong(iso: string) {
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short", timeZone: BRASILIA_TIME_ZONE }).format(
     new Date(iso)
   );
 }

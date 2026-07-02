@@ -20,6 +20,7 @@ import { formatCurrency } from "@/lib/utils/format";
 import { ExportMenu } from "@/components/admin/export-menu";
 import { FinanceiroBackfillButton } from "@/components/admin/financeiro-backfill-button";
 import { buildRevenueBuckets, GRANULARITY_LABEL, type ChartGranularity } from "@/lib/utils/revenue-chart";
+import { BRASILIA_TIME_ZONE } from "@/lib/utils/brasilia-time";
 
 interface Movement {
   id: string;
@@ -170,7 +171,7 @@ export function FinanceiroDashboard({ movements }: Props) {
   const paymentMethods = [...new Set(movements.map((m) => m.payment_method).filter(Boolean))];
   const statuses = [...new Set(movements.map((m) => m.status).filter(Boolean))];
 
-  const fmt = (iso: string) => new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" }).format(new Date(iso));
+  const fmt = (iso: string) => new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric", timeZone: BRASILIA_TIME_ZONE }).format(new Date(iso));
   const dates = paid.map((m) => m.paid_at ?? m.created_at).sort();
   const periodLabel = dates.length > 0 ? `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}` : null;
 
@@ -444,7 +445,7 @@ export function FinanceiroDashboard({ movements }: Props) {
                 filtered.map((m) => (
                   <tr key={m.id} className="hover:bg-secondary/30 transition-colors">
                     <td className="px-5 py-3 text-muted-foreground text-xs whitespace-nowrap">
-                      {new Intl.DateTimeFormat("pt-BR").format(new Date(m.paid_at ?? m.created_at))}
+                      {new Intl.DateTimeFormat("pt-BR", { timeZone: BRASILIA_TIME_ZONE }).format(new Date(m.paid_at ?? m.created_at))}
                     </td>
                     <td className="px-5 py-3 capitalize text-muted-foreground whitespace-nowrap">
                       {PAY_LABEL[m.payment_method] ?? m.payment_method?.replace("_", " ") ?? "—"}

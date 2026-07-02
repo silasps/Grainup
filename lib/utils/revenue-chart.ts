@@ -1,3 +1,8 @@
+import {
+  addBrasiliaCalendarMonths,
+  getBrasiliaDateParts,
+} from "@/lib/utils/brasilia-time";
+
 export type ChartGranularity = "day" | "week" | "month" | "year";
 
 export const GRANULARITY_LABEL: Record<ChartGranularity, string> = {
@@ -12,26 +17,36 @@ const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Se
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-// Todas as datas são tratadas no fuso horário local do navegador — o mesmo
-// que Intl.DateTimeFormat("pt-BR") usa para exibir datas nas tabelas. Nunca
-// comparar prefixo de string ISO (que é UTC) com um "dia local", ou o
-// gráfico e a tabela abaixo dele mostram dias diferentes pro mesmo pagamento.
-function startOfLocalDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+// Todas as datas de receita são agrupadas no calendário de Brasília. Nunca
+// comparar prefixo de string ISO (UTC) com um "dia local", ou produção,
+// localhost, gráficos e tabelas passam a discordar sobre o mesmo pagamento.
+function civilDate(year: number, month: number, day: number) {
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
-function startOfLocalWeek(d: Date) {
-  const s = startOfLocalDay(d);
-  const offset = (s.getDay() + 6) % 7; // 0 = segunda-feira
-  s.setDate(s.getDate() - offset);
-  return s;
+function addDays(parts: { year: number; month: number; day: number }, days: number) {
+  const d = civilDate(parts.year, parts.month, parts.day + days);
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
 
-function bucketKeyFor(date: Date, granularity: ChartGranularity): number {
-  if (granularity === "day") return startOfLocalDay(date).getTime();
-  if (granularity === "week") return startOfLocalWeek(date).getTime();
-  if (granularity === "month") return new Date(date.getFullYear(), date.getMonth(), 1).getTime();
-  return new Date(date.getFullYear(), 0, 1).getTime();
+function startOfBrasiliaWeek(parts: { year: number; month: number; day: number }) {
+  const dayOfWeek = civilDate(parts.year, parts.month, parts.day).getUTCDay();
+  const offset = (dayOfWeek + 6) % 7; // 0 = segunda-feira
+  return addDays(parts, -offset);
+}
+
+function keyForParts(parts: { year: number; month: number; day: number }, granularity: ChartGranularity) {
+  if (granularity === "day") return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
+  if (granularity === "week") {
+    const start = startOfBrasiliaWeek(parts);
+    return `${start.year}-${pad(start.month)}-${pad(start.day)}`;
+  }
+  if (granularity === "month") return `${parts.year}-${pad(parts.month)}`;
+  return String(parts.year);
+}
+
+function bucketKeyFor(date: Date, granularity: ChartGranularity): string {
+  return keyForParts(getBrasiliaDateParts(date), granularity);
 }
 
 export interface MovementLike {
@@ -55,32 +70,33 @@ export function buildRevenueBuckets(
 ): RevenueBucket[] {
   const paid = movements.filter((m) => m.status === "pago");
   const count = GRANULARITY_COUNT[granularity];
-  const buckets: { name: string; matchKey: number }[] = [];
+  const buckets: { name: string; matchKey: string }[] = [];
+  const today = getBrasiliaDateParts(now);
 
   if (granularity === "day") {
     for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      buckets.push({ name: `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`, matchKey: d.getTime() });
+      const d = addDays(today, -i);
+      buckets.push({ name: `${pad(d.day)}/${pad(d.month)}`, matchKey: keyForParts(d, granularity) });
     }
   } else if (granularity === "week") {
-    const thisWeekStart = startOfLocalWeek(now);
+    const thisWeekStart = startOfBrasiliaWeek(today);
     for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(thisWeekStart.getFullYear(), thisWeekStart.getMonth(), thisWeekStart.getDate() - i * 7);
-      buckets.push({ name: `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`, matchKey: d.getTime() });
+      const d = addDays(thisWeekStart, -i * 7);
+      buckets.push({ name: `${pad(d.day)}/${pad(d.month)}`, matchKey: keyForParts(d, granularity) });
     }
   } else if (granularity === "month") {
     for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      buckets.push({ name: MONTH_NAMES[d.getMonth()], matchKey: d.getTime() });
+      const d = addBrasiliaCalendarMonths({ year: today.year, month: today.month, day: 1 }, -i);
+      buckets.push({ name: MONTH_NAMES[d.month - 1], matchKey: keyForParts(d, granularity) });
     }
   } else {
     for (let i = count - 1; i >= 0; i--) {
-      const y = now.getFullYear() - i;
-      buckets.push({ name: String(y), matchKey: new Date(y, 0, 1).getTime() });
+      const y = today.year - i;
+      buckets.push({ name: String(y), matchKey: String(y) });
     }
   }
 
-  const sums = new Map<number, { receita: number; bruto: number }>();
+  const sums = new Map<string, { receita: number; bruto: number }>();
   for (const m of paid) {
     const key = bucketKeyFor(new Date(m.paid_at ?? m.created_at), granularity);
     const entry = sums.get(key) ?? { receita: 0, bruto: 0 };

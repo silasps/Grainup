@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { AdminHeader } from "@/components/admin/header";
 import { AdminDashboard } from "@/components/admin/dashboard";
+import { brasiliaDateToUtcIso, getBrasiliaDateParts, getBrasiliaMonthRange } from "@/lib/utils/brasilia-time";
 
 export const metadata: Metadata = {
   title: "Dashboard — Admin Editora Jocum",
@@ -15,11 +16,11 @@ async function getDashboardData() {
   const supabase = await createClient();
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
-  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString();
-  const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString();
-  const fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), 1).toISOString();
+  const brasiliaToday = getBrasiliaDateParts(now);
+  const thisMonth = getBrasiliaMonthRange(now);
+  const lastMonth = getBrasiliaMonthRange(now, -1);
+  const threeMonthsAgo = getBrasiliaMonthRange(now, -3).startIso;
+  const fiveYearsAgo = brasiliaDateToUtcIso(brasiliaToday.year - 5, brasiliaToday.month, 1);
 
   const [
     ordersResult,
@@ -43,14 +44,15 @@ async function getDashboardData() {
     supabase
       .from("orders")
       .select("id, status, total")
-      .gte("created_at", startOfMonth),
+      .gte("created_at", thisMonth.startIso)
+      .lt("created_at", thisMonth.endIso),
 
     // Last month
     supabase
       .from("orders")
       .select("id, status, total")
-      .gte("created_at", startOfLastMonth)
-      .lte("created_at", endOfLastMonth),
+      .gte("created_at", lastMonth.startIso)
+      .lt("created_at", lastMonth.endIso),
 
     // Recent orders for table
     supabase
@@ -85,7 +87,8 @@ async function getDashboardData() {
     supabase
       .from("leads")
       .select("id, created_at")
-      .gte("created_at", startOfMonth),
+      .gte("created_at", thisMonth.startIso)
+      .lt("created_at", thisMonth.endIso),
 
     // SAC tickets
     supabase

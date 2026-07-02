@@ -851,15 +851,17 @@ SUPABASE_ACCESS_TOKEN=...            # CLI token for migrations
 > `date_approved` at Mercado Pago — never from `orders.updated_at`, which
 > reflects the last edit to the order (fulfillment status, tracking code,
 > etc.) and silently produces the wrong date on the revenue chart.
-> All revenue-chart date bucketing (day/week/month/year) must compare
-> **local calendar dates**, not raw UTC ISO-string prefixes — a payment at
-> `02:44 UTC` on Jul 1 is `23:44` on Jun 30 in Brasília, and the movements
-> table below the chart already displays it as 30/06 via
-> `Intl.DateTimeFormat("pt-BR")` (browser-local by default). Bucketing by
-> UTC prefix puts that same row in a different day than the table shows,
-> which reads as inconsistent data. The shared helper
-> `lib/utils/revenue-chart.ts` (`buildRevenueBuckets()`) encapsulates this
-> and is the only place that should compute chart buckets — used by both
+> All admin/reporting date buckets and "today/this month" ranges must use
+> the Brasília calendar (`America/Sao_Paulo`), never the server timezone,
+> browser timezone, or raw UTC ISO-string prefixes. A payment at `02:44 UTC`
+> on Jul 1 is `23:44` on Jun 30 in Brasília; grouping it by a UTC prefix puts
+> it in a different day/month than the business sees. Use
+> `lib/utils/brasilia-time.ts` for UTC query boundaries, and prefer
+> half-open ranges (`.gte(startIso).lt(endIso)`) instead of inclusive
+> end-of-period timestamps. The shared chart helper
+> `lib/utils/revenue-chart.ts` (`buildRevenueBuckets()`) also buckets
+> day/week/month/year in Brasília and is the only place that should compute
+> revenue chart buckets — used by both
 > `components/admin/financeiro-dashboard.tsx` and
 > `components/admin/dashboard.tsx`.
 ```
@@ -1092,7 +1094,8 @@ NODE_ENV=production
 | `lib/bling/auth.ts` | Bling OAuth token management (refresh, store) |
 | `lib/correios/client.ts` | Correios CWS REST client with in-memory token cache |
 | `lib/orders/process-approved-payment.ts` | `processApprovedPayment()` — single, idempotent source of truth for marking an order paid (status, affiliate commission, `financial_movements`, stock, email, Bling). Called by the MP webhook, checkout polling, and admin manual sync — never update `orders.status='pago'` directly |
-| `lib/utils/revenue-chart.ts` | `buildRevenueBuckets()` — shared day/week/month/year bucketing for revenue charts, using local-calendar dates (not UTC string prefixes) so the chart matches the movements table below it. Used by `financeiro-dashboard.tsx` and `dashboard.tsx` |
+| `lib/utils/brasilia-time.ts` | Brasília calendar helpers (`America/Sao_Paulo`) for admin/reporting date ranges. Use these to build UTC query boundaries for "today", "this month", and month offsets so localhost, production, and browser rendering agree |
+| `lib/utils/revenue-chart.ts` | `buildRevenueBuckets()` — shared day/week/month/year bucketing for revenue charts, using the Brasília calendar (not UTC string prefixes) so charts, KPIs, and movement tables agree. Used by `financeiro-dashboard.tsx` and `dashboard.tsx` |
 | `lib/supabase/server.ts` | Server-side Supabase client factory (SSR cookies) |
 | `lib/supabase/middleware.ts` | Session refresh middleware |
 | `lib/email/index.ts` | All transactional email send functions |

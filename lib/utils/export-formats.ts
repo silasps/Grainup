@@ -1,3 +1,5 @@
+import { BRASILIA_TIME_ZONE } from "@/lib/utils/brasilia-time";
+
 interface Movement {
   id: string;
   gross_amount: number;
@@ -28,13 +30,22 @@ const PAY_LABEL: Record<string, string> = {
 };
 
 function fmtDate(iso: string) {
-  return new Intl.DateTimeFormat("pt-BR").format(new Date(iso));
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: BRASILIA_TIME_ZONE }).format(new Date(iso));
 }
 
 function fmtOFXDate(iso: string) {
   const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}120000`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BRASILIA_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const values = Object.fromEntries(
+    parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value])
+  );
+
+  return `${values.year}${values.month}${values.day}120000`;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -188,7 +199,7 @@ export async function exportExcel(movements: Movement[], filterLabel: string) {
   if (filterLabel) {
     const ws3 = XLSX.utils.aoa_to_sheet([
       ["Relatório de Movimentações — Editora Jocum"],
-      ["Gerado em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short" }).format(new Date())],
+      ["Gerado em", new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short", timeZone: BRASILIA_TIME_ZONE }).format(new Date())],
       ["Filtros aplicados", filterLabel],
       ["Total de registros", movements.length],
     ]);

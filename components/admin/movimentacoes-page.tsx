@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronUp, ChevronDown, ChevronsUpDown, X, ArrowLeft, Receipt, CircleMinus, Wallet, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
 import { ExportMenu } from "@/components/admin/export-menu";
+import { BRASILIA_TIME_ZONE } from "@/lib/utils/brasilia-time";
 
 interface Movement {
   id: string;
@@ -139,7 +140,7 @@ export function MovimentacoesPage({ movements }: Props) {
       parts.push(labels[filterPeriod] ?? filterPeriod);
     }
     if (dateFrom || dateTo) {
-      parts.push(`${dateFrom ? new Intl.DateTimeFormat("pt-BR").format(new Date(dateFrom)) : "início"} até ${dateTo ? new Intl.DateTimeFormat("pt-BR").format(new Date(dateTo)) : "hoje"}`);
+      parts.push(`${dateFrom ? new Intl.DateTimeFormat("pt-BR", { timeZone: BRASILIA_TIME_ZONE }).format(new Date(dateFrom)) : "início"} até ${dateTo ? new Intl.DateTimeFormat("pt-BR", { timeZone: BRASILIA_TIME_ZONE }).format(new Date(dateTo)) : "hoje"}`);
     }
     if (filterPayment !== "all") parts.push(PAY_LABEL[filterPayment] ?? filterPayment);
     if (filterStatus !== "all") parts.push(STATUS_LABEL[filterStatus] ?? filterStatus);
@@ -345,7 +346,7 @@ export function MovimentacoesPage({ movements }: Props) {
               filtered.map((m) => (
                 <tr key={m.id} className="hover:bg-secondary/30 transition-colors">
                   <td className="px-5 py-3 text-muted-foreground text-xs whitespace-nowrap">
-                    {new Intl.DateTimeFormat("pt-BR").format(new Date(m.paid_at ?? m.created_at))}
+                    {new Intl.DateTimeFormat("pt-BR", { timeZone: BRASILIA_TIME_ZONE }).format(new Date(m.paid_at ?? m.created_at))}
                   </td>
                   <td className="px-5 py-3 capitalize text-muted-foreground whitespace-nowrap">
                     {PAY_LABEL[m.payment_method] ?? m.payment_method?.replace("_", " ") ?? "—"}

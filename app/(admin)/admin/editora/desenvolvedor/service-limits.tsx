@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { Mail, Users, Truck, Package, CreditCard, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { brasiliaDateToUtcIso, getBrasiliaDateParts, getBrasiliaMonthRange } from "@/lib/utils/brasilia-time";
 
 // ─── limits ────────────────────────────────────────────────────────────────────
 
@@ -13,8 +14,9 @@ async function getServiceLimitsData() {
   const supabase = await createAdminClient();
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const brasiliaToday = getBrasiliaDateParts(now);
+  const thisMonth = getBrasiliaMonthRange(now);
+  const startOfDay = brasiliaDateToUtcIso(brasiliaToday.year, brasiliaToday.month, brasiliaToday.day);
 
   const [
     { count: emailsMonth },
@@ -22,7 +24,7 @@ async function getServiceLimitsData() {
     { count: totalUsers },
     blingResult,
   ] = await Promise.all([
-    supabase.from("email_logs").select("id", { count: "exact", head: true }).gte("sent_at", startOfMonth),
+    supabase.from("email_logs").select("id", { count: "exact", head: true }).gte("sent_at", thisMonth.startIso).lt("sent_at", thisMonth.endIso),
     supabase.from("email_logs").select("id", { count: "exact", head: true }).gte("sent_at", startOfDay),
     supabase.from("profiles").select("id", { count: "exact", head: true }),
     supabase.from("bling_tokens").select("expires_at, updated_at").eq("id", 1).maybeSingle(),
