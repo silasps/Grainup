@@ -209,7 +209,7 @@ export function AnalyticsTab({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8">
+    <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-8">
       {/* KPIs do funil */}
       <div>
         <h2 className="text-sm font-semibold text-foreground mb-3">Funil de conversão — todos os livros</h2>

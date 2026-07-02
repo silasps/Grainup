@@ -314,7 +314,7 @@ export function LeadsTable({ leads, origins }: { leads: Lead[]; origins: string[
   const withConsent = filtered.filter((l) => l.marketing_consent).length;
 
   return (
-    <main className="flex-1 overflow-y-auto p-4 md:p-6">
+    <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[

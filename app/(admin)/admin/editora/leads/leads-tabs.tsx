@@ -79,7 +79,7 @@ export function LeadsTabs({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         {tab === "leads" && <LeadsTable leads={leads} origins={origins} />}
         {tab === "analytics" && <AnalyticsTab leads={leads} events={events} />}
         {tab === "campanhas" && (
