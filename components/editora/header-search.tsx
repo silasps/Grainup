@@ -19,6 +19,7 @@ export function HeaderSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const mobileContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -40,7 +41,10 @@ export function HeaderSearch() {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideDesktop = containerRef.current?.contains(target);
+      const insideMobile = mobileContainerRef.current?.contains(target);
+      if (!insideDesktop && !insideMobile) {
         setOpen(false);
       }
     };
@@ -211,7 +215,7 @@ export function HeaderSearch() {
 
       {/* Mobile: overlay fullscreen */}
       {open && (
-        <div className="sm:hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <div ref={mobileContainerRef} className="sm:hidden fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
             <form onSubmit={handleSubmit} className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
