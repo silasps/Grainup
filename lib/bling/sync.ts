@@ -6,7 +6,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { getBlingProductBySku, createBlingProduct, createBlingOrder, createBlingNfe, sendBlingNfe, getBlingNfe, generateBlingNfeFromOrder, findOrCreateBlingContact, resolvePaymentFormId, type BlingOrderPayload } from "./client";
+import { getBlingProductBySku, createBlingProduct, createBlingOrder, createBlingNfe, sendBlingNfe, getBlingNfe, generateBlingNfeFromOrder, findOrCreateBlingContact, resolvePaymentFormId, resolveLivrosGrupoId, type BlingOrderPayload } from "./client";
 
 /** Chamado pelo webhook do Bling quando estoque muda */
 export async function syncStockFromBling(blingProductId: number, sku: string, newStock: number) {
@@ -58,17 +58,22 @@ export async function pushOrderToBling(orderId: string) {
     const blingProduct = await getBlingProductBySku(code);
     if (blingProduct) return { produto: { id: blingProduct.id }, codigo: blingProduct.codigo || code };
 
-    // Produto não está no Bling — cria automaticamente com categoria e NCM corretos
+    // Produto não está no Bling — cria automaticamente com categoria, grupo e NCM corretos.
+    // Sem o grupo, a regra da natureza de operação não é encontrada → CFOP vazio → NF-e falha.
     try {
       const categoriaId = process.env.BLING_CATEGORIA_LIVROS_ID
         ? parseInt(process.env.BLING_CATEGORIA_LIVROS_ID, 10)
         : undefined;
+      const grupoId = resolveLivrosGrupoId();
       const created = await createBlingProduct({
         nome: title,
         codigo: sku || undefined,
         preco: price ?? 0,
         formato: "S", situacao: "A", tipo: "P", unidade: "UN",
-        tributacao: { ncm: "4901.99.00", origem: 0 },
+        tributacao: {
+          ncm: "4901.99.00", origem: 0,
+          ...(grupoId ? { grupoProduto: { id: grupoId } } : {}),
+        },
         ...(categoriaId ? { categoria: { id: categoriaId } } : {}),
       });
       console.log(`[Bling] Produto criado automaticamente: "${title}" → ID ${created.id}`);

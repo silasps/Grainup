@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getBlingProductBySku, getAllBlingProducts, createBlingProduct, updateBlingProduct, safePatchBlingProductCodigo, safePatchBlingProductNcm, safePatchBlingProductCategoria, safePatchBlingProductGrupo, safePatchBlingProductFisicos, getBlingProductDimensions, getBlingGrupos, getBlingNaturezasOperacao, getBlingCategorias, getBlingCategoriasRaw, type BlingProduct, type BlingNaturezaOperacao, type BlingCategoria } from "@/lib/bling/client";
+import { getBlingProductBySku, getAllBlingProducts, createBlingProduct, safePatchBlingProductCodigo, safePatchBlingProductNcm, safePatchBlingProductCategoria, safePatchBlingProductGrupo, safePatchBlingProductFisicos, safePatchBlingProductFiscal, resolveLivrosGrupoId, getBlingProductDimensions, getBlingNaturezasOperacao, getBlingCategorias, getBlingCategoriasRaw, type BlingProduct, type BlingNaturezaOperacao, type BlingCategoria } from "@/lib/bling/client";
 
 function norm(s: string) {
   return s.toLowerCase()
@@ -121,10 +121,13 @@ export async function pushBookToBlingAction(bookId: string): Promise<{ blingProd
         return { blingProductId: existing.id, error: null };
       }
     }
-    // Sem correspondência — cria novo produto no Bling com dados fiscais para NF-e
+    // Sem correspondência — cria novo produto no Bling com dados fiscais para NF-e.
+    // Inclui o grupo já na criação: sem ele, a regra da natureza de operação não é
+    // encontrada e o CFOP sai vazio na primeira NF-e desse produto.
     const categoriaId = process.env.BLING_CATEGORIA_LIVROS_ID
       ? parseInt(process.env.BLING_CATEGORIA_LIVROS_ID, 10)
       : undefined;
+    const grupoId = resolveLivrosGrupoId();
     const result = await createBlingProduct({
       nome: book.title,
       codigo: book.sku || undefined,
@@ -133,7 +136,10 @@ export async function pushBookToBlingAction(bookId: string): Promise<{ blingProd
       situacao: "A",
       tipo: "P",
       unidade: "UN",
-      tributacao: { ncm: "4901.99.00", origem: 0 },
+      tributacao: {
+        ncm: "4901.99.00", origem: 0,
+        ...(grupoId ? { grupoProduto: { id: grupoId } } : {}),
+      },
       ...(categoriaId ? { categoria: { id: categoriaId } } : {}),
     });
     await (supabase as any).from("books").update({ bling_product_id: result.id }).eq("id", bookId);
@@ -184,14 +190,14 @@ export async function syncBookToBlingAction(bookId: string): Promise<{ error: st
     const categoriaId = process.env.BLING_CATEGORIA_LIVROS_ID
       ? parseInt(process.env.BLING_CATEGORIA_LIVROS_ID, 10)
       : undefined;
-    await updateBlingProduct(book.bling_product_id, {
+    // safePatchBlingProductFiscal: GET completo → altera só nome/codigo/preco/ncm/categoria → PUT completo.
+    // Preserva grupo, dimensões e todo o resto — PUT parcial (updateBlingProduct) apaga campos omitidos.
+    await safePatchBlingProductFiscal(book.bling_product_id, {
       nome: book.title,
       codigo: book.sku || undefined, // preserva o SKU existente no Bling
       preco: book.price,
-      tipo: "P", formato: "S", situacao: "A",
-      unidade: "UN",
-      tributacao: { ncm: "4901.99.00", origem: 0 },
-      ...(categoriaId ? { categoria: { id: categoriaId } } : {}),
+      ncm: "4901.99.00",
+      categoriaId,
     });
     return { error: null };
   } catch (e) {
@@ -349,29 +355,20 @@ export async function fixDuplicateBlingLinksAction(): Promise<{ fixed: number; c
 }
 
 /**
- * Define o Grupo de Produtos "Livros Insdustrializados na Editora" em TODOS os livros no Bling.
- * A natureza de operação filtra por esse grupo para aplicar CFOP/CSOSN corretos na NF-e.
- * Sem esse grupo, o Bling não encontra a regra → CFOP vazio → NF-e falha.
+ * Define o Grupo de Produtos (tributacao.grupoProduto) em TODOS os livros vinculados ao Bling
+ * que ainda não têm esse grupo configurado. A natureza de operação filtra por esse grupo para
+ * aplicar CFOP/CSOSN corretos na NF-e — sem ele, o Bling não encontra a regra e o CFOP sai vazio.
+ *
+ * A API v3 do Bling não expõe endpoint pra listar grupos (/grupos → 404 confirmado em produção),
+ * então o ID precisa estar em BLING_GRUPO_LIVROS_ID (leia em Bling → Configurações → Grupos de
+ * produtos, ou copie de um produto já correto via GET /produtos/{id} → tributacao.grupoProduto.id).
  */
 export async function fixBlingProductCategoriesAction(): Promise<{ fixed: number; skipped: number; error: string | null }> {
   const supabase = await createAdminClient();
 
-  // Busca todos os grupos do Bling para achar "Livros Insdustrializados na Editora"
-  let targetGrupoId: number | null = null;
-  try {
-    const grupos = await getBlingGrupos();
-    const target = grupos.find(g => {
-      const name = g.descricao.toLowerCase();
-      return name.includes("insdustrializado") || name.includes("industrializado");
-    });
-    targetGrupoId = target?.id ?? null;
-    if (!targetGrupoId) {
-      const names = grupos.slice(0, 20).map(g => `${g.id}: ${g.descricao}`).join(", ");
-      return { fixed: 0, skipped: 0, error: `Grupo "Livros Insdustrializados na Editora" não encontrado em /grupos. Grupos disponíveis: ${names || "(nenhum)"}` };
-    }
-    console.log(`[Bling] Grupo encontrado: ID ${targetGrupoId} → "${target?.descricao}"`);
-  } catch (e) {
-    return { fixed: 0, skipped: 0, error: `Erro ao buscar grupos: ${String(e)}` };
+  const targetGrupoId = resolveLivrosGrupoId();
+  if (!targetGrupoId) {
+    return { fixed: 0, skipped: 0, error: "BLING_GRUPO_LIVROS_ID não configurado. Confirme o ID no Bling antes de rodar — não existe endpoint pra descobrir automaticamente." };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

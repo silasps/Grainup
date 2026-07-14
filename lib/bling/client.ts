@@ -99,10 +99,15 @@ export interface BlingProductPayload {
   formato?: "S" | "E" | "V"; // S = Simples, E = Estrutura/Composição, V = Variação (obrigatório no PUT)
   situacao?: "A" | "I"; // obrigatório no PUT
   unidade?: string;
-  categoria?: { id: number }; // categoria do produto — define qual regra da naturezaOperacao se aplica
+  categoria?: { id: number }; // categoria do produto (organizacional — NÃO é o que define CFOP/CSOSN)
   tributacao?: {
     ncm?: string;    // ex: "4901.99.00" (livros)
     origem?: number; // 0 = nacional
+    // Grupo de Produtos: é ISTO (aninhado em tributacao, não na raiz do produto) que a
+    // naturezaOperacao usa pra achar a regra de CFOP/CSOSN. Confirmado via GET /produtos/{id}
+    // em produção — não existe endpoint /grupos na API v3 (404), então o ID só pode vir de
+    // BLING_GRUPO_LIVROS_ID (confirmado manualmente no Bling) ou de um produto já correto.
+    grupoProduto?: { id: number };
   };
 }
 
@@ -112,13 +117,6 @@ export async function createBlingProduct(payload: BlingProductPayload): Promise<
     body: JSON.stringify(payload),
   });
   return data.data;
-}
-
-export async function updateBlingProduct(blingProductId: number, payload: Partial<BlingProductPayload>): Promise<void> {
-  await blingFetch(`/produtos/${blingProductId}`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
 }
 
 /**
@@ -169,6 +167,45 @@ export async function safePatchBlingProductCategoria(blingProductId: number, cat
   delete product.dataCriacao;
   delete product.dataAlteracao;
   product.categoria = { id: categoriaId };
+  await blingFetch(`/produtos/${blingProductId}`, {
+    method: "PUT",
+    body: JSON.stringify(product),
+  });
+}
+
+/**
+ * Atualiza nome, código, preço e dados fiscais (NCM/categoria) de um produto no Bling
+ * após edição de um livro na plataforma.
+ * Usa safePatch: GET completo → altera apenas os campos fornecidos → PUT completo.
+ * NUNCA usar updateBlingProduct() (PUT parcial) aqui — o Bling v3 trata PUT como substituição
+ * total do registro, então qualquer campo omitido (ex: grupo) é apagado no Bling.
+ * Foi exatamente isso que zerou o Grupo de Produtos e quebrou o CFOP/CSOSN da NF-e no passado.
+ */
+export async function safePatchBlingProductFiscal(blingProductId: number, payload: {
+  nome?: string;
+  codigo?: string;
+  preco?: number;
+  ncm?: string;
+  categoriaId?: number;
+}): Promise<void> {
+  const data = await blingFetch<{ data: Record<string, unknown> }>(`/produtos/${blingProductId}`);
+  const product = { ...data.data };
+  delete product.id;
+  delete product.estoque;
+  delete product.imagens;
+  delete product.dataCriacao;
+  delete product.dataAlteracao;
+
+  if (payload.nome != null) product.nome = payload.nome;
+  if (payload.codigo != null) product.codigo = payload.codigo;
+  if (payload.preco != null) product.preco = payload.preco;
+  if (payload.ncm != null) {
+    // Spread de tributacao preserva grupoProduto (CFOP/CSOSN) — nunca reconstruir esse objeto do zero.
+    const tributacao = (product.tributacao as Record<string, unknown>) ?? {};
+    product.tributacao = { ...tributacao, ncm: payload.ncm, origem: tributacao.origem ?? 0 };
+  }
+  if (payload.categoriaId != null) product.categoria = { id: payload.categoriaId };
+
   await blingFetch(`/produtos/${blingProductId}`, {
     method: "PUT",
     body: JSON.stringify(product),
@@ -383,24 +420,17 @@ export async function getBlingCategoriasRaw(): Promise<unknown[]> {
   return all;
 }
 
-export interface BlingGrupo {
-  id: number;
-  descricao: string;
-}
-
-export async function getBlingGrupos(): Promise<BlingGrupo[]> {
-  try {
-    const all: BlingGrupo[] = [];
-    for (let page = 1; page <= 5; page++) {
-      const data = await blingFetch<{ data: BlingGrupo[] }>(`/grupos?limite=100&pagina=${page}`);
-      const items = (data.data ?? []).filter(g => g.id > 0);
-      all.push(...items);
-      if (items.length < 100) break;
-    }
-    return all;
-  } catch {
-    return [];
-  }
+/**
+ * Resolve o ID do Grupo de Produtos (tributacao.grupoProduto) usado pela regra de CFOP/CSOSN
+ * dos livros. A API v3 do Bling NÃO expõe endpoint pra listar grupos (/grupos → 404 confirmado
+ * em produção) — o ID só pode vir de configuração manual, nunca de busca por nome.
+ * Configure BLING_GRUPO_LIVROS_ID lendo o valor em Bling → Configurações → Grupos de produtos,
+ * ou o ID já usado num produto correto (GET /produtos/{id} → tributacao.grupoProduto.id).
+ */
+export function resolveLivrosGrupoId(): number | null {
+  return process.env.BLING_GRUPO_LIVROS_ID
+    ? parseInt(process.env.BLING_GRUPO_LIVROS_ID, 10)
+    : null;
 }
 
 /**
@@ -440,7 +470,8 @@ export async function getBlingProductDimensions(blingProductId: number): Promise
 }
 
 export async function safePatchBlingProductGrupo(blingProductId: number, grupoId: number): Promise<void> {
-  // GET completo → muda só grupo → PUT completo (preserva NCM, categoria, código, etc.)
+  // GET completo → muda só tributacao.grupoProduto → PUT completo (preserva NCM, categoria, código, etc.)
+  // O campo fica aninhado em tributacao — setar um `grupo` na raiz do produto é ignorado pelo Bling.
   const data = await blingFetch<{ data: Record<string, unknown> }>(`/produtos/${blingProductId}`);
   const product = { ...data.data };
   delete product.id;
@@ -448,7 +479,8 @@ export async function safePatchBlingProductGrupo(blingProductId: number, grupoId
   delete product.imagens;
   delete product.dataCriacao;
   delete product.dataAlteracao;
-  product.grupo = { id: grupoId };
+  const tributacao = (product.tributacao as Record<string, unknown>) ?? {};
+  product.tributacao = { ...tributacao, grupoProduto: { id: grupoId } };
   await blingFetch(`/produtos/${blingProductId}`, {
     method: "PUT",
     body: JSON.stringify(product),
