@@ -203,10 +203,10 @@ export async function pushOrderToBling(orderId: string) {
     itens: blingItems,
     parcelas: [{ dataVencimento: orderDate, valor: parcelaTotal, formaPagamento }],
     transporte: {
-      fretePorConta: 1,  // 1 = Remetente (Bling v3 usa inteiro, não string "R")
+      fretePorConta: 0,  // 0 = Remetente/CIF (SEFAZ: 0=CIF, 1=FOB, 9=Sem frete)
       frete,
       ...(blingCorreiosContatoId ? { contato: { id: blingCorreiosContatoId, nome: "Correios" } } : {}),
-      ...(serviceName ? { volumes: [{ id: 0, servico: serviceName }] } : {}),
+      ...(serviceName ? { volumes: [{ id: 0, servico: serviceName, especie: "Volumes", quantidade: 1 }] } : {}),
       etiqueta: {
         nome: order.customer_name as string,
         endereco: addr.street ?? "",

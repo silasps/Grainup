@@ -721,21 +721,36 @@ CLIENTE_SECRET=...
 | Create customer | `POST /contatos` |
 | Update customer | `PUT /contatos/{id}` |
 | Create sales order | `POST /pedidos/vendas` |
-| Create NF-e | `POST /nfe` |
+| Generate NF-e from order | `POST /pedidos/vendas/{id}/gerar-nfe` |
 | Submit NF-e to SEFAZ | `POST /nfe/{id}/enviar` |
 | Get NF-e status | `GET /nfe/{id}` |
 | List payment forms | `GET /formas-pagamentos` |
 
 **Webhook:** Bling calls `/api/bling-webhook` on stock changes → updates `books.stock`
 
+**NF-e freight (SEFAZ fretePorConta):**
+- `0` = CIF/Remetente — freight paid by sender, `vFrete` appears in the NF-e XML. **Use this for all Editora Jocum sales.**
+- `1` = FOB/Destinatário — Bling zeroes out `vFrete` in the NF-e (wrong, no freight appears on the DANFE)
+- `9` = No freight information
+
+**Transportadora:** Sent as `transporte.contato.id` (contact ID in Bling). There is no `transporte.transportadora` field in Bling v3.
+`BLING_TRANSPORTADORA_CORREIOS_ID` = ID of AGENCIA DE CORREIOS FRANQUEADA SAO LOURENCO in Bling.
+
 **Config:**
 ```env
-BLING_CATEGORIA_LIVROS_ID=...   # Product category ID in Bling
-BLING_PAYMENT_FORM_PIX=...      # Bling payment form ID for PIX
-BLING_PAYMENT_FORM_DEFAULT=...  # Fallback payment form
+BLING_CLIENT_ID=...
+BLING_CLIENT_SECRET=...
+BLING_REDIRECT_URI=https://editorajocum.com.br/api/bling/callback
+BLING_WEBHOOK_SECRET=...
+BLING_CATEGORIA_LIVROS_ID=2285477
+BLING_PAYMENT_FORM_PIX=10278087
+BLING_CONDICAO_PAGAMENTO_ID=1
+BLING_COMPANY_UF=PR
+BLING_NATUREZA_OPERACAO_ID=8431384474
+BLING_TRANSPORTADORA_CORREIOS_ID=10262380010
 ```
 
-> **CRITICAL:** Always read Bling API v3 docs before any integration work. The API has many non-obvious details — response envelopes, required fields, pagination, and payment form resolution differ significantly from other ERPs. See memory: `feedback_bling_docs_first.md`.
+> **CRITICAL:** Before any Bling integration work — (1) consult `lib/bling/BLING_API.md` (platform reference: fretePorConta table, safe PUT rules, field nomenclature differences), and (2) check for API updates at https://developer.bling.com.br/referencia. See memory: `feedback_bling_docs_first.md`.
 
 ---
 
@@ -1115,10 +1130,17 @@ MERCADOPAGO_ACCESS_TOKEN=APP_USR-...
 CLIENTE_ID=...
 CLIENTE_SECRET=...
 
-# Bling (OAuth tokens stored in DB — no static key needed)
-BLING_CATEGORIA_LIVROS_ID=...
-BLING_PAYMENT_FORM_PIX=...
-BLING_PAYMENT_FORM_DEFAULT=...
+# Bling (OAuth tokens stored in DB — no static key needed at runtime)
+BLING_CLIENT_ID=...
+BLING_CLIENT_SECRET=...
+BLING_REDIRECT_URI=https://editorajocum.com.br/api/bling/callback
+BLING_WEBHOOK_SECRET=...
+BLING_CATEGORIA_LIVROS_ID=2285477
+BLING_PAYMENT_FORM_PIX=10278087
+BLING_CONDICAO_PAGAMENTO_ID=1
+BLING_COMPANY_UF=PR
+BLING_NATUREZA_OPERACAO_ID=8431384474
+BLING_TRANSPORTADORA_CORREIOS_ID=10262380010
 
 # Correios (CWS contract credentials)
 CORREIOS_USUARIO=editorajocum
@@ -1173,6 +1195,7 @@ NODE_ENV=production
 
 | File | What it does |
 |---|---|
+| `lib/bling/BLING_API.md` | Bling platform reference (fretePorConta table, safe PUT rules, env vars, NF-e flow, field nomenclature) — **read before any Bling change** |
 | `lib/bling/client.ts` | Bling API client (~700 lines) — all ERP operations |
 | `lib/bling/sync.ts` | `pushOrderToBling()` and stock sync logic |
 | `lib/bling/auth.ts` | Bling OAuth token management (refresh, store) |

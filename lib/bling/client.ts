@@ -570,6 +570,8 @@ export interface BlingOrderPayload {
     volumes?: Array<{
       id: number;                    // obrigatório no tipo; usar 0 para criação
       servico: string;               // "PAC" | "SEDEX" — confirmado via SDK oficial
+      especie?: string;              // ex: "Caixa" — aparece no DANFE em Transportador/Volumes
+      quantidade?: number;
       codigoRastreamento?: string;
     }>;
     etiqueta?: { nome?: string; endereco: string; numero: string; complemento?: string; bairro: string; municipio: string; uf: string; cep: string };
