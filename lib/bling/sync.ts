@@ -6,7 +6,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { getBlingProductBySku, createBlingProduct, createBlingOrder, createBlingNfe, sendBlingNfe, getBlingNfe, generateBlingNfeFromOrder, findOrCreateBlingContact, resolvePaymentFormId, resolveLivrosGrupoId, type BlingOrderPayload } from "./client";
+import { getBlingProductBySku, createBlingProduct, createBlingOrder, createBlingNfe, sendBlingNfe, getBlingNfe, findOrCreateBlingContact, resolvePaymentFormId, resolveLivrosGrupoId, type BlingOrderPayload, type BlingNfePayload } from "./client";
 
 /** Chamado pelo webhook do Bling quando estoque muda */
 export async function syncStockFromBling(blingProductId: number, sku: string, newStock: number) {
@@ -226,12 +226,52 @@ export async function pushOrderToBling(orderId: string) {
   await (supabase as any).from("orders").update({ bling_order_id: result.id }).eq("id", orderId);
   console.log(`[Bling] Pedido ${order.order_number} enviado → ID Bling ${result.id}`);
 
-  // Usa POST /pedidos/vendas/{id}/gerar-nfe — Bling gera a NF-e internamente aplicando
-  // as regras da natureza de operação (CFOP, CSOSN) com base na categoria do produto.
-  // Isso é correto porque o Bling tem acesso aos dados completos do produto (categoria, tributação).
+  // Usa POST /nfe diretamente (não gerar-nfe) porque o endpoint gerar-nfe herda fretePorConta
+  // e o transportador do pedido, mas NÃO herda o valor monetário do frete (frete: null na NF-e).
+  // Com POST /nfe passamos frete, CFOP e CSOSN explicitamente.
   try {
-    const nfe = await generateBlingNfeFromOrder(result.id);
-    if (!nfe) throw new Error("gerar-nfe não retornou ID");
+    const buyerUf = (addr.state ?? "").toUpperCase();
+    const companyUf = (process.env.BLING_COMPANY_UF ?? "PR").toUpperCase();
+    const cfop = buyerUf === companyUf ? "5101" : "6107";
+
+    const nfeItens = blingItems.map(item => ({
+      codigo: item.codigo || item.descricao.slice(0, 60),
+      descricao: item.descricao,
+      quantidade: item.quantidade,
+      valor: item.valor,
+      unidade: "UN",
+      classificacaoFiscal: "49019900",  // NCM livros
+      origem: 0,                         // 0 = nacional
+      cfop,
+      tributacao: { csosn: 300 },       // 300 = Imune ICMS (livros, Art. 150 CF)
+    }));
+
+    const nfePayload: BlingNfePayload = {
+      pedido: { id: result.id },
+      contato: { id: contatoId },
+      dataOperacao: orderDate,
+      itens: nfeItens,
+      parcelas: [{ valor: parcelaTotal, data: orderDate, formaPagamento }],
+      transporte: {
+        fretePorConta: 0,
+        frete,
+        ...(blingCorreiosContatoId ? { contato: { id: blingCorreiosContatoId, nome: "Correios" } } : {}),
+        ...(serviceName ? { volumes: [{ id: 0, servico: serviceName, especie: "Volumes", quantidade: 1 }] } : {}),
+        etiqueta: {
+          nome: order.customer_name as string,
+          endereco: addr.street ?? "",
+          numero: addr.number ?? "S/N",
+          complemento: addr.complement || undefined,
+          bairro: addr.neighborhood ?? "",
+          municipio: addr.city ?? "",
+          uf: addr.state ?? "",
+          cep,
+        },
+      },
+    };
+
+    const nfe = await createBlingNfe(nfePayload);
+    if (!nfe?.id) throw new Error("POST /nfe não retornou ID");
     console.log(`[Bling] NF-e gerada → ID ${nfe.id}`);
 
     // Transmite ao SEFAZ automaticamente

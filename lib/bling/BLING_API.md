@@ -46,7 +46,9 @@ Pagamento confirmado
       → salva invoice_number + invoice_url no pedido
 ```
 
-**Importante:** `gerar-nfe` herda os dados do pedido, incluindo `transporte`. Não há payload separado para a NF-e nesse fluxo.
+**Importante:** `gerar-nfe` herda do pedido: itens, contato, fretePorConta, transportador, etiqueta. Mas **NÃO herda `transporte.frete` (valor monetário)**. Por isso usamos `POST /nfe` diretamente com frete explícito. O pedido continua sendo criado antes para vincular a NF-e via `pedido: { id }`.
+
+> **Confirmado em 2026-07-23:** GET /nfe/{id} retorna `frete: null` em NF-es geradas via `gerar-nfe` mesmo quando o pedido tem `frete: 18.08`. Valor só aparece quando enviado explicitamente via `POST /nfe`.
 
 ---
 

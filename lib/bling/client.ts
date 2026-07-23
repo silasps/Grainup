@@ -561,7 +561,7 @@ export interface BlingOrderPayload {
     formaPagamento?: { id: number };
   }>;
   transporte: {
-    fretePorConta: number;   // 1 = Remetente, 2 = Destinatário, 3 = Terceiros (inteiro no Bling v3)
+    fretePorConta: number;   // SEFAZ: 0=CIF/Remetente, 1=FOB/Destinatário, 9=Sem frete
     frete: number;
     // contato dentro de transporte = transportador (Correios cadastrado como contato no Bling).
     // Confirmado via SDK oficial: AlexandreBellas/bling-erp-api-js create.interface.ts
