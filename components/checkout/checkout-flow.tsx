@@ -357,6 +357,9 @@ export function CheckoutFlow() {
   const shippingPrice = isFreeShipping && selectedShipping?.id === cheapestShipping?.id
     ? 0
     : (selectedShipping?.price ?? 0);
+  const effectiveShippingLabel = isFreeShipping && selectedShipping?.id === cheapestShipping?.id
+    ? "Envio Econômico"
+    : (selectedShipping?.label ?? null);
   const pixDiscount = payment === "pix" ? Math.round(sub * 0.05 * 100) / 100 : 0;
   const couponDiscount = coupon ? Math.min(coupon.discountAmount, sub) : 0;
   const totalDiscount = pixDiscount + couponDiscount;
@@ -604,7 +607,7 @@ export function CheckoutFlow() {
       subtotal: sub,
       discount: totalDiscount,
       shippingCost: shippingPrice,
-      shippingLabel: selectedShipping?.label,
+      shippingLabel: effectiveShippingLabel ?? undefined,
       shippingServiceCode: selectedShipping?.serviceCode,
       total,
       paymentMethod: paymentMethodMap[payment ?? ""] ?? null,
@@ -908,7 +911,7 @@ export function CheckoutFlow() {
           </div>
           <div className="flex justify-between text-sm mb-2">
             <span className="text-muted-foreground">Entrega</span>
-            <span className="font-medium">{selectedShipping?.label ?? "—"}</span>
+            <span className="font-medium">{effectiveShippingLabel ?? "—"}</span>
           </div>
           <Separator className="my-3" />
           <div className="flex justify-between font-bold">
@@ -1185,7 +1188,9 @@ export function CheckoutFlow() {
                           {shipping === opt.id && <Check className="h-3 w-3 text-white" />}
                         </div>
                         <div className="text-left">
-                          <p className="font-medium text-sm">{opt.label}</p>
+                          <p className="font-medium text-sm">
+                            {isFreeShipping && opt.id === cheapestShipping?.id ? "Envio Econômico" : opt.label}
+                          </p>
                           <p className="text-xs text-muted-foreground">{formatDeliveryRange(opt.minDays, opt.maxDays)}</p>
                         </div>
                       </div>
@@ -1377,7 +1382,7 @@ export function CheckoutFlow() {
                   <div className="p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <Truck className="h-3.5 w-3.5 text-brand" />
-                      <span className="text-xs font-semibold text-brand">{selectedShipping?.label ?? "—"}</span>
+                      <span className="text-xs font-semibold text-brand">{effectiveShippingLabel ?? "—"}</span>
                     </div>
                     <p className="font-semibold text-sm mb-3">
                       {selectedShipping
