@@ -100,16 +100,31 @@ export async function POST(req: NextRequest) {
         "SEDEX": "03220",
         "SEDEX 10": "03158",
       };
+      // Prazo mínimo real por serviço — usado quando o ME retorna delivery_range nulo
+      const mePrazoFallback: Record<string, { min: number; max: number }> = {
+        "03298": { min: 5, max: 8 },
+        "03220": { min: 1, max: 3 },
+        "03158": { min: 1, max: 1 },
+      };
       const meOptions = await calculateMEShipping(FROM_CEP, cleanCep, pkg);
       options = meOptions
         .filter((o) => {
           const name = o.label.split(" — ")[0].trim();
-          return name in serviceCodeByName; // só PAC, SEDEX, SEDEX 10 — exclui Mini Envios etc.
+          return name in serviceCodeByName;
         })
         .map((o) => {
           const name = o.label.split(" — ")[0].trim();
-          const serviceCode = serviceCodeByName[name]; // sem fallback: se não está no mapa, foi filtrado acima
-          return { ...o, label: `${name} — Correios`, id: serviceCode, serviceCode };
+          const serviceCode = serviceCodeByName[name];
+          const fb = mePrazoFallback[serviceCode] ?? { min: 5, max: 8 };
+          return {
+            ...o,
+            label: `${name} — Correios`,
+            id: serviceCode,
+            serviceCode,
+            // Garante que min e max nunca sejam iguais ao valor genérico do ME quando delivery_range é nulo
+            minDays: o.minDays > 0 ? o.minDays : fb.min,
+            maxDays: o.maxDays > 0 ? o.maxDays : fb.max,
+          };
         });
     }
 

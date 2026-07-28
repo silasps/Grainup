@@ -194,6 +194,19 @@ interface CorreiosPriceResponse {
   entrega?:   { prazoMaximo?: number; prazoMinimo?: number };
 }
 
+interface CorreiosPrazoResponse {
+  coProduto?:   string;
+  prazoEntrega?: number;
+  entrega?:     { prazoMaximo?: number; prazoMinimo?: number };
+}
+
+// Prazos típicos por serviço usados como último fallback se a API não retornar prazo
+const PRAZO_FALLBACK: Record<string, { min: number; max: number }> = {
+  "03298": { min: 5, max: 8 },  // PAC
+  "03220": { min: 1, max: 3 },  // SEDEX
+  "03158": { min: 1, max: 1 },  // SEDEX 10
+};
+
 export async function calculateShipping(
   fromCep: string,
   toCep:   string,
@@ -211,34 +224,43 @@ export async function calculateShipping(
   ];
 
   const weightG = Math.round(pkg.weight * 1000);
+  const nuDR    = process.env.CORREIOS_DR;
 
   const results: CorreiosShippingOption[] = [];
 
   await Promise.allSettled(
     services.map(async (serviceCode) => {
       try {
-        // nuDR fixo pelo contrato — PR = 36. Obrigatório para evitar PRC-124.
-        const nuDR = process.env.CORREIOS_DR;
-
-        const params: Record<string, string> = {
+        const priceParams: Record<string, string> = {
           cepOrigem:   fromCep.replace(/\D/g, ""),
           cepDestino:  toCep.replace(/\D/g, ""),
           psObjeto:    String(weightG),
-          tpObjeto:    "2",    // 2 = caixa
+          tpObjeto:    "2",
           comprimento: String(Math.round(pkg.length)),
           largura:     String(Math.round(pkg.width)),
           altura:      String(Math.round(pkg.height)),
         };
-        // nuContrato omitido — o Bearer token já tem o contrato embutido.
-        // nuDR incluído apenas se conseguimos lê-lo (PRC-124 quando errado ou ausente).
-        if (nuDR) params.nuDR = nuDR;
-        if (cartao) params.cartaoPostagem = cartao;
+        if (nuDR) priceParams.nuDR = nuDR;
+        if (cartao) priceParams.cartaoPostagem = cartao;
 
-        const data = await correiosFetch<CorreiosPriceResponse[]>(
-          `/preco/v1/nacional/${serviceCode}?` + new URLSearchParams(params),
-        );
+        const prazoParams: Record<string, string> = {
+          cepOrigem:  fromCep.replace(/\D/g, ""),
+          cepDestino: toCep.replace(/\D/g, ""),
+        };
+        if (nuDR) prazoParams.nuDR = nuDR;
+        if (cartao) prazoParams.cartaoPostagem = cartao;
 
-        const item = Array.isArray(data) ? data[0] : data;
+        // Chama preço e prazo em paralelo — o endpoint /preco não retorna prazo
+        const [priceData, prazoData] = await Promise.all([
+          correiosFetch<CorreiosPriceResponse[]>(
+            `/preco/v1/nacional/${serviceCode}?` + new URLSearchParams(priceParams),
+          ),
+          correiosFetch<CorreiosPrazoResponse[]>(
+            `/prazo/v1/nacional/${serviceCode}?` + new URLSearchParams(prazoParams),
+          ).catch(() => null),
+        ]);
+
+        const item = Array.isArray(priceData) ? priceData[0] : priceData;
         if (!item) return;
 
         const price = typeof item.pcFinal === "string"
@@ -247,8 +269,18 @@ export async function calculateShipping(
 
         if (!price || price <= 0) return;
 
-        const minDays = item.entrega?.prazoMinimo ?? item.prazoEntrega ?? 1;
-        const maxDays = item.entrega?.prazoMaximo ?? item.prazoEntrega ?? minDays;
+        const prazo = Array.isArray(prazoData) ? prazoData[0] : prazoData;
+        const fb    = PRAZO_FALLBACK[serviceCode] ?? { min: 5, max: 8 };
+
+        // Ordem de precedência: entrega.prazoMinimo/Maximo → prazoEntrega → fallback por serviço
+        const minDays =
+          prazo?.entrega?.prazoMinimo  ?? prazo?.prazoEntrega ??
+          item.entrega?.prazoMinimo    ?? item.prazoEntrega   ?? fb.min;
+        const maxDays =
+          prazo?.entrega?.prazoMaximo  ?? prazo?.prazoEntrega ??
+          item.entrega?.prazoMaximo    ?? item.prazoEntrega   ?? fb.max;
+
+        console.log(`[Correios] ${SERVICE_LABELS[serviceCode]}: preço=${price} min=${minDays} max=${maxDays}`);
 
         results.push({
           id:          serviceCode,
