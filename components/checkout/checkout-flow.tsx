@@ -70,14 +70,32 @@ function formatDeliveryRange(minDays: number, maxDays: number): string {
   today.setHours(0, 0, 0, 0);
   const minDate = addBusinessDays(today, minDays);
   const maxDate = addBusinessDays(today, maxDays);
-  const diffMin = Math.round((minDate.getTime() - today.getTime()) / 86400000);
-  const diffMax = Math.round((maxDate.getTime() - today.getTime()) / 86400000);
-  const fmtMin = diffMin <= 6 ? WEEKDAYS_PT[minDate.getDay()] : `${minDate.getDate()} de ${MONTHS_PT[minDate.getMonth()]}`;
-  const fmtMax = diffMax <= 6 ? WEEKDAYS_PT[maxDate.getDay()] : `${maxDate.getDate()} de ${MONTHS_PT[maxDate.getMonth()]}`;
-  if (diffMin > 6 && diffMax > 6 && minDate.getMonth() === maxDate.getMonth()) {
-    return `Entre ${minDate.getDate()} e ${maxDate.getDate()} de ${MONTHS_PT[minDate.getMonth()]}`;
+
+  const fmtDate = (d: Date): string => {
+    const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+    return diff <= 6
+      ? WEEKDAYS_PT[d.getDay()]
+      : `${d.getDate()} de ${MONTHS_PT[d.getMonth()]}`;
+  };
+
+  const sameDay = minDate.toDateString() === maxDate.toDateString();
+
+  if (sameDay) {
+    const daysLabel = maxDays === 1 ? "1 dia útil" : `${maxDays} dias úteis`;
+    return `Chegada prevista ${fmtDate(maxDate)} (${daysLabel})`;
   }
-  return `Entre ${fmtMin} e ${fmtMax}`;
+
+  const daysLabel = `${minDays}–${maxDays} dias úteis`;
+  // Mesmo mês e ambos além de 6 dias → "Chegada entre 15 e 20 de agosto"
+  if (
+    minDate.getMonth() === maxDate.getMonth() &&
+    minDate.getFullYear() === maxDate.getFullYear() &&
+    Math.round((minDate.getTime() - today.getTime()) / 86400000) > 6
+  ) {
+    return `Chegada entre ${minDate.getDate()} e ${maxDate.getDate()} de ${MONTHS_PT[minDate.getMonth()]} (${daysLabel})`;
+  }
+
+  return `Chegada entre ${fmtDate(minDate)} e ${fmtDate(maxDate)} (${daysLabel})`;
 }
 
 const PAYMENT_OPTIONS = [
@@ -1386,7 +1404,7 @@ export function CheckoutFlow() {
                     </div>
                     <p className="font-semibold text-sm mb-3">
                       {selectedShipping
-                        ? `Chegará no seu endereço ${formatDeliveryRange(selectedShipping.minDays, selectedShipping.maxDays).toLowerCase()}`
+                        ? formatDeliveryRange(selectedShipping.minDays, selectedShipping.maxDays)
                         : "Prazo a confirmar"}
                     </p>
                     {items.map((item) => (
