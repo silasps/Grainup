@@ -112,12 +112,14 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
 
   const { data: row } = await supabase
     .from("orders")
-    .select("id, bling_order_id")
+    .select("id, bling_order_id, bling_nfe_id")
     .eq("id", orderId)
     .single();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const blingOrderId: number | null = (row as any)?.bling_order_id ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const knownNfeId: number | null = (row as any)?.bling_nfe_id ?? null;
   if (!blingOrderId) {
     return { situacao: null, numeroBling: null, invoiceNumber: null, invoiceUrl: null, error: "Pedido ainda não foi enviado ao Bling." };
   }
@@ -127,15 +129,27 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
     return { situacao: null, numeroBling: null, invoiceNumber: null, invoiceUrl: null, error: "Pedido não encontrado no Bling. Use 'Desvincular' e reenvie." };
   }
 
-  let nfe = await getBlingNfeByOrder(blingOrderId);
+  // Se já sabemos o ID da NF-e (salvo no momento da criação em pushOrderToBling), consulta
+  // diretamente por ID — nunca cria uma segunda nota. O vínculo pedido→notaFiscal do Bling
+  // (usado por getBlingNfeByOrder) propaga com atraso, então não pode ser usado para decidir
+  // se uma NF-e "não existe": ela pode só ainda não estar linkada, e criar outra duplicaria.
+  let nfe = knownNfeId ? await getBlingNfe(knownNfeId) : await getBlingNfeByOrder(blingOrderId);
 
-  // Fallback: quando notaFiscal.id=0 no pedido, gera NF-e pelo endpoint oficial do Bling.
-  // GET /nfe não filtra por idPedidoVenda — única forma de obter/criar NF-e vinculada ao pedido.
-  if (!nfe) {
+  if (knownNfeId && !nfe?.chaveAcesso) {
+    // NF-e existe mas ainda não foi autorizada pelo SEFAZ (ou o envio anterior falhou) — reenvia a MESMA nota.
+    try { await sendBlingNfe(knownNfeId); } catch { /* já transmitida ou em processamento */ }
+    nfe = await getBlingNfe(knownNfeId);
+  }
+
+  // Fallback apenas quando NUNCA houve NF-e criada para este pedido (bling_nfe_id nunca foi
+  // salvo — ex.: falha antes de chegar em createBlingNfe no primeiro envio).
+  if (!knownNfeId && !nfe) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const generated = await generateBlingNfeFromOrder(blingOrderId);
       if (generated) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).from("orders").update({ bling_nfe_id: generated.id }).eq("id", orderId);
         // Transmite ao SEFAZ e busca a chave de acesso
         try { await sendBlingNfe(generated.id); } catch { /* já transmitida */ }
         nfe = await getBlingNfe(generated.id);

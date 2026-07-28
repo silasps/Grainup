@@ -40,15 +40,34 @@ Pagamento confirmado
       → findOrCreateBlingContact()       cria/atualiza contato do cliente
       → getBlingProductBySku()           vincula produto existente ou usa código livre
       → POST /pedidos/vendas             cria pedido (salva bling_order_id no Supabase)
-      → POST /pedidos/vendas/{id}/gerar-nfe   Bling gera NF-e a partir do pedido
+      → POST /nfe                        cria NF-e com itens/frete/CFOP/CSOSN explícitos
+                                          (salva bling_nfe_id no Supabase IMEDIATAMENTE,
+                                           antes de tentar enviar/consultar — ver abaixo)
       → POST /nfe/{id}/enviar            transmite ao SEFAZ
-      → GET /nfe/{id}                    busca chave de acesso e link DANFE
+      → GET /nfe/{id}  (retry ~8s)       busca chave de acesso e link DANFE
       → salva invoice_number + invoice_url no pedido
 ```
 
 **Importante:** `gerar-nfe` herda do pedido: itens, contato, fretePorConta, transportador, etiqueta. Mas **NÃO herda `transporte.frete` (valor monetário)**. Por isso usamos `POST /nfe` diretamente com frete explícito. O pedido continua sendo criado antes para vincular a NF-e via `pedido: { id }`.
 
 > **Confirmado em 2026-07-23:** GET /nfe/{id} retorna `frete: null` em NF-es geradas via `gerar-nfe` mesmo quando o pedido tem `frete: 18.08`. Valor só aparece quando enviado explicitamente via `POST /nfe`.
+
+### bling_nfe_id — evitar NF-e duplicada (incidente 2026-07-28)
+
+A autorização SEFAZ é assíncrona (leva alguns segundos) e o vínculo pedido→notaFiscal
+que o Bling expõe em `GET /pedidos/vendas/{id}` propaga com atraso. Por isso o botão
+"Sincronizar" (`syncBlingOrderAction`) **nunca** deve decidir se uma NF-e "não existe"
+com base nesse vínculo — ele pode simplesmente ainda não ter propagado, e criar uma
+NF-e "de recuperação" nesse momento gera uma segunda nota duplicada no Bling (uma
+pendente/vazia da primeira tentativa + uma correta da segunda).
+
+A correção: `pushOrderToBling` salva `orders.bling_nfe_id` assim que `POST /nfe`
+retorna um ID — antes mesmo de transmitir ao SEFAZ. `syncBlingOrderAction` consulta
+esse ID diretamente (`GET /nfe/{id}`) e só cria uma NF-e nova via `gerar-nfe`
+(fallback legado) quando `bling_nfe_id` nunca foi salvo (ex.: falha antes de chegar
+em `createBlingNfe`). Nunca reintroduzir uma checagem de "existe NF-e?" baseada
+apenas em `getBlingNfeByOrder`/`notaFiscal.id` do pedido sem primeiro checar
+`bling_nfe_id`.
 
 ---
 

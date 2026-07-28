@@ -580,6 +580,10 @@ export interface BlingOrderPayload {
 
 export interface BlingNfePayload {
   pedido?: { id: number };
+  // Vai para "Informações complementares" da NF-e. Diferente de BlingOrderPayload.observacoes:
+  // o POST /nfe direto NÃO herda observações do pedido (só gerar-nfe herda, e esse endpoint
+  // não é usado aqui por não repassar `transporte.frete` — ver BLING_API.md).
+  observacoes?: string;
   contato: {
     id: number;
     nome?: string;

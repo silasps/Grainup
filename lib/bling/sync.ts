@@ -184,6 +184,11 @@ export async function pushOrderToBling(orderId: string) {
   const serviceCode = (addr.serviceCode ?? null) as string | null;
   const serviceName = serviceCode ? (serviceCodeToName[serviceCode] ?? null) : null;
 
+  // Método de envio exibido ao cliente no checkout (ex: "Envio Econômico", "PAC"), salvo em
+  // shipping_address.method. Mesmo fallback usado no admin (components/admin/pedidos-table.tsx).
+  const shippingMethod = addr.method ?? (frete === 0 ? "Frete grátis" : null);
+  const observacoes = `Editora Jocum: ${order.order_number}${shippingMethod ? ` — ${shippingMethod}` : ""}`;
+
   // BLING_TRANSPORTADORA_CORREIOS_ID = ID dos Correios cadastrado como CONTATO no Bling
   // (Cadastros → Contatos → buscar Correios). Não existe campo "transportadora" no Bling v3 —
   // o transportador vai em transporte.contato conforme SDK oficial.
@@ -197,7 +202,7 @@ export async function pushOrderToBling(orderId: string) {
   }
 
   const payload: BlingOrderPayload = {
-    observacoes: `Editora Jocum: ${order.order_number}`,
+    observacoes,
     data: orderDate,
     contato: { id: contatoId },
     itens: blingItems,
@@ -248,6 +253,7 @@ export async function pushOrderToBling(orderId: string) {
 
     const nfePayload: BlingNfePayload = {
       pedido: { id: result.id },
+      observacoes,
       contato: { id: contatoId },
       dataOperacao: orderDate,
       itens: nfeItens,
@@ -274,12 +280,24 @@ export async function pushOrderToBling(orderId: string) {
     if (!nfe?.id) throw new Error("POST /nfe não retornou ID");
     console.log(`[Bling] NF-e gerada → ID ${nfe.id}`);
 
+    // Salva o ID já aqui, antes de tentar transmitir/consultar. A autorização SEFAZ é
+    // assíncrona e o vínculo pedido→notaFiscal no Bling propaga com atraso — sem este ID
+    // salvo, um "reenviar" logo em seguida não encontrava esta NF-e e criava outra do zero.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("orders").update({ bling_nfe_id: nfe.id }).eq("id", orderId);
+
     // Transmite ao SEFAZ automaticamente
     await sendBlingNfe(nfe.id);
     console.log(`[Bling] NF-e ${nfe.id} transmitida ao SEFAZ`);
 
-    // Busca chave de acesso e salva no pedido para exibir "NF emitida" na plataforma
-    const nfeDetails = await getBlingNfe(nfe.id);
+    // Autorização SEFAZ não é instantânea — espera alguns segundos antes de desistir,
+    // para que a chave de acesso já venha pronta no primeiro clique sempre que possível.
+    let nfeDetails = await getBlingNfe(nfe.id);
+    for (let attempt = 0; !nfeDetails?.chaveAcesso && attempt < 4; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      nfeDetails = await getBlingNfe(nfe.id);
+    }
+
     if (nfeDetails?.chaveAcesso) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any).from("orders").update({
@@ -287,6 +305,8 @@ export async function pushOrderToBling(orderId: string) {
         invoice_url: nfeDetails.linkDanfe || null,
       }).eq("id", orderId);
       console.log(`[Bling] Chave de acesso salva → ${nfeDetails.chaveAcesso}`);
+    } else {
+      console.warn(`[Bling] NF-e ${nfe.id} ainda sem chave de acesso após espera — SEFAZ deve autorizar em breve; use "Sincronizar" para atualizar.`);
     }
 
   } catch (err) {
