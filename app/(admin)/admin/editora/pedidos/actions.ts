@@ -141,21 +141,37 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
     nfe = await getBlingNfe(knownNfeId);
   }
 
-  // Fallback apenas quando NUNCA houve NF-e criada para este pedido (bling_nfe_id nunca foi
-  // salvo — ex.: falha antes de chegar em createBlingNfe no primeiro envio).
+  // Fallback apenas quando NUNCA houve NF-e criada para este pedido. Antes de assumir isso,
+  // espera alguns segundos e reconsulta bling_nfe_id — pushOrderToBling pode estar em
+  // andamento (o pedido já foi criado no Bling e por isso este botão apareceu na tela, mas a
+  // etapa de criar a NF-e ainda não terminou). Sem essa espera, clicar em "Sincronizar" logo
+  // após o pedido aparecer cria uma segunda NF-e concorrente pelo endpoint antigo (gerar-nfe),
+  // que não herda o valor do frete — foi exatamente isso que causou o incidente de 2026-07-30.
   if (!knownNfeId && !nfe) {
-    try {
+    let retryNfeId: number | null = null;
+    for (let attempt = 0; !retryNfeId && attempt < 3; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const { data: recheck } = await supabase.from("orders").select("bling_nfe_id").eq("id", orderId).single();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const generated = await generateBlingNfeFromOrder(blingOrderId);
-      if (generated) {
+      retryNfeId = (recheck as any)?.bling_nfe_id ?? null;
+    }
+
+    if (retryNfeId) {
+      nfe = await getBlingNfe(retryNfeId);
+    } else {
+      try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from("orders").update({ bling_nfe_id: generated.id }).eq("id", orderId);
-        // Transmite ao SEFAZ e busca a chave de acesso
-        try { await sendBlingNfe(generated.id); } catch { /* já transmitida */ }
-        nfe = await getBlingNfe(generated.id);
+        const generated = await generateBlingNfeFromOrder(blingOrderId);
+        if (generated) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from("orders").update({ bling_nfe_id: generated.id }).eq("id", orderId);
+          // Transmite ao SEFAZ e busca a chave de acesso
+          try { await sendBlingNfe(generated.id); } catch { /* já transmitida */ }
+          nfe = await getBlingNfe(generated.id);
+        }
+      } catch (genErr) {
+        console.error("[Bling] gerar-nfe falhou:", genErr);
       }
-    } catch (genErr) {
-      console.error("[Bling] gerar-nfe falhou:", genErr);
     }
   }
 
@@ -179,7 +195,7 @@ export async function resetBlingLinkAction(orderId: string): Promise<{ error: st
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("orders")
-    .update({ bling_order_id: null, invoice_number: null, invoice_url: null })
+    .update({ bling_order_id: null, bling_nfe_id: null, invoice_number: null, invoice_url: null })
     .eq("id", orderId);
   if (error) return { error: error.message };
   revalidatePath(`/admin/editora/pedidos/${orderId}`);

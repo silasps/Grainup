@@ -69,6 +69,30 @@ em `createBlingNfe`). Nunca reintroduzir uma checagem de "existe NF-e?" baseada
 apenas em `getBlingNfeByOrder`/`notaFiscal.id` do pedido sem primeiro checar
 `bling_nfe_id`.
 
+### Segunda causa da duplicidade — corrida real entre chamadas (confirmado 2026-07-30)
+
+A correção acima reduziu a janela de corrida mas não a fechou: `pushOrderToBling`
+ainda leva alguns segundos entre criar o pedido (`bling_order_id` salvo, botão
+"Sincronizar" já aparece na tela) e criar a NF-e (`bling_nfe_id` salvo). Clicar em
+"Sincronizar" dentro dessa janela cai no fallback `gerar-nfe` e cria uma segunda
+NF-e — **sem o valor do frete** (foi o que aconteceu no pedido GU058734389:
+a NF-e 007188 criada por `pushOrderToBling`, com frete correto, ficou pendente e
+foi substituída/orfanizada; a NF-e 007189, autorizada, veio via `gerar-nfe` do
+"Sincronizar" e saiu com `valorFrete: 0`).
+
+Além disso, `pushOrderToBling` é chamado por até 4 gatilhos independentes
+(webhook Mercado Pago, confirmação do checkout, polling do checkout, sync manual
+do admin) e o guard antigo (`if (order.bling_order_id) return`) era check-then-act,
+não atômico — duas chamadas simultâneas podiam passar pelo guard antes de qualquer
+uma gravar `bling_order_id`.
+
+Correção: `pushOrderToBling` agora reivindica o pedido atomicamente (`UPDATE ...
+WHERE bling_order_id IS NULL`, gravando `-1` como marcador de "em processamento")
+antes de chamar qualquer endpoint do Bling. `syncBlingOrderAction`, quando não
+encontra `bling_nfe_id`, espera ~6s reconsultando a coluna antes de assumir que
+nenhuma NF-e foi criada e cair no fallback `gerar-nfe`. Nunca remover essa espera
+nem o claim atômico — sem eles a corrida volta.
+
 ---
 
 ## Transporte — Campos Críticos
