@@ -44,15 +44,19 @@ export async function pushOrderToBling(orderId: string) {
   // disparado concorrentemente por até 4 gatilhos (webhook Mercado Pago, confirmação do
   // checkout, polling do checkout, sync manual do admin) — o check acima é check-then-act e
   // não impede que duas chamadas passem por ele ao mesmo tempo, cada uma criando seu próprio
-  // pedido+NF-e duplicado no Bling. -1 é um marcador temporário de "em processamento";
+  // pedido+NF-e duplicado no Bling. -1 é um marcador temporário de "em processamento",
   // substituído pelo ID real do pedido Bling assim que createBlingOrder retornar. Se a chamada
-  // falhar antes disso, o pedido fica "travado" em -1 até o admin usar "Desvincular do Bling".
+  // falhar antes disso (ex.: erro ao resolver contato/produto), o claim expira sozinho depois
+  // de 2 min (comparando com `updated_at`, atualizado automaticamente pelo trigger da tabela)
+  // e uma nova tentativa pode reivindicar de novo — sem isso, o pedido ficaria travado em -1
+  // exigindo "Desvincular do Bling" manualmente a cada falha transitória.
+  const staleThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: claimed } = await (supabase as any)
     .from("orders")
     .update({ bling_order_id: -1 })
     .eq("id", orderId)
-    .is("bling_order_id", null)
+    .or(`bling_order_id.is.null,and(bling_order_id.eq.-1,updated_at.lt.${staleThreshold})`)
     .select("id");
   if (!claimed || claimed.length === 0) {
     console.log(`[Bling] Pedido ${order.order_number} já está sendo processado por outra chamada concorrente, ignorando.`);
