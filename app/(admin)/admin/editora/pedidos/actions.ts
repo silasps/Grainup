@@ -20,7 +20,7 @@ export async function fetchOrdersAction(): Promise<OrderRow[]> {
   const supabase = await createAdminClient();
   const { data } = await supabase
     .from("orders")
-    .select("id, order_number, status, total, payment_method, shipping_cost, created_at, customer_name, invoice_number, invoice_url, bling_order_id, tracking_code, shipping_address, nota_impressa, postagem_gerada, order_items(id, title, quantity, combo_id, books(sku), combos(combo_items(books(sku, title))))")
+    .select("id, order_number, status, total, payment_method, shipping_cost, created_at, customer_name, invoice_number, invoice_url, bling_order_id, bling_nfe_id, tracking_code, shipping_address, nota_impressa, postagem_gerada, order_items(id, title, quantity, combo_id, books(sku), combos(combo_items(books(sku, title))))")
     .order("created_at", { ascending: false })
     .limit(200);
   return (data ?? []) as unknown as OrderRow[];

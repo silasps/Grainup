@@ -41,6 +41,7 @@ export interface OrderRow {
   invoice_number: string | null;
   invoice_url: string | null;
   bling_order_id: number | null;
+  bling_nfe_id: number | null;
   tracking_code: string | null;
   shipping_address: Record<string, string> | null;
   nota_impressa: boolean;
@@ -85,6 +86,24 @@ const PIPELINE_STEPS: { key: FulfillmentStep | "all"; label: string }[] = [
   { key: "enviado", label: "Enviados" },
   { key: "entregue", label: "Entregues" },
 ];
+
+// Etapas do envio ao Bling: pedido criado → NF-e criada → autorizada pela SEFAZ.
+// A autorização SEFAZ é assíncrona e às vezes demora — este indicador existe pra deixar
+// claro pro admin que o pedido está em andamento, não travado, sem precisar reenviar.
+const BLING_STAGE_LABELS = ["Pedido no Bling", "NF-e criada", "Aguardando SEFAZ"];
+
+function BlingStageStepper({ stepIndex }: { stepIndex: 0 | 1 }) {
+  return (
+    <div className="flex items-center gap-1" title={BLING_STAGE_LABELS.join(" → ")}>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-center">
+          <div className={cn("h-1.5 w-1.5 rounded-full", i <= stepIndex ? "bg-blue-500" : "bg-muted-foreground/25")} />
+          {i < 2 && <div className={cn("h-px w-2.5", i < stepIndex ? "bg-blue-500" : "bg-muted-foreground/25")} />}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type SortEntry = { key: string; dir: "asc" | "desc" };
 
@@ -511,19 +530,28 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                                 ) : null;
                               })()}
                             </div>
-                          ) : order.bling_order_id ? (
+                          ) : order.bling_order_id === -1 ? (
                             <div className="flex items-center gap-1.5 whitespace-nowrap">
-                              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <Package className="h-3 w-3" /> #{order.bling_order_id}
+                              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground animate-pulse">
+                                <Package className="h-3 w-3" /> Enviando ao Bling…
                               </span>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleSyncBling(order.id); }}
-                                disabled={blingSyncing === order.id}
-                                title="Sincronizar NF-e do Bling"
-                                className="text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
-                              >
-                                <RefreshCw className={`h-3 w-3 ${blingSyncing === order.id ? "animate-spin" : ""}`} />
-                              </button>
+                            </div>
+                          ) : order.bling_order_id ? (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                <BlingStageStepper stepIndex={order.bling_nfe_id ? 1 : 0} />
+                                <span className="text-[11px] text-muted-foreground">
+                                  {order.bling_nfe_id ? "Aguardando SEFAZ" : "Nota em processamento"}
+                                </span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleSyncBling(order.id); }}
+                                  disabled={blingSyncing === order.id}
+                                  title="Sincronizar NF-e do Bling"
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                                >
+                                  <RefreshCw className={`h-3 w-3 ${blingSyncing === order.id ? "animate-spin" : ""}`} />
+                                </button>
+                              </div>
                             </div>
                           ) : ["pago", "separando", "enviado", "entregue"].includes(order.status) ? (
                             <button
