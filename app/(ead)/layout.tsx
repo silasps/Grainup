@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantFromHostname, getTenantSettings } from "@/lib/tenant";
+import { getMyRole } from "@/lib/actions/get-my-role";
 import { EadHeader } from "@/components/ead/ead-header";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +18,16 @@ async function getPageContext() {
   ]);
 
   const { data: { user } } = await supabase.auth.getUser();
+  const role = user ? await getMyRole(user.id) : null;
 
-  return { tenant, settings, isLoggedIn: !!user };
+  return { tenant, settings, isLoggedIn: !!user, role };
 }
 
 export default async function EadLayout({ children }: { children: React.ReactNode }) {
-  const { tenant, settings, isLoggedIn } = await getPageContext();
+  const { tenant, settings, isLoggedIn, role } = await getPageContext();
+
+  // EAD ainda em testes: acesso restrito ao super_admin por enquanto.
+  if (role !== "super_admin") redirect("/");
   const primaryColor = settings?.primary_color ?? "#1B4332";
 
   return (

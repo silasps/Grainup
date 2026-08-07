@@ -209,11 +209,12 @@ export function AdminSidebar({
   const { open: mobileOpen, close: mobileClose } = useMobileMenu();
 
   const isCollapsed = collapsed && !mobileOpen;
-  const isEadAdmin = superAdmin || userRole === "admin_ead";
+  // EAD ainda em testes: visível só para super_admin por enquanto.
+  const isEadAdmin = superAdmin;
   const isEditoraAdmin = superAdmin || userRole === "admin_editora";
 
   // Determina qual conjunto de grupos mostrar com base na rota atual
-  const showEad = pathname.startsWith("/admin/ead") || isEadAdmin;
+  const showEad = isEadAdmin;
   const showEditora = pathname.startsWith("/admin/editora") || isEditoraAdmin || superAdmin;
 
   return (
