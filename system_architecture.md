@@ -204,7 +204,7 @@ grainUp/
 | `/admin/editora/contratos/` | Contract templates |
 | `/admin/editora/desenvolvedor/` | API keys and webhooks |
 | `/admin/editora/configuracoes/` | Store settings |
-| `/admin/editora/usuarios/` | User and role management |
+| `/admin/editora/usuarios/` | User and role management — row click opens a detail modal with collapsible sections (dados pessoais incl. CPF, permissões/role, endereços from `addresses`, senha) |
 
 **EAD admin** (`/admin/ead/`):
 
@@ -225,6 +225,8 @@ grainUp/
 | `/afiliados/inscricao/` | Affiliate signup form |
 
 ### (ead) — Learning Platform
+> **Gated to super_admin during testing (2026-08):** `app/(ead)/layout.tsx` redirects any non-`super_admin` (including logged-out visitors and `admin_ead`/`cliente` users) to `/` before rendering. This blocks all routes below, not just admin — remove the `if (role !== "super_admin") redirect("/")` check once the EAD product is ready for real students. See also the `(admin)/admin/ead/` gate in section 7/10.
+
 | Path | Purpose |
 |---|---|
 | `/ead/` | Student dashboard |
@@ -656,6 +658,8 @@ ux_upgrade_activations (
 
 **Note on `admin`-style RLS policies:** several early policies (pre-2026-07 migrations) were written checking `role = 'admin'` — a value that has never existed in this enum. Any policy like that silently blocks every real admin. Always check against the actual enum values above, typically `role IN ('super_admin', 'admin_editora')`.
 
+**Note on reading a user's own role:** always query `user_roles` with `.limit(1).maybeSingle()`, never bare `.maybeSingle()` — `getMyRole()` (`lib/actions/get-my-role.ts`) and the `usuarios` server actions (`app/(admin)/admin/editora/usuarios/actions.ts`) already do this. A bare `.maybeSingle()` errors (returns `null` data) if the calling user ever has more than one `user_roles` row, silently failing the permission check and redirecting an otherwise-authorized admin away — this is what happened in `app/(admin)/admin/editora/usuarios/page.tsx` before it was fixed to match the pattern (2026-08).
+
 ### RLS Policy Groups
 | Resource | Public | Logged-in | Admin |
 |---|---|---|---|
@@ -1073,6 +1077,8 @@ The EAD system supports multiple tenants (course providers), each with:
 Tenant resolution: `lib/tenant/index.ts` → `getTenantFromHostname(hostname)` → looks up by custom domain or slug.
 
 Tenant admins are tracked in `tenant_admins` (many-to-many). The `admin_ead` role grants access to the EAD admin panel for the user's assigned tenant.
+
+> **EAD admin still in testing (2026-08):** access to `/admin/ead/*` and the "EAD" sidebar group is temporarily restricted to `super_admin` only — both `app/(admin)/admin/ead/layout.tsx` (server-side redirect to `/admin/editora` for non-super_admins) and `components/admin/sidebar.tsx` (`isEadAdmin = superAdmin`) enforce this. The `admin_ead` role still exists in the enum and in `(ead)/layout.tsx`'s own gate but does not yet grant access to the admin panel — revert both checks to `superAdmin || userRole === "admin_ead"` once EAD admin is ready for `admin_ead` users.
 
 ---
 
