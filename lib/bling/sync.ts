@@ -277,7 +277,22 @@ export async function pushOrderToBling(orderId: string) {
     const nfePayload: BlingNfePayload = {
       pedido: { id: result.id },
       observacoes,
-      contato: { id: contatoId },
+      // POST /nfe não herda nome/endereço do cadastro de contatos a partir do `id` sozinho —
+      // sem isso o destinatário fica em branco na nota e o SEFAZ rejeita por falta do nome
+      // (a nota fica "Pendente" no Bling pedindo pra reenviar manualmente).
+      contato: {
+        id: contatoId,
+        nome: order.customer_name as string,
+        endereco: {
+          municipio: addr.city ?? "",
+          uf: addr.state ?? "",
+          cep,
+          endereco: addr.street ?? "",
+          numero: addr.number ?? "S/N",
+          bairro: addr.neighborhood ?? "",
+          complemento: addr.complement || undefined,
+        },
+      },
       dataOperacao: orderDate,
       itens: nfeItens,
       parcelas: [{ valor: parcelaTotal, data: orderDate, formaPagamento }],
