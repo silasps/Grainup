@@ -9,15 +9,32 @@ import { EditUserDialog } from "./edit-user-dialog";
 import { ROLE_LABELS, canEditRole, isKnownRole } from "./role-access";
 import type { UserRole } from "@/types/database";
 
+export interface UserAddress {
+  id: string;
+  user_id: string;
+  label: string | null;
+  full_name: string;
+  zip_code: string;
+  street: string;
+  number: string;
+  complement: string | null;
+  neighborhood: string;
+  city: string;
+  state: string;
+  is_default: boolean;
+}
+
 export interface UserRow {
   id: string;
   user_id: string;
   full_name: string | null;
   email: string | null;
   phone: string | null;
+  cpf: string | null;
   created_at: string;
   role: UserRole | null;
   created_by_admin?: string | null;
+  addresses: UserAddress[];
 }
 
 const ROLE_COLORS: Record<string, string> = {

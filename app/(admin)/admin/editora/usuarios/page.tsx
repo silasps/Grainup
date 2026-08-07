@@ -17,6 +17,7 @@ export default async function AdminUsuariosPage() {
     .from("user_roles")
     .select("role")
     .eq("user_id", user.id)
+    .limit(1)
     .maybeSingle();
 
   const currentRole = roleData?.role;
@@ -26,14 +27,18 @@ export default async function AdminUsuariosPage() {
 
   const adminClient = await createAdminClient();
 
-  const [{ data: profiles }, { data: userRolesData }, { data: authData }, { data: auditData }] = await Promise.all([
+  const [{ data: profiles }, { data: userRolesData }, { data: authData }, { data: auditData }, { data: addressesData }] = await Promise.all([
     adminClient
       .from("profiles")
-      .select("id, user_id, full_name, phone, created_at")
+      .select("id, user_id, full_name, phone, cpf, created_at")
       .limit(500),
     adminClient.from("user_roles").select("user_id, role"),
     adminClient.auth.admin.listUsers({ perPage: 500 }),
     adminClient.from("admin_user_creations").select("user_id, created_by_name"),
+    adminClient
+      .from("addresses")
+      .select("id, user_id, label, full_name, zip_code, street, number, complement, neighborhood, city, state, is_default")
+      .order("is_default", { ascending: false }),
   ]);
 
   const roleMap = new Map(
@@ -49,6 +54,13 @@ export default async function AdminUsuariosPage() {
     ((auditData ?? []) as { user_id: string; created_by_name: string }[]).map((a) => [a.user_id, a.created_by_name])
   );
 
+  const addressesByUser = new Map<string, UserRow["addresses"]>();
+  for (const addr of addressesData ?? []) {
+    const list = addressesByUser.get(addr.user_id) ?? [];
+    list.push(addr);
+    addressesByUser.set(addr.user_id, list);
+  }
+
   // Auth users are the source of truth — everyone appears, with or without a profile
   const allUsers: UserRow[] = (authData?.users ?? [])
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -60,9 +72,11 @@ export default async function AdminUsuariosPage() {
         full_name: (p?.full_name as string | null) ?? (authUser.user_metadata?.full_name as string | null) ?? null,
         email: authUser.email ?? null,
         phone: (p as { phone?: string | null } | undefined)?.phone ?? null,
+        cpf: (p as { cpf?: string | null } | undefined)?.cpf ?? null,
         created_at: authUser.created_at,
         role: roleMap.get(authUser.id) ?? null,
         created_by_admin: adminCreatedMap.get(authUser.id) ?? null,
+        addresses: addressesByUser.get(authUser.id) ?? [],
       };
     });
 
