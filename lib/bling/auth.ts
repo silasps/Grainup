@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import { BlingError } from "./errors";
 
 const TOKEN_URL = "https://www.bling.com.br/Api/v3/oauth/token";
+const RECONNECT_MSG = "A conexão com o Bling expirou. Peça para um administrador reconectar em Configurações → Bling ERP.";
 
 function basicAuth() {
   const id = process.env.BLING_CLIENT_ID;
@@ -27,7 +29,11 @@ async function doRefresh(refreshToken: string): Promise<string> {
     headers: { Authorization: `Basic ${basicAuth()}`, "Content-Type": "application/x-www-form-urlencoded" },
     body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`,
   });
-  if (!res.ok) throw new Error(`Falha ao renovar token Bling: ${await res.text()}`);
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("[Bling] Falha ao renovar token:", body);
+    throw new BlingError(401, RECONNECT_MSG);
+  }
   const json = await res.json();
   await saveTokens(json.access_token, json.refresh_token, json.expires_in);
   return json.access_token;
@@ -37,7 +43,7 @@ export async function getAccessToken(): Promise<string> {
   const supabase = await createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any).from("bling_tokens").select("*").eq("id", 1).single();
-  if (!data) throw new Error("Bling não autorizado. Acesse /admin/config para conectar.");
+  if (!data) throw new BlingError(401, RECONNECT_MSG);
   if (new Date(data.expires_at).getTime() - Date.now() < 5 * 60 * 1000) {
     try {
       return await doRefresh(data.refresh_token);

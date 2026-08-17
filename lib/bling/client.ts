@@ -4,16 +4,12 @@
  */
 
 import { getAccessToken } from "./auth";
+import { BlingError } from "./errors";
 
 const BASE_URL = "https://www.bling.com.br/Api/v3";
 const REQUEST_TIMEOUT_MS = 12_000;
 
-export class BlingError extends Error {
-  constructor(public readonly status: number, message: string) {
-    super(message);
-    this.name = "BlingError";
-  }
-}
+export { BlingError };
 
 async function blingFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = await getAccessToken();

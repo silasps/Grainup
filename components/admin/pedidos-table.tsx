@@ -6,7 +6,7 @@ import { Search, X, ChevronUp, ChevronDown, Package, Check, Pencil, Truck, FileT
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
-import { pushOrderToBlingAction, updateTrackingCodeAction, syncBlingOrderAction, markFulfillmentStepAction } from "@/app/(admin)/admin/editora/pedidos/actions";
+import { pushOrderToBlingAction, updateTrackingCodeAction, syncBlingOrderAction, markFulfillmentStepAction, resetBlingLinkAction } from "@/app/(admin)/admin/editora/pedidos/actions";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 30;
@@ -299,6 +299,16 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
     }
   }
 
+  async function handleResetBlingClaim(orderId: string) {
+    setBlingSyncing(orderId);
+    const result = await resetBlingLinkAction(orderId);
+    setBlingSyncing(null);
+    if (result.error) { toast.error(result.error); return; }
+    toast.success("Liberado — clique em \"Enviar Bling\" pra tentar de novo");
+    const fresh = await onRefresh();
+    setOrders(fresh);
+  }
+
   async function handleSaveTracking(orderId: string, value: string) {
     const result = await updateTrackingCodeAction(orderId, value);
     if (result.error) { toast.error(result.error); return; }
@@ -535,6 +545,14 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                               <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground animate-pulse">
                                 <Package className="h-3 w-3" /> Enviando ao Bling…
                               </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleResetBlingClaim(order.id); }}
+                                disabled={blingSyncing === order.id}
+                                title="Travado? Clique pra liberar e tentar enviar de novo"
+                                className="text-muted-foreground hover:text-red-600 disabled:opacity-40 transition-colors"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </div>
                           ) : order.bling_order_id ? (
                             <div className="flex flex-col gap-0.5">
