@@ -229,15 +229,34 @@ interface BlingEndereco {
 
 export async function findOrCreateBlingContact(nome: string, email: string, endereco?: BlingEndereco, cpf?: string | null): Promise<number> {
   let contatoId: number | null = null;
+  const cpfDigits = cpf ? cpf.replace(/\D/g, "") : null;
 
-  try {
-    const found = await blingFetch<{ data: Array<{ id: number }> }>(`/contatos?email=${encodeURIComponent(email)}&situacao=A`);
-    // Só reutiliza se o filtro por email funcionou (retornou exatamente 1 resultado).
-    if (found.data?.length === 1 && found.data[0]?.id) contatoId = found.data[0].id;
-  } catch (err) {
-    // 5xx / timeout: Bling fora do ar — não adianta tentar criar o contato
-    if (err instanceof BlingError && err.status >= 500) throw err;
-    // 4xx (ex: scope insuficiente): tenta criar o contato mesmo assim
+  // Confirmado direto na API (2026-08-17): ?email= no /contatos NÃO filtra de verdade — retorna
+  // a lista de contatos recentes inteira, ignorando o parâmetro. Isso fazia o "reutiliza se
+  // achou exatamente 1" nunca bater pra clientes que JÁ tinham cadastro, e o POST seguinte
+  // falhava com CPF duplicado — derrubando pushOrderToBling antes de criar o pedido (ficava
+  // travado em bling_order_id=-1 pra sempre). ?numeroDocumento= filtra corretamente, então
+  // busca por CPF primeiro sempre que disponível — é também a chave que o Bling usa pra
+  // recusar duplicata, então é a forma confiável de saber se o contato já existe.
+  if (cpfDigits) {
+    try {
+      const found = await blingFetch<{ data: Array<{ id: number }> }>(`/contatos?numeroDocumento=${cpfDigits}&situacao=A`);
+      if (found.data?.length === 1 && found.data[0]?.id) contatoId = found.data[0].id;
+    } catch (err) {
+      if (err instanceof BlingError && err.status >= 500) throw err;
+    }
+  }
+
+  if (!contatoId) {
+    try {
+      const found = await blingFetch<{ data: Array<{ id: number }> }>(`/contatos?email=${encodeURIComponent(email)}&situacao=A`);
+      // Só reutiliza se o filtro por email funcionou (retornou exatamente 1 resultado).
+      if (found.data?.length === 1 && found.data[0]?.id) contatoId = found.data[0].id;
+    } catch (err) {
+      // 5xx / timeout: Bling fora do ar — não adianta tentar criar o contato
+      if (err instanceof BlingError && err.status >= 500) throw err;
+      // 4xx (ex: scope insuficiente): tenta criar o contato mesmo assim
+    }
   }
 
   if (!contatoId) {
@@ -263,11 +282,21 @@ export async function findOrCreateBlingContact(nome: string, email: string, ende
         },
       };
     }
-    const created = await blingFetch<{ data: { id: number } }>("/contatos", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    contatoId = created.data.id;
+    try {
+      const created = await blingFetch<{ data: { id: number } }>("/contatos", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      contatoId = created.data.id;
+    } catch (err) {
+      // Rede de segurança: se ainda assim falhou (ex.: CPF duplicado escapou das buscas acima
+      // por alguma inconsistência do Bling), tenta achar o contato existente por CPF antes de
+      // desistir — evita derrubar pushOrderToBling inteiro (e travar o pedido) por causa disso.
+      if (!cpfDigits) throw err;
+      const recovered = await blingFetch<{ data: Array<{ id: number }> }>(`/contatos?numeroDocumento=${cpfDigits}&situacao=A`);
+      if (recovered.data?.length === 1 && recovered.data[0]?.id) contatoId = recovered.data[0].id;
+      else throw err;
+    }
   }
 
   // Atualiza sempre CPF e endereço — garante dados corretos mesmo em contatos reutilizados

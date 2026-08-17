@@ -37,18 +37,19 @@ export async function pushOrderToBling(orderId: string) {
     .single() as { data: Record<string, unknown> | null };
 
   if (!order) throw new Error("Pedido não encontrado.");
-  // Guard: evita duplicatas se o webhook disparar mais de uma vez para o mesmo pagamento
-  if (order.bling_order_id) { console.log(`[Bling] Pedido ${order.order_number} já enviado (ID ${order.bling_order_id}), ignorando.`); return; }
 
-  // Reivindica atomicamente ANTES de criar qualquer coisa no Bling. pushOrderToBling pode ser
-  // disparado concorrentemente por até 4 gatilhos (webhook Mercado Pago, confirmação do
-  // checkout, polling do checkout, sync manual do admin) — o check acima é check-then-act e
-  // não impede que duas chamadas passem por ele ao mesmo tempo, cada uma criando seu próprio
-  // pedido+NF-e duplicado no Bling. -1 é um marcador temporário de "em processamento",
-  // substituído pelo ID real do pedido Bling assim que createBlingOrder retornar. Se a chamada
-  // falhar antes disso (ex.: erro ao resolver contato/produto), o claim expira sozinho depois
-  // de 2 min (comparando com `updated_at`, atualizado automaticamente pelo trigger da tabela)
-  // e uma nova tentativa pode reivindicar de novo — sem isso, o pedido ficaria travado em -1
+  // Reivindica atomicamente ANTES de criar qualquer coisa no Bling — é o ÚNICO guard contra
+  // duplicidade, não deve existir nenhum "if (order.bling_order_id) return" antes disso: um
+  // check-then-act desse tipo usaria o valor lido no SELECT acima (que pode já estar
+  // desatualizado) e, pior, bloquearia pra sempre a reivindicação expirada abaixo, já que -1
+  // é truthy em JS. pushOrderToBling pode ser disparado concorrentemente por até 4 gatilhos
+  // (webhook Mercado Pago, confirmação do checkout, polling do checkout, sync manual do
+  // admin) — só o UPDATE...WHERE abaixo é atômico o suficiente pra garantir que apenas uma
+  // chamada passe. -1 é um marcador temporário de "em processamento", substituído pelo ID
+  // real do pedido Bling assim que createBlingOrder retornar. Se a chamada falhar antes disso
+  // (ex.: erro ao resolver contato/produto), o claim expira sozinho depois de 2 min
+  // (comparando com `updated_at`, atualizado automaticamente pelo trigger da tabela) e uma
+  // nova tentativa pode reivindicar de novo — sem isso, o pedido ficaria travado em -1
   // exigindo "Desvincular do Bling" manualmente a cada falha transitória.
   const staleThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,7 +60,7 @@ export async function pushOrderToBling(orderId: string) {
     .or(`bling_order_id.is.null,and(bling_order_id.eq.-1,updated_at.lt.${staleThreshold})`)
     .select("id");
   if (!claimed || claimed.length === 0) {
-    console.log(`[Bling] Pedido ${order.order_number} já está sendo processado por outra chamada concorrente, ignorando.`);
+    console.log(`[Bling] Pedido ${order.order_number} já enviado ou sendo processado por outra chamada, ignorando.`);
     return;
   }
 
