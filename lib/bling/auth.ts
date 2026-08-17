@@ -39,7 +39,21 @@ export async function getAccessToken(): Promise<string> {
   const { data } = await (supabase as any).from("bling_tokens").select("*").eq("id", 1).single();
   if (!data) throw new Error("Bling não autorizado. Acesse /admin/config para conectar.");
   if (new Date(data.expires_at).getTime() - Date.now() < 5 * 60 * 1000) {
-    return doRefresh(data.refresh_token);
+    try {
+      return await doRefresh(data.refresh_token);
+    } catch (err) {
+      // O Bling invalida o refresh_token antigo assim que ele é usado uma vez. Se outra
+      // chamada concorrente (webhook, cron, outra requisição) já renovou nesse meio-tempo,
+      // essa aqui falha com "Invalid refresh token" mesmo a conexão estando saudável —
+      // reconfere o banco antes de propagar o erro como se a conexão tivesse realmente morrido.
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: retry } = await (supabase as any).from("bling_tokens").select("*").eq("id", 1).single();
+      if (retry && new Date(retry.expires_at).getTime() - Date.now() >= 5 * 60 * 1000) {
+        return retry.access_token;
+      }
+      throw err;
+    }
   }
   return data.access_token;
 }
