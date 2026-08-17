@@ -3,7 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendReviewRequestEmail, sendCancellationApprovedEmail, sendCancellationDeniedEmail } from "@/lib/email";
-import { getBlingOrderDetails, getBlingNfeByOrder, getBlingNfe, sendBlingNfe, generateBlingNfeFromOrder, findBlingNfeByChave } from "@/lib/bling";
+import { getBlingOrderDetails, getBlingNfeByOrder, getBlingNfe, sendBlingNfe, generateBlingNfeFromOrder, findBlingNfeByChave, BlingError } from "@/lib/bling";
 import { pushOrderToBling } from "@/lib/bling/sync";
 import { issueMpRefund } from "@/lib/mp-refund";
 import type { OrderRow } from "@/components/admin/pedidos-table";
@@ -202,7 +202,7 @@ export async function resetBlingLinkAction(orderId: string): Promise<{ error: st
   return { error: null };
 }
 
-export async function pushOrderToBlingAction(orderId: string): Promise<{ error: string | null }> {
+export async function pushOrderToBlingAction(orderId: string): Promise<{ error: string | null; needsReconnect?: boolean }> {
   const supabase = await createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: row } = await (supabase as any).from("orders").select("bling_order_id").eq("id", orderId).single();
@@ -213,7 +213,10 @@ export async function pushOrderToBlingAction(orderId: string): Promise<{ error: 
     revalidatePath(`/admin/editora/pedidos/${orderId}`);
     return { error: null };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Erro ao enviar ao Bling." };
+    // status 401 aqui é sempre token/conexão Bling expirados (ver lib/bling/auth.ts) — a UI
+    // mostra um modal explicando em vez de só um toast com a mensagem crua.
+    const needsReconnect = err instanceof BlingError && err.status === 401;
+    return { error: err instanceof Error ? err.message : "Erro ao enviar ao Bling.", needsReconnect };
   }
 }
 

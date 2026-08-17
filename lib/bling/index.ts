@@ -1,2 +1,3 @@
 export { getBlingProductBySku, updateBlingStock, createBlingOrder, getBlingOrderDetails, getBlingNfeByOrder, getBlingNfe, sendBlingNfe, generateBlingNfeFromOrder, findBlingNfeByChave, getAllBlingProducts, getBlingNaturezasOperacao, getBlingCategorias, getBlingCategoriasRaw, safePatchBlingProductCodigo, safePatchBlingProductNcm, safePatchBlingProductCategoria, safePatchBlingProductGrupo, safePatchBlingProductFisicos, safePatchBlingProductFiscal, resolveLivrosGrupoId, getBlingProductDimensions, resolvePaymentFormId } from "./client";
 export { syncStockFromBling, pushOrderToBling } from "./sync";
+export { BlingError } from "./errors";

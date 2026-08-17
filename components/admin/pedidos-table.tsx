@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X, ChevronUp, ChevronDown, Package, Check, Pencil, Truck, FileText, TriangleAlert, RefreshCw, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import { pushOrderToBlingAction, updateTrackingCodeAction, syncBlingOrderAction, markFulfillmentStepAction, resetBlingLinkAction } from "@/app/(admin)/admin/editora/pedidos/actions";
@@ -197,6 +199,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
   const [blingLoading, setBlingLoading] = useState<string | null>(null);
   const [blingSyncing, setBlingSyncing] = useState<string | null>(null);
   const [markingStep, setMarkingStep] = useState<string | null>(null);
+  const [blingReconnectModal, setBlingReconnectModal] = useState(false);
 
   const carriers = useMemo(() => {
     const set = new Set<string>();
@@ -277,7 +280,11 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
     setBlingLoading(orderId);
     const result = await pushOrderToBlingAction(orderId);
     setBlingLoading(null);
-    if (result.error) { toast.error(result.error); return; }
+    if (result.error) {
+      if (result.needsReconnect) { setBlingReconnectModal(true); return; }
+      toast.error(result.error);
+      return;
+    }
     toast.success("Pedido enviado ao Bling");
     const fresh = await onRefresh();
     setOrders(fresh);
@@ -687,6 +694,27 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
           </table>
         </div>
       </div>
+
+      <Dialog open={blingReconnectModal} onOpenChange={setBlingReconnectModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Conexão com o Bling expirou</DialogTitle>
+            <DialogDescription>
+              O pedido não foi enviado porque a conexão com o Bling caiu. Isso não é um problema
+              com este pedido específico — assim que reconectar, pode tentar enviar de novo
+              normalmente.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Peça pra um administrador acessar <strong>Configurações → Bling ERP</strong> e clicar
+            em <strong>&quot;Conectar ao Bling&quot;</strong> pra reautorizar.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBlingReconnectModal(false)}>Entendi</Button>
+            <Button asChild><a href="/admin/editora/configuracoes">Ir para Configurações</a></Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
