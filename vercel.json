@@ -5,6 +5,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/admin/bling-auto-send",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/admin/cancel-expired-orders",
       "schedule": "0 * * * *"
     },

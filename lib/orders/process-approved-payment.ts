@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { sendOrderConfirmationEmail } from "@/lib/email";
-import { pushOrderToBling } from "@/lib/bling";
+import { computeBlingSendAfter } from "@/lib/bling/schedule";
 
 interface MpPaymentLike {
   fee_details?: Array<{ type?: string; amount?: number }> | null;
@@ -233,6 +233,18 @@ export async function processApprovedPayment(
   // E-mail de confirmação — só na primeira aprovação (evita e-mail duplo com polling)
   if (!wasAlreadyApproved) sendOrderConfirmationEmail(orderId).catch(console.error);
 
-  // Cria pedido no Bling (fire-and-forget)
-  pushOrderToBling(orderId).catch((err) => console.error("[Bling]", err));
+  // Agenda o envio automático ao Bling (pedido de venda + NF-e) em vez de disparar
+  // imediatamente. Só na PRIMEIRA aprovação (!wasAlreadyApproved) — processApprovedPayment é
+  // chamada múltiplas vezes pro mesmo pedido por design (webhook, Pix imediato, polling do
+  // checkout, sync manual do admin), e reagendar a cada chamada empurraria o prazo pra
+  // sempre durante o polling. Isso também preserva o opt-out: se o admin já usou
+  // "Desvincular do Bling" (que zera bling_send_after de propósito), uma reaprovação
+  // espúria do mesmo pedido (já com payment_status='aprovado') não reagenda por trás dele.
+  // O disparo de fato acontece no cron /api/admin/bling-auto-send, que reaproveita
+  // pushOrderToBling (e seu claim atômico) sem alteração — este arquivo nunca chama
+  // pushOrderToBling diretamente.
+  if (!wasAlreadyApproved) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("orders").update({ bling_send_after: computeBlingSendAfter() }).eq("id", orderId);
+  }
 }

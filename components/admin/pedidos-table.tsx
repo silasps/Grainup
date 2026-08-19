@@ -2,12 +2,13 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X, ChevronUp, ChevronDown, Package, Check, Pencil, Truck, FileText, TriangleAlert, RefreshCw, Printer } from "lucide-react";
+import { Search, X, ChevronUp, ChevronDown, Package, Check, Pencil, Truck, FileText, TriangleAlert, RefreshCw, Printer, Clock, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/utils/format";
+import { formatCurrency, formatCurrencyShort, formatDate, formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
+import { isWithinBlingAutoSendWindow } from "@/lib/bling/schedule";
 import { pushOrderToBlingAction, updateTrackingCodeAction, syncBlingOrderAction, markFulfillmentStepAction, resetBlingLinkAction } from "@/app/(admin)/admin/editora/pedidos/actions";
 import { toast } from "sonner";
 
@@ -44,6 +45,7 @@ export interface OrderRow {
   invoice_url: string | null;
   bling_order_id: number | null;
   bling_nfe_id: number | null;
+  bling_send_after: string | null;
   tracking_code: string | null;
   shipping_address: Record<string, string> | null;
   nota_impressa: boolean;
@@ -577,6 +579,24 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                                   <RefreshCw className={`h-3 w-3 ${blingSyncing === order.id ? "animate-spin" : ""}`} />
                                 </button>
                               </div>
+                            </div>
+                          ) : ["pago", "separando", "enviado", "entregue"].includes(order.status)
+                              && isWithinBlingAutoSendWindow(order.bling_send_after) ? (
+                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                              <span
+                                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-600"
+                                title={order.bling_send_after ? `Envio automático previsto para ${formatDateTime(order.bling_send_after)}` : undefined}
+                              >
+                                <Clock className="h-3 w-3" /> Aguardando envio automático
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleSendToBling(order.id); }}
+                                disabled={blingLoading === order.id}
+                                title="Enviar agora, sem esperar o envio automático"
+                                className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border border-border bg-secondary hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                              >
+                                <Send className={`h-3 w-3 ${blingLoading === order.id ? "animate-pulse" : ""}`} />
+                              </button>
                             </div>
                           ) : ["pago", "separando", "enviado", "entregue"].includes(order.status) ? (
                             <button

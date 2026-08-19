@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, ExternalLink, CheckCircle2, AlertCircle, Package, Send, Unlink, TriangleAlert } from "lucide-react";
+import { RefreshCw, ExternalLink, CheckCircle2, AlertCircle, Package, Send, Unlink, TriangleAlert, Clock } from "lucide-react";
 import { syncBlingOrderAction, pushOrderToBlingAction, resetBlingLinkAction } from "@/app/(admin)/admin/editora/pedidos/actions";
+import { isWithinBlingAutoSendWindow } from "@/lib/bling/schedule";
+import { formatDateTime } from "@/lib/utils/format";
 import { toast } from "sonner";
 import { toastErrorId } from "@/components/ui/error-toast";
 import {
@@ -20,9 +22,10 @@ interface Props {
   blingOrderId: number | null;
   orderStatus?: string;
   initialSituacao?: string | null;
+  blingSendAfter?: string | null;
 }
 
-export function BlingSyncCard({ orderId, blingOrderId: initialBlingOrderId, orderStatus, initialSituacao }: Props) {
+export function BlingSyncCard({ orderId, blingOrderId: initialBlingOrderId, orderStatus, initialSituacao, blingSendAfter }: Props) {
   const [loading, setLoading] = useState(false);
   const [blingOrderId, setBlingOrderId] = useState(initialBlingOrderId);
   const [situacao, setSituacao] = useState(initialSituacao ?? null);
@@ -148,6 +151,18 @@ export function BlingSyncCard({ orderId, blingOrderId: initialBlingOrderId, orde
             <Unlink className="h-3 w-3" />
             Desvincular do Bling e apagar NF
           </button>
+        </div>
+      ) : (orderStatus === "pago" || orderStatus === "separando" || orderStatus === "enviado" || orderStatus === "entregue")
+          && isWithinBlingAutoSendWindow(blingSendAfter ?? null) ? (
+        <div className="flex items-start gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+          <Clock className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-foreground">Aguardando envio automático</p>
+            <p className="text-slate-500 mt-0.5">
+              {blingSendAfter ? `Previsto para ${formatDateTime(blingSendAfter)}. ` : ""}
+              O pedido será enviado ao Bling sozinho, sem precisar de ação. Se for urgente, use "Enviar ao Bling" acima.
+            </p>
+          </div>
         </div>
       ) : orderStatus === "pago" || orderStatus === "separando" || orderStatus === "enviado" || orderStatus === "entregue" ? (
         <div className="flex flex-col gap-2">

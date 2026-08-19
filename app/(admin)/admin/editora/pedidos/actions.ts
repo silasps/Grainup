@@ -20,7 +20,7 @@ export async function fetchOrdersAction(): Promise<OrderRow[]> {
   const supabase = await createAdminClient();
   const { data } = await supabase
     .from("orders")
-    .select("id, order_number, status, total, payment_method, shipping_cost, created_at, customer_name, invoice_number, invoice_url, bling_order_id, bling_nfe_id, tracking_code, shipping_address, nota_impressa, postagem_gerada, order_items(id, title, quantity, combo_id, books(sku), combos(combo_items(books(sku, title))))")
+    .select("id, order_number, status, total, payment_method, shipping_cost, created_at, customer_name, invoice_number, invoice_url, bling_order_id, bling_nfe_id, bling_send_after, tracking_code, shipping_address, nota_impressa, postagem_gerada, order_items(id, title, quantity, combo_id, books(sku), combos(combo_items(books(sku, title))))")
     .order("created_at", { ascending: false })
     .limit(200);
   return (data ?? []) as unknown as OrderRow[];
@@ -209,10 +209,15 @@ export async function resetBlingLinkAction(orderId: string): Promise<{ error: st
     return { error: "Este pedido já tem uma NF-e emitida e válida. Desvincular e reenviar criaria uma SEGUNDA nota duplicada no Bling — a nota atual não seria cancelada automaticamente. Se ela estiver errada, corrija ou cancele diretamente no Bling." };
   }
 
+  // Zera bling_send_after também: sem isso, como o prazo agendado normalmente já passou
+  // nesse ponto (o pedido só chega a ter bling_order_id depois do primeiro envio bem
+  // sucedido), o PRÓXIMO ciclo do cron de envio automático reenviaria sozinho em minutos —
+  // o "Desvincular pra investigar manualmente" deixaria de ser manual. Com isso zerado, o
+  // único jeito de reenviar depois de desvincular volta a ser o botão "Enviar ao Bling".
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("orders")
-    .update({ bling_order_id: null, bling_nfe_id: null, invoice_number: null, invoice_url: null })
+    .update({ bling_order_id: null, bling_nfe_id: null, invoice_number: null, invoice_url: null, bling_send_after: null })
     .eq("id", orderId);
   if (error) return { error: error.message };
   revalidatePath(`/admin/editora/pedidos/${orderId}`);

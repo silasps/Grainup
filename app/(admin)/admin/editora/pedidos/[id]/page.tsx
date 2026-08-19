@@ -83,6 +83,7 @@ interface OrderDetail {
   invoice_number: string | null;
   invoice_url: string | null;
   bling_order_id: number | null;
+  bling_send_after: string | null;
   nota_impressa: boolean;
   postagem_gerada: boolean;
   notes: string | null;
@@ -99,7 +100,7 @@ async function getOrder(id: string): Promise<OrderDetail | null> {
       `id, order_number, status, payment_status, payment_method,
        subtotal, discount, shipping_cost, total,
        customer_name, customer_email, shipping_address, tracking_code,
-       invoice_number, invoice_url, bling_order_id, nota_impressa, postagem_gerada, notes,
+       invoice_number, invoice_url, bling_order_id, bling_send_after, nota_impressa, postagem_gerada, notes,
        created_at, updated_at,
        order_items(id, quantity, unit_price, total_price, title, book_id, combo_id, books(title, cover_url, sku), combos(name, combo_items(quantity, books(title, cover_url, sku))))`
     )
@@ -312,6 +313,7 @@ export default async function AdminOrderDetailPage({
               orderId={order.id}
               blingOrderId={order.bling_order_id}
               orderStatus={order.status}
+              blingSendAfter={order.bling_send_after}
             />
 
             {/* Pipeline de fulfillment */}
