@@ -11,14 +11,14 @@ export async function GET(req: NextRequest) {
 
     if (email) {
       // Busca contato por email para ver estrutura completa
-      const res = await fetch(`https://www.bling.com.br/Api/v3/contatos?email=${encodeURIComponent(email)}&situacao=A`, {
+      const res = await fetch(`https://api.bling.com.br/Api/v3/contatos?email=${encodeURIComponent(email)}&situacao=A`, {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       });
       const list = await res.json() as { data?: Array<{ id: number }> };
       const contatoId = list.data?.[0]?.id;
       if (!contatoId) return NextResponse.json({ error: "contato não encontrado", list });
 
-      const detail = await fetch(`https://www.bling.com.br/Api/v3/contatos/${contatoId}`, {
+      const detail = await fetch(`https://api.bling.com.br/Api/v3/contatos/${contatoId}`, {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       });
       const body = await detail.json();
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     if (!id) return NextResponse.json({ error: "?id= ou ?email= obrigatório" }, { status: 400 });
 
-    const res = await fetch(`https://www.bling.com.br/Api/v3/${tipo}/${id}`, {
+    const res = await fetch(`https://api.bling.com.br/Api/v3/${tipo}/${id}`, {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     });
     const body = await res.json();

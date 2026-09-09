@@ -1,7 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { BlingError } from "./errors";
 
-const TOKEN_URL = "https://www.bling.com.br/Api/v3/oauth/token";
+// api.bling.com.br é o domínio oficial atual — ver lib/bling/client.ts (Bling bloqueou
+// www.bling.com.br pra endpoints de recurso em 2026-09; testado que api. funciona igual
+// pra OAuth também, então migrado aqui junto por consistência/futuro-prova).
+const TOKEN_URL = "https://api.bling.com.br/Api/v3/oauth/token";
 const RECONNECT_MSG = "A conexão com o Bling expirou. Peça para um administrador reconectar em Configurações → Bling ERP.";
 
 function basicAuth() {

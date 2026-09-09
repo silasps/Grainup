@@ -6,7 +6,11 @@
 import { getAccessToken } from "./auth";
 import { BlingError } from "./errors";
 
-const BASE_URL = "https://www.bling.com.br/Api/v3";
+// Bling bloqueou www.bling.com.br pra chamadas de API em 2026-09 (confirmado via erro
+// FORBIDDEN "A URL 'www.bling.com.br' está bloqueada... utilize api.bling.com.br"). O
+// domínio novo (api.bling.com.br) foi testado e funciona igual pra todos os endpoints,
+// incluindo OAuth (ver lib/bling/auth.ts, migrado junto).
+const BASE_URL = "https://api.bling.com.br/Api/v3";
 const REQUEST_TIMEOUT_MS = 12_000;
 
 export { BlingError };

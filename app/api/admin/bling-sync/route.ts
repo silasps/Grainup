@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.BLING_API_KEY;
   if (apiKey) {
     try {
-      const res = await fetch("https://www.bling.com.br/Api/v3/produtos?limite=100&pagina=1", {
+      const res = await fetch("https://api.bling.com.br/Api/v3/produtos?limite=100&pagina=1", {
         headers: { "Content-Type": "application/json", apikey: apiKey },
       });
       if (res.ok) {
