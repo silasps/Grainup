@@ -151,7 +151,14 @@ export async function pushOrderToBling(orderId: string) {
     }
   }
 
-  const addr = (order.shipping_address ?? {}) as Record<string, string>;
+  // Aparar espaços em branco de todos os campos do endereço: o Bling valida "município" por
+  // igualdade exata contra o cadastro dele de cidades — um "Bastos " com espaço sobrando (ex.:
+  // erro de digitação/autofill no checkout) já é suficiente pra falhar com "cidade não
+  // encontrada" mesmo a cidade existindo. Normaliza uma vez aqui pra todos os usos abaixo.
+  const rawAddr = (order.shipping_address ?? {}) as Record<string, string>;
+  const addr = Object.fromEntries(
+    Object.entries(rawAddr).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])
+  ) as Record<string, string>;
   const cep = (addr.cep ?? addr.zip_code ?? "").replace(/\D/g, "");
 
   const contatoId = await findOrCreateBlingContact(
