@@ -193,20 +193,26 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
 export async function resetBlingLinkAction(orderId: string): Promise<{ error: string | null }> {
   const supabase = await createAdminClient();
 
-  // Guard: se já existe NF-e válida (invoice_number preenchido), desvincular + "Enviar ao Bling"
-  // de novo cria um SEGUNDO pedido + NF-e do zero no Bling — a nota antiga não é cancelada
-  // (só o vínculo aqui é removido), então os dois ficam ativos. Foi exatamente assim que
-  // pedidos já concluídos acabaram duplicados no Bling (ex.: nota 007255 válida + 007256
-  // duplicada 12h depois, mesmo pedido). Corrigir uma nota já emitida é uma operação que só
-  // pode ser feita dentro do próprio Bling (cancelar/corrigir lá) — nunca reenviando daqui.
+  // Guard: se já existe NF-e (invoice_number OU bling_nfe_id preenchido), desvincular +
+  // "Enviar ao Bling" de novo cria um SEGUNDO pedido + NF-e do zero no Bling — a nota antiga
+  // não é cancelada (só o vínculo aqui é removido), então os dois ficam ativos.
+  // Checar só invoice_number não bastava: incidente real (pedido da Cleusa, 09/2026) — nossa
+  // NF-e (bling_nfe_id) tinha sido criada mas ainda não tinha chaveAcesso confirmada
+  // (invoice_number ainda null) quando alguém clicou "Desvincular"; como o vínculo
+  // pedido→notaFiscal do Bling é instável (já visto antes nesta integração — às vezes fica
+  // "notaFiscal: {id: 0}" mesmo com uma NF-e real vinculada), nem uma checagem ao vivo no
+  // Bling pega esse caso de forma confiável. bling_nfe_id é setado ANTES da confirmação da
+  // chave de acesso (ver lib/bling/sync.ts) — é o sinal mais cedo e confiável de que já existe
+  // uma NF-e real no Bling pra este pedido, então também bloqueia o desvincular.
   const { data: current } = await supabase
     .from("orders")
-    .select("invoice_number")
+    .select("invoice_number, bling_nfe_id")
     .eq("id", orderId)
     .single();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if ((current as any)?.invoice_number) {
-    return { error: "Este pedido já tem uma NF-e emitida e válida. Desvincular e reenviar criaria uma SEGUNDA nota duplicada no Bling — a nota atual não seria cancelada automaticamente. Se ela estiver errada, corrija ou cancele diretamente no Bling." };
+  const currentAny = current as any;
+  if (currentAny?.invoice_number || currentAny?.bling_nfe_id) {
+    return { error: "Este pedido já tem uma NF-e criada no Bling (emitida ou aguardando confirmação). Desvincular e reenviar criaria uma SEGUNDA nota duplicada — a nota atual não seria cancelada automaticamente. Se ela estiver errada, corrija ou cancele diretamente no Bling." };
   }
 
   // Zera bling_send_after também: sem isso, como o prazo agendado normalmente já passou
