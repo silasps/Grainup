@@ -7,6 +7,7 @@
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { getBlingProductBySku, createBlingProduct, createBlingOrder, createBlingNfe, sendBlingNfe, getBlingNfe, findOrCreateBlingContact, resolvePaymentFormId, resolveLivrosGrupoId, type BlingOrderPayload, type BlingNfePayload } from "./client";
+import { logBlingAction, type BlingLogSource } from "./audit";
 
 /** Chamado pelo webhook do Bling quando estoque muda */
 export async function syncStockFromBling(blingProductId: number, sku: string, newStock: number) {
@@ -23,7 +24,7 @@ export async function syncStockFromBling(blingProductId: number, sku: string, ne
 }
 
 /** Chamado após pagamento confirmado para registrar o pedido no Bling */
-export async function pushOrderToBling(orderId: string) {
+export async function pushOrderToBling(orderId: string, source: BlingLogSource = "manual_admin", actor?: string | null) {
   const supabase = await createAdminClient();
 
   const { data: order } = await supabase
@@ -61,8 +62,12 @@ export async function pushOrderToBling(orderId: string) {
     .select("id");
   if (!claimed || claimed.length === 0) {
     console.log(`[Bling] Pedido ${order.order_number} já enviado ou sendo processado por outra chamada, ignorando.`);
+    // Evidência direta de corrida/duplo disparo se este pedido aparecer aqui mais de uma vez
+    // num intervalo curto — ver supabase/migrations/046_bling_action_log.sql.
+    await logBlingAction({ orderId, action: "push_skipped", source, actor, detail: `bling_order_id atual: ${order.bling_order_id}` });
     return;
   }
+  await logBlingAction({ orderId, action: "push_attempt", source, actor });
 
   type RawItem = {
     title: string; quantity: number; unit_price: number;
@@ -331,6 +336,7 @@ export async function pushOrderToBling(orderId: string) {
     // salvo, um "reenviar" logo em seguida não encontrava esta NF-e e criava outra do zero.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("orders").update({ bling_nfe_id: nfe.id }).eq("id", orderId);
+    await logBlingAction({ orderId, action: "push_success", source, actor, detail: `bling_order_id=${result.id} bling_nfe_id=${nfe.id}` });
 
     // Transmite ao SEFAZ automaticamente
     await sendBlingNfe(nfe.id);
@@ -359,5 +365,6 @@ export async function pushOrderToBling(orderId: string) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[Bling] Falha ao gerar/transmitir NF-e para pedido ${result.id}: ${msg}`);
     console.error("[Bling] → Admin pode gerar manualmente no Bling: Vendas → Pedidos de Venda → Gerar NF-e");
+    await logBlingAction({ orderId, action: "push_nfe_failed", source, actor, detail: `bling_order_id=${result.id}: ${msg}` });
   }
 }

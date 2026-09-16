@@ -1,10 +1,22 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendReviewRequestEmail, sendCancellationApprovedEmail, sendCancellationDeniedEmail } from "@/lib/email";
 import { getBlingOrderDetails, getBlingNfeByOrder, getBlingNfe, sendBlingNfe, generateBlingNfeFromOrder, findBlingNfeByChave, BlingError } from "@/lib/bling";
 import { pushOrderToBling } from "@/lib/bling/sync";
+import { logBlingAction } from "@/lib/bling/audit";
+
+/** E-mail do admin logado nessa requisição, pra registrar quem disparou uma ação no Bling. */
+async function currentAdminEmail(): Promise<string | null> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
 import { issueMpRefund } from "@/lib/mp-refund";
 import type { OrderRow } from "@/components/admin/pedidos-table";
 import type { OrderStatus } from "@/types/database";
@@ -159,12 +171,14 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
     if (retryNfeId) {
       nfe = await getBlingNfe(retryNfeId);
     } else {
+      const actor = await currentAdminEmail();
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const generated = await generateBlingNfeFromOrder(blingOrderId);
         if (generated) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (supabase as any).from("orders").update({ bling_nfe_id: generated.id }).eq("id", orderId);
+          await logBlingAction({ orderId, action: "sync_fallback_create", source: "manual_admin", actor, detail: `bling_order_id=${blingOrderId} nova bling_nfe_id=${generated.id}` });
           // Transmite ao SEFAZ e busca a chave de acesso
           try { await sendBlingNfe(generated.id); } catch { /* já transmitida */ }
           nfe = await getBlingNfe(generated.id);
@@ -211,7 +225,12 @@ export async function resetBlingLinkAction(orderId: string): Promise<{ error: st
     .single();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const currentAny = current as any;
+  const actor = await currentAdminEmail();
   if (currentAny?.invoice_number || currentAny?.bling_nfe_id) {
+    await logBlingAction({
+      orderId, action: "reset_blocked", source: "manual_admin", actor,
+      detail: `invoice_number=${currentAny?.invoice_number ?? "null"} bling_nfe_id=${currentAny?.bling_nfe_id ?? "null"}`,
+    });
     return { error: "Este pedido já tem uma NF-e criada no Bling (emitida ou aguardando confirmação). Desvincular e reenviar criaria uma SEGUNDA nota duplicada — a nota atual não seria cancelada automaticamente. Se ela estiver errada, corrija ou cancele diretamente no Bling." };
   }
 
@@ -226,6 +245,7 @@ export async function resetBlingLinkAction(orderId: string): Promise<{ error: st
     .update({ bling_order_id: null, bling_nfe_id: null, invoice_number: null, invoice_url: null, bling_send_after: null })
     .eq("id", orderId);
   if (error) return { error: error.message };
+  await logBlingAction({ orderId, action: "reset_ok", source: "manual_admin", actor });
   revalidatePath(`/admin/editora/pedidos/${orderId}`);
   return { error: null };
 }
@@ -236,15 +256,18 @@ export async function pushOrderToBlingAction(orderId: string): Promise<{ error: 
   const { data: row } = await (supabase as any).from("orders").select("bling_order_id").eq("id", orderId).single();
   if (row?.bling_order_id) return { error: "Pedido já registrado no Bling." };
 
+  const actor = await currentAdminEmail();
   try {
-    await pushOrderToBling(orderId);
+    await pushOrderToBling(orderId, "manual_admin", actor);
     revalidatePath(`/admin/editora/pedidos/${orderId}`);
     return { error: null };
   } catch (err) {
     // status 401 aqui é sempre token/conexão Bling expirados (ver lib/bling/auth.ts) — a UI
     // mostra um modal explicando em vez de só um toast com a mensagem crua.
     const needsReconnect = err instanceof BlingError && err.status === 401;
-    return { error: err instanceof Error ? err.message : "Erro ao enviar ao Bling.", needsReconnect };
+    const msg = err instanceof Error ? err.message : "Erro ao enviar ao Bling.";
+    await logBlingAction({ orderId, action: "push_failed", source: "manual_admin", actor, detail: msg });
+    return { error: msg, needsReconnect };
   }
 }
 

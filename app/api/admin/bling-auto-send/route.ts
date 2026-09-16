@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { pushOrderToBling } from "@/lib/bling/sync";
+import { logBlingAction } from "@/lib/bling/audit";
 
 export const runtime = "nodejs";
 // Maior que o de bling-sync (60s) porque cada pedido do batch faz uma sequência de chamadas
@@ -61,11 +62,12 @@ export async function GET(req: NextRequest) {
       // pushOrderToBling faz seu PRÓPRIO claim atômico — é seguro chamar mesmo se, entre o
       // SELECT acima e este await, o admin tiver clicado "Enviar Bling" manualmente pro
       // mesmo pedido; só uma das duas chamadas vence o UPDATE...WHERE.
-      await pushOrderToBling(order.id);
+      await pushOrderToBling(order.id, "cron_auto_send");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error(`[bling-auto-send] Pedido ${order.order_number}:`, msg);
       results.errors.push(`${order.order_number}: ${msg}`);
+      await logBlingAction({ orderId: order.id, action: "push_failed", source: "cron_auto_send", detail: msg });
       // Não interrompe o batch. Se a falha foi depois do claim (createBlingOrder lançou),
       // o pedido fica em -1 e será reclamado pelo PRÓXIMO ciclo deste mesmo cron assim que
       // os 2min de staleClaimCutoff passarem.
