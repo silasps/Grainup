@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency, formatDateTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, MapPin, Package, CreditCard, FileText } from "lucide-react";
+import { ArrowLeft, MapPin, Package, CreditCard, FileText, Truck } from "lucide-react";
+import { formatDeliveryRange } from "@/lib/utils/delivery-estimate";
 import { OrderStatusPoller } from "@/components/conta/order-status-poller";
 import { CancelOrderButton } from "@/components/conta/cancel-order-button";
 import { ReturnRequestButton } from "@/components/conta/return-request-button";
@@ -76,6 +77,12 @@ export default async function PedidoDetalhesPage({
   const o = order as unknown as OrderDetail;
   const items = o.order_items ?? [];
   const addr = o.shipping_address;
+
+  const minDays = addr?.minDays ? Number(addr.minDays) : null;
+  const maxDays = addr?.maxDays ? Number(addr.maxDays) : null;
+  const showDeliveryEstimate =
+    minDays != null && maxDays != null &&
+    !["cancelado", "reembolsado", "entregue", "cancelamento_solicitado"].includes(o.status);
 
   return (
     <div className="flex flex-col gap-4">
@@ -185,6 +192,20 @@ export default async function PedidoDetalhesPage({
             {addr.neighborhood} · {addr.city}/{addr.state}
           </p>
           <p className="text-sm text-muted-foreground">CEP {addr.cep}</p>
+        </div>
+      )}
+
+      {/* Previsão de entrega — mesmo prazo mostrado no checkout, calculado a partir da data
+          do pedido (não da data de hoje), pra ficar igual ao que foi prometido na compra. */}
+      {showDeliveryEstimate && (
+        <div className="bg-white rounded-xl border border-border p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Truck className="h-4 w-4 text-muted-foreground" />
+            <h2 className="font-semibold text-sm">Previsão de entrega</h2>
+          </div>
+          <p className="text-sm text-foreground">
+            {formatDeliveryRange(minDays as number, maxDays as number, new Date(o.created_at))}
+          </p>
         </div>
       )}
 

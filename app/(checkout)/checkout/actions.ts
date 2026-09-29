@@ -54,6 +54,8 @@ interface PlaceOrderInput {
   shippingCost: number;
   shippingLabel?: string;
   shippingServiceCode?: string;
+  shippingMinDays?: number;
+  shippingMaxDays?: number;
   total: number;
   paymentMethod: "pix" | "credito" | "debito" | null;
   items: OrderItem[];
@@ -226,6 +228,11 @@ export async function placeOrderAction(input: PlaceOrderInput) {
       ...normalizedAddress,
       ...(input.shippingLabel ? { method: input.shippingLabel } : {}),
       ...(input.shippingServiceCode ? { serviceCode: input.shippingServiceCode } : {}),
+      // Prazo (dias úteis) da opção de frete escolhida — persistido pra mostrar a mesma
+      // previsão de entrega dada no checkout depois, em "Meus Pedidos" (antes só existia
+      // na tela do checkout e se perdia; ver lib/utils/delivery-estimate.ts).
+      ...(input.shippingMinDays != null ? { minDays: String(input.shippingMinDays) } : {}),
+      ...(input.shippingMaxDays != null ? { maxDays: String(input.shippingMaxDays) } : {}),
     },
     subtotal: input.subtotal,
     discount: input.discount,

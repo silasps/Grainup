@@ -18,6 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { useCartStore } from "@/stores/cart";
+import { formatDeliveryRange } from "@/lib/utils/delivery-estimate";
 import {
   placeOrderAction,
   createMpPixPaymentAction,
@@ -52,51 +53,8 @@ type ShippingOption = {
   serviceCode?: string;
 };
 
-const WEEKDAYS_PT = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
-const MONTHS_PT   = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
-
-function addBusinessDays(start: Date, days: number): Date {
-  const d = new Date(start);
-  let added = 0;
-  while (added < days) {
-    d.setDate(d.getDate() + 1);
-    if (d.getDay() !== 0 && d.getDay() !== 6) added++;
-  }
-  return d;
-}
-
-function formatDeliveryRange(minDays: number, maxDays: number): string {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const minDate = addBusinessDays(today, minDays);
-  const maxDate = addBusinessDays(today, maxDays);
-
-  const fmtDate = (d: Date): string => {
-    const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
-    return diff <= 6
-      ? WEEKDAYS_PT[d.getDay()]
-      : `${d.getDate()} de ${MONTHS_PT[d.getMonth()]}`;
-  };
-
-  const sameDay = minDate.toDateString() === maxDate.toDateString();
-
-  if (sameDay) {
-    const daysLabel = maxDays === 1 ? "1 dia útil" : `${maxDays} dias úteis`;
-    return `Chegada prevista ${fmtDate(maxDate)} (${daysLabel})`;
-  }
-
-  const daysLabel = `${minDays}–${maxDays} dias úteis`;
-  // Mesmo mês e ambos além de 6 dias → "Chegada entre 15 e 20 de agosto"
-  if (
-    minDate.getMonth() === maxDate.getMonth() &&
-    minDate.getFullYear() === maxDate.getFullYear() &&
-    Math.round((minDate.getTime() - today.getTime()) / 86400000) > 6
-  ) {
-    return `Chegada entre ${minDate.getDate()} e ${maxDate.getDate()} de ${MONTHS_PT[minDate.getMonth()]} (${daysLabel})`;
-  }
-
-  return `Chegada entre ${fmtDate(minDate)} e ${fmtDate(maxDate)} (${daysLabel})`;
-}
+// formatDeliveryRange vem de @/lib/utils/delivery-estimate — compartilhada com a página de
+// detalhe do pedido em "Meus Pedidos", pra mostrar a mesma previsão dada aqui no checkout.
 
 const PAYMENT_OPTIONS = [
   { id: "pix", label: "Pix", description: "Aprovação imediata", badge: "5% OFF", badgeColor: "bg-emerald-500" },
@@ -627,6 +585,8 @@ export function CheckoutFlow() {
       shippingCost: shippingPrice,
       shippingLabel: effectiveShippingLabel ?? undefined,
       shippingServiceCode: selectedShipping?.serviceCode,
+      shippingMinDays: selectedShipping?.minDays,
+      shippingMaxDays: selectedShipping?.maxDays,
       total,
       paymentMethod: paymentMethodMap[payment ?? ""] ?? null,
       items: items.map((i) => ({ id: i.id, type: i.type, title: i.title, price: i.price, quantity: i.quantity })),
