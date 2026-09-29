@@ -241,6 +241,25 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     tracking_code: null,
   };
 
+  // Idempotência: evita pedido duplicado se "Finalizar pedido" for clicado 2x (duplo toque,
+  // rede lenta, F5 no meio do redirecionamento pro pagamento) — sem isso, cada clique cria um
+  // pedido novo, e se os dois forem pagos, cada um vira um envio real ao Bling (2 pedidos + 2
+  // NF-e pra uma única compra). Mesmo usuário, mesmo valor, aguardando pagamento, últimos 5min.
+  const { data: recentDuplicate } = await supabase
+    .from("orders")
+    .select("id, order_number")
+    .eq("user_id", user.id)
+    .eq("status", "aguardando_pagamento")
+    .eq("total", input.total)
+    .gte("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentDuplicate) {
+    return { error: null, orderNumber: recentDuplicate.order_number, orderId: recentDuplicate.id };
+  }
+
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert(payload)
