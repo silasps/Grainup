@@ -5,14 +5,20 @@
  */
 
 // Tempo de espera após o pagamento antes do cron poder disparar o Bling. Configurável via
-// env pra permitir ajuste em produção sem novo deploy, com fallback pro valor pedido (30min).
+// env pra permitir ajuste em produção sem novo deploy. Era 30min (pedido original, preferência
+// operacional) — reduzido pra 5min em 2026-09 depois de confirmar (log de auditoria: 16/16
+// envios automáticos bem-sucedidos, zero intervenção manual) que o motivo original da espera
+// longa não existia mais, e que a própria espera estava causando duplicidade: o admin, ansioso
+// pra imprimir, entrava direto no Bling durante a janela de espera — e como o vínculo
+// pedido→nota do Bling às vezes demora a aparecer até na tela deles, ele via "sem nota" e
+// gerava uma manualmente por lá, duplicando a que já estava a caminho pelo nosso robô.
 export const BLING_AUTO_SEND_DELAY_MINUTES =
-  Number(process.env.BLING_AUTO_SEND_DELAY_MINUTES) || 30;
+  Number(process.env.BLING_AUTO_SEND_DELAY_MINUTES) || 5;
 
 // Janela de tolerância na UI depois de bling_send_after passar, antes de trocar o badge calmo
 // "Aguardando envio automático" pelo alerta vermelho urgente. Cobre o intervalo entre ciclos
 // do cron + tempo de processamento de um batch — não deve ser menor que isso.
-export const BLING_AUTO_SEND_GRACE_MINUTES = 20;
+export const BLING_AUTO_SEND_GRACE_MINUTES = 10;
 
 export function computeBlingSendAfter(from: Date = new Date()): string {
   return new Date(from.getTime() + BLING_AUTO_SEND_DELAY_MINUTES * 60_000).toISOString();

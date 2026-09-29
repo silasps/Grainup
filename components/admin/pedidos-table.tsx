@@ -584,10 +584,10 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                               && isWithinBlingAutoSendWindow(order.bling_send_after) ? (
                             <div className="flex items-center gap-1.5 whitespace-nowrap">
                               <span
-                                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-600"
-                                title={order.bling_send_after ? `Envio automático previsto para ${formatDateTime(order.bling_send_after)}` : undefined}
+                                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-800"
+                                title={`Nota sendo gerada automaticamente${order.bling_send_after ? `, previsto para ${formatDateTime(order.bling_send_after)}` : ""} — não gere manualmente dentro do Bling, isso duplica a nota (o Bling pode ainda não mostrar a nota lá, mas ela já está a caminho).`}
                               >
-                                <Clock className="h-3 w-3" /> Aguardando envio automático
+                                <Clock className="h-3 w-3" /> Gerando nota — não gere no Bling
                               </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleSendToBling(order.id); }}

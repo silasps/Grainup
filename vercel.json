@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/admin/bling-sync",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/admin/bling-auto-send",

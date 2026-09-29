@@ -154,13 +154,16 @@ export function BlingSyncCard({ orderId, blingOrderId: initialBlingOrderId, orde
         </div>
       ) : (orderStatus === "pago" || orderStatus === "separando" || orderStatus === "enviado" || orderStatus === "entregue")
           && isWithinBlingAutoSendWindow(blingSendAfter ?? null) ? (
-        <div className="flex items-start gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+        <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
           <Clock className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-foreground">Aguardando envio automático</p>
-            <p className="text-slate-500 mt-0.5">
-              {blingSendAfter ? `Previsto para ${formatDateTime(blingSendAfter)}. ` : ""}
-              O pedido será enviado ao Bling sozinho, sem precisar de ação. Se for urgente, use "Enviar ao Bling" acima.
+            <p className="font-semibold">Nota sendo gerada automaticamente — só esperar</p>
+            <p className="text-amber-700 mt-0.5">
+              {blingSendAfter ? `Previsto para ${formatDateTime(blingSendAfter)}, ` : ""}
+              geralmente pronta em poucos minutos. <strong>Não gere a nota manualmente dentro do Bling</strong> —
+              o pedido lá pode ainda não mostrar a nota (o Bling demora a atualizar essa tela), mas ela já está
+              a caminho, e gerar de novo por lá cria uma nota duplicada. Se estiver demorando demais, use
+              "Enviar ao Bling" acima em vez de mexer direto no Bling.
             </p>
           </div>
         </div>
