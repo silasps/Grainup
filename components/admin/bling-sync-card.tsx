@@ -51,7 +51,7 @@ export function BlingSyncCard({ orderId, blingOrderId: initialBlingOrderId, orde
     if (result.invoiceNumber) {
       toast.success("NF-e sincronizada com sucesso", { id: toastId });
     } else {
-      toast.info("Sincronizado — NF-e ainda não emitida no Bling", { id: toastId });
+      toast.info("Sincronizado — NF-e ainda não autorizada. Transmita à SEFAZ dentro do Bling.", { id: toastId });
     }
   }
 

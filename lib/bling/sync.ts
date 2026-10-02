@@ -6,7 +6,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { getBlingProductBySku, createBlingProduct, createBlingOrder, createBlingNfe, sendBlingNfe, getBlingNfe, findOrCreateBlingContact, resolvePaymentFormId, resolveLivrosGrupoId, type BlingOrderPayload, type BlingNfePayload } from "./client";
+import { getBlingProductBySku, createBlingProduct, createBlingOrder, createBlingNfe, findOrCreateBlingContact, resolvePaymentFormId, resolveLivrosGrupoId, type BlingOrderPayload, type BlingNfePayload } from "./client";
 import { logBlingAction, type BlingLogSource } from "./audit";
 
 /** Chamado pelo webhook do Bling quando estoque muda */
@@ -331,39 +331,22 @@ export async function pushOrderToBling(orderId: string, source: BlingLogSource =
     if (!nfe?.id) throw new Error("POST /nfe não retornou ID");
     console.log(`[Bling] NF-e gerada → ID ${nfe.id}`);
 
-    // Salva o ID já aqui, antes de tentar transmitir/consultar. A autorização SEFAZ é
-    // assíncrona e o vínculo pedido→notaFiscal no Bling propaga com atraso — sem este ID
-    // salvo, um "reenviar" logo em seguida não encontrava esta NF-e e criava outra do zero.
+    // Salva o ID já aqui: o vínculo pedido→notaFiscal no Bling propaga com atraso — sem
+    // este ID salvo, um "reenviar" logo em seguida não encontrava esta NF-e e criava outra
+    // do zero.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("orders").update({ bling_nfe_id: nfe.id }).eq("id", orderId);
     await logBlingAction({ orderId, action: "push_success", source, actor, detail: `bling_order_id=${result.id} bling_nfe_id=${nfe.id}` });
 
-    // Transmite ao SEFAZ automaticamente
-    await sendBlingNfe(nfe.id);
-    console.log(`[Bling] NF-e ${nfe.id} transmitida ao SEFAZ`);
-
-    // Autorização SEFAZ não é instantânea — espera alguns segundos antes de desistir,
-    // para que a chave de acesso já venha pronta no primeiro clique sempre que possível.
-    let nfeDetails = await getBlingNfe(nfe.id);
-    for (let attempt = 0; !nfeDetails?.chaveAcesso && attempt < 4; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      nfeDetails = await getBlingNfe(nfe.id);
-    }
-
-    if (nfeDetails?.chaveAcesso) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("orders").update({
-        invoice_number: nfeDetails.chaveAcesso,
-        invoice_url: nfeDetails.linkDanfe || null,
-      }).eq("id", orderId);
-      console.log(`[Bling] Chave de acesso salva → ${nfeDetails.chaveAcesso}`);
-    } else {
-      console.warn(`[Bling] NF-e ${nfe.id} ainda sem chave de acesso após espera — SEFAZ deve autorizar em breve; use "Sincronizar" para atualizar.`);
-    }
+    // A automação para aqui, com a NF-e criada e "Pendente" no Bling. A transmissão à SEFAZ
+    // (POST /nfe/{id}/enviar) é feita manualmente pelo cliente dentro do Bling: pela API ela
+    // às vezes ficava presa aguardando a SEFAZ e travava a nota, enquanto pela tela do Bling
+    // autoriza rápido (pedido do cliente em 2026-09-30). A chave de acesso chega depois pelo
+    // webhook `notafiscal` ou pelo cron bling-sync.
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[Bling] Falha ao gerar/transmitir NF-e para pedido ${result.id}: ${msg}`);
+    console.error(`[Bling] Falha ao gerar NF-e para pedido ${result.id}: ${msg}`);
     console.error("[Bling] → Admin pode gerar manualmente no Bling: Vendas → Pedidos de Venda → Gerar NF-e");
     await logBlingAction({ orderId, action: "push_nfe_failed", source, actor, detail: `bling_order_id=${result.id}: ${msg}` });
   }

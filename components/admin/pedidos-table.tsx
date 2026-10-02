@@ -92,9 +92,9 @@ const PIPELINE_STEPS: { key: FulfillmentStep | "all"; label: string }[] = [
 ];
 
 // Etapas do envio ao Bling: pedido criado → NF-e criada → autorizada pela SEFAZ.
-// A autorização SEFAZ é assíncrona e às vezes demora — este indicador existe pra deixar
-// claro pro admin que o pedido está em andamento, não travado, sem precisar reenviar.
-const BLING_STAGE_LABELS = ["Pedido no Bling", "NF-e criada", "Aguardando SEFAZ"];
+// A automação para na NF-e criada; a transmissão à SEFAZ é manual, dentro do Bling —
+// o indicador deixa claro pro admin que a próxima ação é dele, lá no Bling.
+const BLING_STAGE_LABELS = ["Pedido no Bling", "NF-e criada", "Transmitir no Bling"];
 
 function BlingStageStepper({ stepIndex }: { stepIndex: 0 | 1 }) {
   return (
@@ -568,7 +568,7 @@ export function PedidosTable({ initialOrders, initialStats, onRefresh, onRefresh
                               <div className="flex items-center gap-1.5 whitespace-nowrap">
                                 <BlingStageStepper stepIndex={order.bling_nfe_id ? 1 : 0} />
                                 <span className="text-[11px] text-muted-foreground">
-                                  {order.bling_nfe_id ? "Aguardando SEFAZ" : "Nota em processamento"}
+                                  {order.bling_nfe_id ? "Transmitir no Bling" : "Nota em processamento"}
                                 </span>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleSyncBling(order.id); }}

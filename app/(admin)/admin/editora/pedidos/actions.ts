@@ -3,7 +3,7 @@
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendReviewRequestEmail, sendCancellationApprovedEmail, sendCancellationDeniedEmail } from "@/lib/email";
-import { getBlingOrderDetails, getBlingNfeByOrder, getBlingNfe, sendBlingNfe, generateBlingNfeFromOrder, findBlingNfeByChave, BlingError } from "@/lib/bling";
+import { getBlingOrderDetails, getBlingNfeByOrder, getBlingNfe, generateBlingNfeFromOrder, findBlingNfeByChave, BlingError } from "@/lib/bling";
 import { pushOrderToBling } from "@/lib/bling/sync";
 import { logBlingAction } from "@/lib/bling/audit";
 
@@ -145,13 +145,9 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
   // diretamente por ID — nunca cria uma segunda nota. O vínculo pedido→notaFiscal do Bling
   // (usado por getBlingNfeByOrder) propaga com atraso, então não pode ser usado para decidir
   // se uma NF-e "não existe": ela pode só ainda não estar linkada, e criar outra duplicaria.
+  // Só consulta: NF-e sem chave de acesso ainda não foi transmitida/autorizada, e a
+  // transmissão à SEFAZ é feita manualmente dentro do Bling (ver pushOrderToBling).
   let nfe = knownNfeId ? await getBlingNfe(knownNfeId) : await getBlingNfeByOrder(blingOrderId);
-
-  if (knownNfeId && !nfe?.chaveAcesso) {
-    // NF-e existe mas ainda não foi autorizada pelo SEFAZ (ou o envio anterior falhou) — reenvia a MESMA nota.
-    try { await sendBlingNfe(knownNfeId); } catch { /* já transmitida ou em processamento */ }
-    nfe = await getBlingNfe(knownNfeId);
-  }
 
   // Fallback apenas quando NUNCA houve NF-e criada para este pedido. Antes de assumir isso,
   // espera alguns segundos e reconsulta bling_nfe_id — pushOrderToBling pode estar em
@@ -179,8 +175,7 @@ export async function syncBlingOrderAction(orderId: string): Promise<{
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (supabase as any).from("orders").update({ bling_nfe_id: generated.id }).eq("id", orderId);
           await logBlingAction({ orderId, action: "sync_fallback_create", source: "manual_admin", actor, detail: `bling_order_id=${blingOrderId} nova bling_nfe_id=${generated.id}` });
-          // Transmite ao SEFAZ e busca a chave de acesso
-          try { await sendBlingNfe(generated.id); } catch { /* já transmitida */ }
+          // Não transmite à SEFAZ — isso é feito manualmente dentro do Bling.
           nfe = await getBlingNfe(generated.id);
         }
       } catch (genErr) {
