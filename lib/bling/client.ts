@@ -3,7 +3,7 @@
  * Tokens gerenciados em lib/bling/auth.ts (tabela bling_tokens no Supabase)
  */
 
-import { getAccessToken } from "./auth";
+import { getAccessToken, blingAuthHeaders } from "./auth";
 import { BlingError } from "./errors";
 
 // Bling bloqueou www.bling.com.br pra chamadas de API em 2026-09 (confirmado via erro
@@ -24,7 +24,7 @@ async function blingFetch<T>(path: string, options?: RequestInit): Promise<T> {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        ...blingAuthHeaders(token),
         ...(options?.headers ?? {}),
       },
     });

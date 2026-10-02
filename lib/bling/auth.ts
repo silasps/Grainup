@@ -7,6 +7,25 @@ import { BlingError } from "./errors";
 const TOKEN_URL = "https://api.bling.com.br/Api/v3/oauth/token";
 const RECONNECT_MSG = "A conexão com o Bling expirou. Peça para um administrador reconectar em Configurações → Bling ERP.";
 
+// Migração obrigatória do Bling pra tokens JWT (https://developer.bling.com.br/migracao-jwt):
+// o header `enable-jwt: 1` vai em toda chamada a /oauth/token (troca do código E renovação —
+// sem ele a renovação volta a emitir token opaco) e em toda requisição autenticada.
+const JWT_HEADER = { "enable-jwt": "1" } as const;
+
+function isJwt(token: string) {
+  return token.startsWith("eyJ") && token.split(".").length === 3;
+}
+
+/**
+ * Headers de autenticação pra qualquer chamada à API do Bling. O `enable-jwt` só vai junto
+ * quando o token salvo já é JWT: logo após o deploy o banco ainda tem o token opaco antigo, e
+ * mandar o header com ele arrisca 401 até a próxima renovação — que já pede JWT (ver doRefresh),
+ * então a troca acontece sozinha, sem precisar reconectar.
+ */
+export function blingAuthHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}`, ...(isJwt(token) ? JWT_HEADER : {}) };
+}
+
 function basicAuth() {
   const id = process.env.BLING_CLIENT_ID;
   const secret = process.env.BLING_CLIENT_SECRET;
@@ -29,7 +48,7 @@ async function saveTokens(accessToken: string, refreshToken: string, expiresIn: 
 async function doRefresh(refreshToken: string): Promise<string> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
-    headers: { Authorization: `Basic ${basicAuth()}`, "Content-Type": "application/x-www-form-urlencoded" },
+    headers: { Authorization: `Basic ${basicAuth()}`, "Content-Type": "application/x-www-form-urlencoded", ...JWT_HEADER },
     body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`,
   });
   if (!res.ok) {
@@ -72,7 +91,7 @@ export async function exchangeCodeForTokens(code: string): Promise<void> {
   if (!redirectUri) throw new Error("BLING_REDIRECT_URI não configurada.");
   const res = await fetch(TOKEN_URL, {
     method: "POST",
-    headers: { Authorization: `Basic ${basicAuth()}`, "Content-Type": "application/x-www-form-urlencoded" },
+    headers: { Authorization: `Basic ${basicAuth()}`, "Content-Type": "application/x-www-form-urlencoded", ...JWT_HEADER },
     body: `grant_type=authorization_code&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`,
   });
   if (!res.ok) throw new Error(`Erro ao trocar código Bling: ${await res.text()}`);
