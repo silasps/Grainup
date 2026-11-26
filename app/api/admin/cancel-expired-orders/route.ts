@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
+import { verifyOrderPayment } from "@/lib/mercadopago/payments";
+import { processApprovedPayment } from "@/lib/orders/process-approved-payment";
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get("authorization");
@@ -27,12 +29,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ cancelled: 0 });
   }
 
-  const ids = expired.map((o) => o.id);
-  await supabase
-    .from("orders")
-    .update({ status: "cancelado" })
-    .in("id", ids);
+  // Antes de cancelar, confere no Mercado Pago: um Pix gerado de novo (nova tentativa) pode
+  // ter sido pago mesmo com uma tentativa anterior recusada/expirada. Pedido pago nunca é
+  // cancelado aqui — é aprovado.
+  const ids: string[] = [];
+  let approved = 0;
+  for (const o of expired) {
+    const v = await verifyOrderPayment(o.id);
+    if (v.transient) continue; // MP indisponível: decide no próximo ciclo
+    if (v.verified && v.payment) {
+      const r = await processApprovedPayment(o.id, v.payment.id, v.payment);
+      if (r.ok) approved++;
+      continue;
+    }
+    ids.push(o.id);
+  }
 
-  console.log(`[cancel-expired-orders] Cancelados ${ids.length} pedidos`);
-  return NextResponse.json({ cancelled: ids.length });
+  if (ids.length > 0) {
+    await supabase
+      .from("orders")
+      .update({ status: "cancelado" })
+      .in("id", ids)
+      .neq("payment_status", "aprovado");
+  }
+
+  console.log(`[cancel-expired-orders] Cancelados ${ids.length} pedidos; ${approved} aprovados após conferência no MP`);
+  return NextResponse.json({ cancelled: ids.length, approved });
 }

@@ -5,16 +5,12 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { getTenantFromHostname, getTenantSettings } from "@/lib/tenant";
 import { sendEadEnrollmentEmail } from "@/lib/email/ead";
+import { getMpNotificationUrl } from "@/lib/mercadopago/payments";
 
 function generateOrderNumber(): string {
   const ts = Date.now().toString().slice(-7);
   const rand = Math.floor(Math.random() * 100).toString().padStart(2, "0");
   return `EAD${ts}${rand}`;
-}
-
-function isPublicUrl() {
-  const url = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  return url.startsWith("https://") || (url.startsWith("http://") && !url.includes("localhost"));
 }
 
 async function getTenantMpToken(tenantId: string): Promise<string | null> {
@@ -163,7 +159,7 @@ export async function createEadPixPaymentAction(input: {
         },
         external_reference: input.orderId,
         metadata: { tenant_id: input.tenantId },
-        ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/ead/mp-webhook` }),
+        ...(getMpNotificationUrl("/api/ead/mp-webhook") && { notification_url: getMpNotificationUrl("/api/ead/mp-webhook") }),
       },
     });
 
@@ -223,7 +219,7 @@ export async function createEadCardPaymentAction(input: {
         },
         external_reference: input.orderId,
         metadata: { tenant_id: input.tenantId },
-        ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/ead/mp-webhook` }),
+        ...(getMpNotificationUrl("/api/ead/mp-webhook") && { notification_url: getMpNotificationUrl("/api/ead/mp-webhook") }),
       },
     });
 

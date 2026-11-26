@@ -2,6 +2,7 @@
 
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { createClient } from "@/lib/supabase/server";
+import { getMpNotificationUrl } from "@/lib/mercadopago/payments";
 
 export type UxUpgradeStatus = "none" | "trialing" | "expired" | "purchased";
 
@@ -156,8 +157,8 @@ export async function createUxUpgradePaymentAction(
             failure: `${process.env.NEXT_PUBLIC_APP_URL}/admin/editora/leads`,
           }
         : undefined,
-      ...(isPublicUrl() && {
-        notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/ux-upgrade-webhook`,
+      ...(getMpNotificationUrl("/api/ux-upgrade-webhook") && {
+        notification_url: getMpNotificationUrl("/api/ux-upgrade-webhook"),
       }),
     },
   });

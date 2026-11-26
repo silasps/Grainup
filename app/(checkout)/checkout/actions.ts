@@ -5,6 +5,7 @@ import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 import { processApprovedPayment } from "@/lib/orders/process-approved-payment";
+import { fetchMpPayment, getMpNotificationUrl } from "@/lib/mercadopago/payments";
 
 function getMpClient() {
   return new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN! });
@@ -14,9 +15,29 @@ function isTestMode() {
   return process.env.MERCADOPAGO_ACCESS_TOKEN?.startsWith("TEST-") ?? false;
 }
 
-function isPublicUrl() {
-  const url = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  return url.startsWith("https://") || (url.startsWith("http://") && !url.includes("localhost"));
+/**
+ * Carrega o pedido do comprador logado que ainda pode ser pago. O valor cobrado no Mercado
+ * Pago SEMPRE vem daqui (orders.total), nunca do navegador — senão bastaria alterar o
+ * `amount` enviado pela página pra pagar menos do que o pedido vale.
+ */
+async function loadPayableOrder(orderId: string) {
+  const userClient = await createClient();
+  const { data: { user } } = await userClient.auth.getUser();
+  if (!user) return { error: "SESSION_EXPIRED" as const, order: null };
+
+  const supabase = await createAdminClient();
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, order_number, total, status, payment_status")
+    .eq("id", orderId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!order) return { error: "Pedido não encontrado.", order: null };
+  if (order.payment_status === "aprovado") return { error: "Este pedido já está pago.", order: null };
+  if (order.status !== "aguardando_pagamento") return { error: "Este pedido não está mais aguardando pagamento.", order: null };
+  if (!(Number(order.total) > 0)) return { error: "Valor do pedido inválido.", order: null };
+  return { error: null, order };
 }
 
 // No sandbox do MP, o email do pagador precisa ser da conta vendedora ou um
@@ -313,6 +334,9 @@ export async function createMpPixPaymentAction(input: {
   // Em modo teste, a API do MP rejeita emails/CPFs reais com "Invalid users involved".
   // Retornamos um PIX mock para poder estudar o fluxo sem precisar de usuários de teste MP.
   // Em produção (token APP_USR-*) esse bloco nunca executa.
+  const { error: orderError, order } = await loadPayableOrder(input.orderId);
+  if (orderError || !order) return { error: orderError ?? "Pedido não encontrado." };
+
   if (isTestMode()) {
     const supabase = await createAdminClient();
     await supabase.from("orders").update({ notes: `MP:sandbox-${input.orderId}` }).eq("id", input.orderId);
@@ -327,9 +351,10 @@ export async function createMpPixPaymentAction(input: {
     const paymentClient = new Payment(getMpClient());
     const [firstName, ...rest] = input.customerName.trim().split(" ");
 
+    const notificationUrl = getMpNotificationUrl("/api/mp-webhook");
     const pixBody = {
-      transaction_amount: Math.round(input.amount * 100) / 100,
-      description: `Pedido ${input.orderNumber} - Editora JOCUM`,
+      transaction_amount: Math.round(Number(order.total) * 100) / 100,
+      description: `Pedido ${order.order_number} - Editora JOCUM`,
       payment_method_id: "pix",
       payer: {
         email: input.customerEmail,
@@ -337,8 +362,8 @@ export async function createMpPixPaymentAction(input: {
         last_name: rest.join(" ") || firstName,
         identification: { type: "CPF", number: input.customerCpf },
       },
-      external_reference: input.orderId,
-      ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mp-webhook` }),
+      external_reference: order.id,
+      ...(notificationUrl && { notification_url: notificationUrl }),
     };
     console.log("PIX payload:", JSON.stringify(pixBody));
     const result = await paymentClient.create({ body: pixBody });
@@ -373,9 +398,13 @@ export async function createMpCardPaymentAction(input: {
   customerCpf: string;
   customerName: string;
 }) {
+  const { error: orderError, order } = await loadPayableOrder(input.orderId);
+  if (orderError || !order) return { error: orderError ?? "Pedido não encontrado.", status: "error" as const };
+
   try {
     const paymentClient = new Payment(getMpClient());
     const [firstName, ...rest] = input.customerName.trim().split(" ");
+    const notificationUrl = getMpNotificationUrl("/api/mp-webhook");
     const payerEmail = isTestMode()
       ? await getSandboxPayerEmail()
       : input.customerEmail;
@@ -384,25 +413,31 @@ export async function createMpCardPaymentAction(input: {
       : input.customerCpf;
     const result = await paymentClient.create({
       body: {
-        transaction_amount: Math.round(input.amount * 100) / 100,
+        transaction_amount: Math.round(Number(order.total) * 100) / 100,
         token: input.token,
         installments: input.installments,
         payment_method_id: input.paymentMethodId,
         issuer_id: Number(input.issuerId) || undefined,
-        description: `Pedido ${input.orderNumber} - Editora JOCUM`,
+        description: `Pedido ${order.order_number} - Editora JOCUM`,
         payer: {
           email: payerEmail,
           first_name: firstName,
           last_name: rest.join(" ") || firstName,
           identification: { type: "CPF", number: payerCpf },
         },
-        external_reference: input.orderId,
-        ...(isPublicUrl() && { notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mp-webhook` }),
+        external_reference: order.id,
+        ...(notificationUrl && { notification_url: notificationUrl }),
       },
     });
 
     if (result.status === "approved") {
-      await processApprovedPayment(input.orderId, result.id!, result);
+      const processed = await processApprovedPayment(order.id, result.id!, result);
+      if (!processed.ok) {
+        // Não deveria acontecer (valor e pedido vêm do banco), mas se a verificação falhar o
+        // pedido NÃO é dado como pago — o admin vê no painel e confere no MP.
+        await (await createAdminClient()).from("orders").update({ notes: `MP:${result.id}` }).eq("id", order.id);
+        return { error: null, status: "pending" as const };
+      }
       return { error: null, status: "approved" as const };
     }
 
@@ -446,20 +481,16 @@ export async function checkOrderPaymentStatusAction(orderId: string) {
     ? order.notes.slice(3)
     : null;
 
-  if (mpId) {
-    const res = await fetch(`https://api.mercadopago.com/v1/payments/${mpId}`, {
-      headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
-      cache: "no-store",
+  if (mpId && /^\d+$/.test(mpId)) {
+    const payment = await fetchMpPayment(mpId).catch((e) => {
+      console.error("checkOrderPaymentStatusAction:", e);
+      return null;
     });
-    if (res.ok) {
-      const payment = await res.json() as {
-        status?: string;
-        fee_details?: Array<{ type: string; amount: number }> | null;
-        date_approved?: string | null;
-      };
+    if (payment) {
       if (payment.status === "approved") {
-        await processApprovedPayment(orderId, mpId, payment);
-        return { paymentStatus: "aprovado" };
+        const processed = await processApprovedPayment(orderId, mpId, payment);
+        if (processed.ok) return { paymentStatus: "aprovado" };
+        return { paymentStatus: order.payment_status ?? null };
       }
       if (payment.status === "rejected" || payment.status === "cancelled") {
         await supabase

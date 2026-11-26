@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/admin/reconcile-payments",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/admin/bling-sync",
       "schedule": "*/5 * * * *"
     },

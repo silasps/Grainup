@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { pushOrderToBling } from "@/lib/bling/sync";
 import { logBlingAction } from "@/lib/bling/audit";
+import { verifyOrderPayment } from "@/lib/mercadopago/payments";
 
 export const runtime = "nodejs";
 // Maior que o de bling-sync (60s) porque cada pedido do batch faz uma sequência de chamadas
@@ -57,6 +58,26 @@ export async function GET(req: NextRequest) {
   const results = { attempted: 0, errors: [] as string[] };
 
   for (const order of due ?? []) {
+    // Bloqueio: reconfirma no Mercado Pago, na hora, que o pagamento foi aprovado no valor do
+    // pedido e não foi estornado — sem isso não cria pedido de venda nem NF-e no Bling.
+    const payment = await verifyOrderPayment(order.id);
+    if (!payment.verified) {
+      if (payment.transient) {
+        // MP fora do ar: tenta de novo no próximo ciclo, sem desagendar.
+        results.errors.push(`${order.order_number}: MP indisponível (${payment.reason})`);
+        continue;
+      }
+      // Pagamento não confere: desagenda (senão ocuparia o lote pra sempre) e registra. O
+      // admin vê no detalhe do pedido e pode enviar manualmente depois de resolver.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("orders").update({ bling_send_after: null }).eq("id", order.id);
+      const detail = `Bloqueado: Mercado Pago não confirma o pagamento (${payment.reason ?? "sem detalhe"})`;
+      console.error(`[bling-auto-send] Pedido ${order.order_number}: ${detail}`);
+      results.errors.push(`${order.order_number}: ${detail}`);
+      await logBlingAction({ orderId: order.id, action: "push_failed", source: "cron_auto_send", detail });
+      continue;
+    }
+
     results.attempted++;
     try {
       // pushOrderToBling faz seu PRÓPRIO claim atômico — é seguro chamar mesmo se, entre o

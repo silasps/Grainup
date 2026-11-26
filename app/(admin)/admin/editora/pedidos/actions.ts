@@ -6,6 +6,7 @@ import { sendReviewRequestEmail, sendCancellationApprovedEmail, sendCancellation
 import { getBlingOrderDetails, getBlingNfeByOrder, getBlingNfe, generateBlingNfeFromOrder, findBlingNfeByChave, BlingError } from "@/lib/bling";
 import { pushOrderToBling } from "@/lib/bling/sync";
 import { logBlingAction } from "@/lib/bling/audit";
+import { verifyOrderPayment } from "@/lib/mercadopago/payments";
 
 /** E-mail do admin logado nessa requisição, pra registrar quem disparou uma ação no Bling. */
 async function currentAdminEmail(): Promise<string | null> {
@@ -252,6 +253,18 @@ export async function pushOrderToBlingAction(orderId: string): Promise<{ error: 
   if (row?.bling_order_id) return { error: "Pedido já registrado no Bling." };
 
   const actor = await currentAdminEmail();
+
+  // Bloqueio: pedido de venda + NF-e só depois que o Mercado Pago confirmar, agora, que o
+  // pagamento deste pedido foi aprovado no valor certo (e não estornado).
+  const payment = await verifyOrderPayment(orderId);
+  if (!payment.verified) {
+    const reason = payment.transient
+      ? `não foi possível consultar o Mercado Pago agora (${payment.reason}). Tente de novo em instantes.`
+      : `o Mercado Pago não confirma o pagamento deste pedido (${payment.reason ?? "sem detalhe"}).`;
+    await logBlingAction({ orderId, action: "push_failed", source: "manual_admin", actor, detail: `Bloqueado: ${reason}` });
+    return { error: `Envio ao Bling bloqueado: ${reason}` };
+  }
+
   try {
     await pushOrderToBling(orderId, "manual_admin", actor);
     revalidatePath(`/admin/editora/pedidos/${orderId}`);

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -14,6 +15,7 @@ import { InvoiceField } from "@/components/admin/invoice-field";
 import { OrderStatusSelect } from "@/components/admin/order-status-select";
 import { BlingSyncCard } from "@/components/admin/bling-sync-card";
 import { PaymentSyncButton } from "@/components/admin/payment-sync-button";
+import { PaymentProofCard, PaymentProofCardSkeleton } from "@/components/admin/payment-proof-card";
 import { AdminOrderStatusPoller } from "@/components/admin/order-status-poller";
 import { CancellationReviewCard } from "@/components/admin/cancellation-review-card";
 import { FulfillmentPipelineCard } from "@/components/admin/fulfillment-pipeline-card";
@@ -288,6 +290,11 @@ export default async function AdminOrderDetailPage({
                 <PaymentSyncButton orderId={order.id} />
               )}
             </div>
+
+            {/* Rastreio do pagamento direto no Mercado Pago (carrega em paralelo) */}
+            <Suspense fallback={<PaymentProofCardSkeleton />}>
+              <PaymentProofCard orderId={order.id} paymentStatus={order.payment_status} orderStatus={order.status} />
+            </Suspense>
 
             {/* Customer card */}
             <div className="bg-white rounded-xl border border-border p-5 space-y-2">

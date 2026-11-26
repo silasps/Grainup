@@ -1,36 +1,82 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 import { computeBlingSendAfter } from "@/lib/bling/schedule";
+import { validatePaymentForOrder } from "@/lib/mercadopago/payments";
 
 interface MpPaymentLike {
+  status?: string;
+  transaction_amount?: number;
+  external_reference?: string | null;
+  currency_id?: string;
+  live_mode?: boolean;
   fee_details?: Array<{ type?: string; amount?: number }> | null;
   date_approved?: string | null;
+}
+
+export type ProcessPaymentResult = { ok: true } | { ok: false; reason: string };
+
+export interface ProcessPaymentOptions {
+  /** E-mail de confirmação ao comprador na primeira aprovação. Padrão: true. */
+  sendEmail?: boolean;
+  /** Agenda o envio automático ao Bling (pedido + NF-e). Padrão: true. */
+  scheduleBling?: boolean;
 }
 
 /**
  * Ponto único de gravação para pedidos aprovados: atualiza o pedido, calcula
  * comissão de afiliado, registra financial_movements e baixa estoque.
  * Idempotente (por order_id) — pode ser chamada pelo webhook do MP, pelo
- * polling do checkout ou pela sincronização manual do admin sem duplicar dados.
+ * polling do checkout, pelo cron de conciliação ou pela sincronização manual do admin sem
+ * duplicar dados: só a primeira chamada que aprova o pedido executa os efeitos colaterais.
+ *
+ * Retorna ok:false (e NÃO altera o pedido) se o pagamento não quitar de fato o pedido —
+ * ver validatePaymentForOrder em lib/mercadopago/payments.ts.
  */
 export async function processApprovedPayment(
   orderId: string,
   paymentId: string | number,
   payment: MpPaymentLike,
-): Promise<void> {
+  options: ProcessPaymentOptions = {},
+): Promise<ProcessPaymentResult> {
+  const { sendEmail = true, scheduleBling = true } = options;
   const supabase = await createAdminClient();
 
   const { data: currentOrder } = await supabase
     .from("orders")
-    .select("payment_status")
+    .select("id, total, status, payment_status")
     .eq("id", orderId)
     .maybeSingle();
-  const wasAlreadyApproved = currentOrder?.payment_status === "aprovado";
+  if (!currentOrder) return { ok: false, reason: "pedido não encontrado" };
 
-  await supabase
+  // Bloqueio: só marca como pago se o Mercado Pago confirmar pagamento aprovado, deste
+  // pedido, em BRL, cobrindo o total. Qualquer divergência deixa o pedido como está.
+  const check = validatePaymentForOrder(payment, currentOrder);
+  if (!check.ok) {
+    console.error(`[processApprovedPayment] Pedido ${orderId} NÃO aprovado (MP ${paymentId}): ${check.reason}`);
+    return check;
+  }
+  if (currentOrder.payment_status === "aprovado") return { ok: true };
+
+  // Pedido que o admin já moveu adiante (ex.: "enviado" após conferir o Pix na mão) não volta
+  // pra "pago", não recebe e-mail de confirmação de novo nem é reagendado pro Bling.
+  const wasAwaitingPayment = currentOrder.status === "aguardando_pagamento";
+
+  // Reivindicação atômica da aprovação: webhook, polling do checkout, cron de conciliação e
+  // botão do admin podem chegar ao mesmo tempo. Só quem vira payment_status de "não aprovado"
+  // pra "aprovado" segue adiante — os demais saem aqui, sem baixar estoque, lançar comissão
+  // ou mandar e-mail em dobro.
+  const { data: claimed } = await supabase
     .from("orders")
-    .update({ status: "pago", payment_status: "aprovado", notes: `MP:${paymentId}` })
-    .eq("id", orderId);
+    .update({
+      ...(wasAwaitingPayment ? { status: "pago" as const } : {}),
+      payment_status: "aprovado",
+      notes: `MP:${paymentId}`,
+    })
+    .eq("id", orderId)
+    .neq("payment_status", "aprovado")
+    .select("id");
+  if (!claimed || claimed.length === 0) return { ok: true };
+  const isFirstApproval = wasAwaitingPayment;
 
   const { data: order } = await supabase
     .from("orders")
@@ -231,10 +277,10 @@ export async function processApprovedPayment(
   }
 
   // E-mail de confirmação — só na primeira aprovação (evita e-mail duplo com polling)
-  if (!wasAlreadyApproved) sendOrderConfirmationEmail(orderId).catch(console.error);
+  if (isFirstApproval && sendEmail) sendOrderConfirmationEmail(orderId).catch(console.error);
 
   // Agenda o envio automático ao Bling (pedido de venda + NF-e) em vez de disparar
-  // imediatamente. Só na PRIMEIRA aprovação (!wasAlreadyApproved) — processApprovedPayment é
+  // imediatamente. Só na PRIMEIRA aprovação (isFirstApproval) — processApprovedPayment é
   // chamada múltiplas vezes pro mesmo pedido por design (webhook, Pix imediato, polling do
   // checkout, sync manual do admin), e reagendar a cada chamada empurraria o prazo pra
   // sempre durante o polling. Isso também preserva o opt-out: se o admin já usou
@@ -243,8 +289,10 @@ export async function processApprovedPayment(
   // O disparo de fato acontece no cron /api/admin/bling-auto-send, que reaproveita
   // pushOrderToBling (e seu claim atômico) sem alteração — este arquivo nunca chama
   // pushOrderToBling diretamente.
-  if (!wasAlreadyApproved) {
+  if (isFirstApproval && scheduleBling) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("orders").update({ bling_send_after: computeBlingSendAfter() }).eq("id", orderId);
   }
+
+  return { ok: true };
 }
