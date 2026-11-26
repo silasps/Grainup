@@ -34,6 +34,8 @@ interface CartState {
 
   setBuyNow: (item: CartItemInput) => void;
   clearBuyNow: () => void;
+  /** Corrige preços desatualizados (ver refreshCartPricesAction). */
+  applyPriceUpdates: (updates: Array<{ id: string; price: number }>) => void;
 }
 
 export const useCartStore = create<CartState>()(
@@ -98,6 +100,17 @@ export const useCartStore = create<CartState>()(
 
       setBuyNow: (item) => set({ buyNowItem: item }),
       clearBuyNow: () => set({ buyNowItem: null }),
+
+      applyPriceUpdates: (updates) =>
+        set((state) => {
+          const byId = new Map(updates.map((u) => [u.id, u.price]));
+          return {
+            items: state.items.map((i) => (byId.has(i.id) ? { ...i, price: byId.get(i.id)! } : i)),
+            buyNowItem: state.buyNowItem && byId.has(state.buyNowItem.id)
+              ? { ...state.buyNowItem, price: byId.get(state.buyNowItem.id)! }
+              : state.buyNowItem,
+          };
+        }),
     }),
     {
       name: "grainup-cart",

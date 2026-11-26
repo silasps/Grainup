@@ -26,6 +26,7 @@ import {
   checkOrderPaymentStatusAction,
   simulatePixApprovedAction,
   validateCouponAction,
+  refreshCartPricesAction,
 } from "@/app/(checkout)/checkout/actions";
 import { MpCardForm, type CardPaymentData } from "@/components/checkout/mp-card-form";
 import { OrderStatusPoller } from "@/components/conta/order-status-poller";
@@ -51,6 +52,8 @@ type ShippingOption = {
   minDays: number;
   maxDays: number;
   serviceCode?: string;
+  /** Preço assinado pelo servidor — obrigatório para fechar o pedido. */
+  quoteToken?: string;
 };
 
 // formatDeliveryRange vem de @/lib/utils/delivery-estimate — compartilhada com a página de
@@ -217,6 +220,32 @@ export function CheckoutFlow() {
     check();
     return () => container.removeEventListener("scroll", check);
   }, [step]);
+
+  // Confere os preços do carrinho com o catálogo atual assim que o checkout abre (o carrinho
+  // fica salvo no navegador e pode estar com preço de antes/depois de uma promoção). O servidor
+  // recusa pedido com preço desatualizado, então é melhor corrigir antes de o cliente revisar.
+  const pricesCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!mounted || pricesCheckedRef.current) return;
+    const state = useCartStore.getState();
+    const current = state.buyNowItem
+      ? [{ ...state.buyNowItem, quantity: 1 }]
+      : state.items.filter((i) => !state.deselectedIds.includes(i.id));
+    if (current.length === 0) return;
+    pricesCheckedRef.current = true;
+    refreshCartPricesAction(current.map((i) => ({ id: i.id, type: i.type, quantity: i.quantity, price: i.price })))
+      .then(({ updates, unavailable }) => {
+        if (updates.length > 0) {
+          useCartStore.getState().applyPriceUpdates(updates);
+          setCoupon(null);
+          toast.info("Atualizamos os preços do seu carrinho conforme o catálogo atual.");
+        }
+        if (unavailable.length > 0) {
+          toast.warning("Algum item do seu carrinho não está mais disponível. Remova-o para continuar.");
+        }
+      })
+      .catch(() => { pricesCheckedRef.current = false; });
+  }, [mounted]);
 
   // Countdown timer do PIX
   useEffect(() => {
@@ -591,11 +620,30 @@ export function CheckoutFlow() {
       paymentMethod: paymentMethodMap[payment ?? ""] ?? null,
       items: items.map((i) => ({ id: i.id, type: i.type, title: i.title, price: i.price, quantity: i.quantity })),
       couponCode: coupon?.code ?? null,
+      shippingQuoteToken: selectedShipping?.quoteToken ?? null,
     });
 
     if (result.error) {
-      handleActionError(result.error);
       setPlacing(false);
+      const code = "code" in result ? result.code : undefined;
+      if (code === "PRICE_CHANGED" && "priceUpdates" in result && result.priceUpdates) {
+        useCartStore.getState().applyPriceUpdates(result.priceUpdates);
+        if (coupon) setCoupon(null);
+        toast.warning(result.error);
+        return;
+      }
+      if (code === "SHIPPING_QUOTE_INVALID") {
+        fetchShippingOptions(addr.cep);
+        setStep("frete");
+        toast.warning(result.error);
+        return;
+      }
+      if (code === "TOTAL_CHANGED") {
+        if (coupon) setCoupon(null);
+        toast.warning(result.error);
+        return;
+      }
+      handleActionError(result.error);
       return;
     }
 

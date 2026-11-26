@@ -6,6 +6,10 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 import { processApprovedPayment } from "@/lib/orders/process-approved-payment";
 import { fetchMpPayment, getMpNotificationUrl } from "@/lib/mercadopago/payments";
+import {
+  FREE_SHIPPING_MIN_SUBTOTAL, loadCatalog, pixDiscountFor, resolveLine, round2, comboIdOf,
+} from "@/lib/orders/pricing";
+import { normalizeQuoteItems, verifyShippingQuote } from "@/lib/shipping/quote-token";
 
 function getMpClient() {
   return new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN! });
@@ -81,6 +85,33 @@ interface PlaceOrderInput {
   paymentMethod: "pix" | "credito" | "debito" | null;
   items: OrderItem[];
   couponCode?: string | null;
+  /** Token da cotação de frete escolhida (assinado por /api/shipping). */
+  shippingQuoteToken?: string | null;
+}
+
+export type PriceUpdate = { id: string; price: number };
+
+/**
+ * Atualiza os preços do carrinho de acordo com o catálogo atual. O carrinho fica salvo no
+ * navegador e pode estar com preço antigo (ex.: começou ou acabou uma promoção) — o checkout
+ * chama isto ao abrir, pra o cliente ver o mesmo total que o servidor vai cobrar.
+ */
+export async function refreshCartPricesAction(items: Array<{ id: string; type: "book" | "combo"; quantity: number; price: number }>): Promise<{
+  updates: PriceUpdate[];
+  unavailable: string[];
+}> {
+  if (!Array.isArray(items) || items.length === 0 || items.length > 100) return { updates: [], unavailable: [] };
+  const lines = items.filter((i) => i && typeof i.id === "string" && (i.type === "book" || i.type === "combo"));
+  const catalog = await loadCatalog(lines);
+  const updates: PriceUpdate[] = [];
+  const unavailable: string[] = [];
+  for (const line of lines) {
+    const r = resolveLine(line, catalog);
+    if (r.ok) continue;
+    if (r.reason === "unavailable") unavailable.push(line.id);
+    else updates.push({ id: line.id, price: r.unitPrice });
+  }
+  return { updates, unavailable };
 }
 
 function generateOrderNumber(): string {
@@ -101,6 +132,77 @@ export async function placeOrderAction(input: PlaceOrderInput) {
   if (!user) return { error: "SESSION_EXPIRED" };
 
   const supabase = await createAdminClient();
+
+  // ── Valores recalculados no servidor ───────────────────────────────────────
+  // Nada do que define quanto o cliente paga (preço, frete, desconto, total) é aceito do
+  // navegador sem conferir: preço vem do catálogo, frete de uma cotação assinada pelo
+  // servidor, cupom e desconto Pix são recalculados. Ver lib/orders/pricing.ts.
+  const rawItems = Array.isArray(input.items) ? input.items : [];
+  if (rawItems.length === 0) return { error: "Seu carrinho está vazio." };
+  if (rawItems.length > 100 || rawItems.some((i) =>
+    (i.type !== "book" && i.type !== "combo") || typeof i.id !== "string" ||
+    !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > 50)) {
+    return { error: "Itens do carrinho inválidos. Atualize a página e tente novamente." };
+  }
+
+  let catalog;
+  try {
+    catalog = await loadCatalog(rawItems);
+  } catch (e) {
+    console.error("placeOrderAction — catálogo:", e);
+    return { error: "Erro ao conferir os preços. Tente novamente." };
+  }
+  const resolved = rawItems.map((item) => resolveLine(item, catalog));
+  const unavailableItem = resolved.find((r) => !r.ok && r.reason === "unavailable");
+  if (unavailableItem) {
+    const title = rawItems.find((i) => i.id === unavailableItem.line.id)?.title ?? "Um item";
+    return { error: `"${title}" não está mais disponível. Remova do carrinho para continuar.` };
+  }
+  const priceUpdates: PriceUpdate[] = resolved.flatMap((r) =>
+    !r.ok && r.reason === "price_changed" ? [{ id: r.line.id, price: r.unitPrice }] : []);
+  if (priceUpdates.length > 0) {
+    return {
+      error: "Os preços de alguns itens mudaram. Confira o novo total e finalize de novo.",
+      code: "PRICE_CHANGED" as const,
+      priceUpdates,
+    };
+  }
+  const pricedItems = resolved.map((r, idx) => {
+    if (!r.ok) throw new Error("unreachable");
+    return { input: rawItems[idx], title: r.title, unitPrice: r.unitPrice };
+  });
+  const serverSubtotal = round2(pricedItems.reduce((s, i) => s + i.unitPrice * i.input.quantity, 0));
+
+  const quote = verifyShippingQuote(input.shippingQuoteToken);
+  const orderCep = (input.shippingAddress?.cep ?? "").replace(/\D/g, "");
+  if (!quote || quote.cep !== orderCep || quote.items !== normalizeQuoteItems(rawItems)) {
+    return {
+      error: "O frete precisa ser recalculado. Confira a entrega e finalize de novo.",
+      code: "SHIPPING_QUOTE_INVALID" as const,
+    };
+  }
+  const freeShipping = serverSubtotal >= FREE_SHIPPING_MIN_SUBTOTAL && quote.first;
+  const serverShippingCost = freeShipping ? 0 : round2(quote.price);
+  const serverShippingLabel = freeShipping ? "Envio Econômico" : quote.label;
+
+  let couponDiscount = 0;
+  if (input.couponCode) {
+    const couponResult = await validateCouponAction(input.couponCode, serverSubtotal);
+    if (couponResult.error || !couponResult.coupon) return { error: couponResult.error ?? "Cupom inválido." };
+    couponDiscount = Math.min(couponResult.coupon.discountAmount, serverSubtotal);
+  }
+  const pixDiscount = input.paymentMethod === "pix" ? pixDiscountFor(serverSubtotal) : 0;
+  const serverDiscount = round2(pixDiscount + couponDiscount);
+  const serverTotal = round2(serverSubtotal + serverShippingCost - serverDiscount);
+
+  if (!(serverTotal > 0)) return { error: "Valor do pedido inválido." };
+  if (Math.abs(serverTotal - Number(input.total)) > 0.015) {
+    console.warn(`placeOrderAction — total divergente: navegador ${input.total}, servidor ${serverTotal}`);
+    return {
+      error: `O total do pedido foi recalculado para R$ ${serverTotal.toFixed(2).replace(".", ",")}. Confira o resumo e finalize de novo.`,
+      code: "TOTAL_CHANGED" as const,
+    };
+  }
 
   // Affiliate tracking: coupon code takes priority over cookie
   let affiliateId: string | null = null;
@@ -134,7 +236,7 @@ export async function placeOrderAction(input: PlaceOrderInput) {
         : typed.affiliates.total_confirmed_sales >= 25  ? 30
         : typed.affiliates.total_confirmed_sales >= 10  ? 20
         : 10;
-      if (typed.discount_percent <= affMargin || typed.affiliates.balance >= ((typed.discount_percent - affMargin) / 100) * input.subtotal) {
+      if (typed.discount_percent <= affMargin || typed.affiliates.balance >= ((typed.discount_percent - affMargin) / 100) * serverSubtotal) {
         affiliateId = typed.affiliate_id;
       } else {
         return { error: "Saldo insuficiente do afiliado. O cupom não pode ser aplicado." };
@@ -247,18 +349,18 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     customer_cpf: customerCpf || null,
     shipping_address: {
       ...normalizedAddress,
-      ...(input.shippingLabel ? { method: input.shippingLabel } : {}),
-      ...(input.shippingServiceCode ? { serviceCode: input.shippingServiceCode } : {}),
+      ...(serverShippingLabel ? { method: serverShippingLabel } : {}),
+      ...(quote.serviceCode ? { serviceCode: quote.serviceCode } : {}),
       // Prazo (dias úteis) da opção de frete escolhida — persistido pra mostrar a mesma
       // previsão de entrega dada no checkout depois, em "Meus Pedidos" (antes só existia
       // na tela do checkout e se perdia; ver lib/utils/delivery-estimate.ts).
-      ...(input.shippingMinDays != null ? { minDays: String(input.shippingMinDays) } : {}),
-      ...(input.shippingMaxDays != null ? { maxDays: String(input.shippingMaxDays) } : {}),
+      ...(quote.minDays != null ? { minDays: String(quote.minDays) } : {}),
+      ...(quote.maxDays != null ? { maxDays: String(quote.maxDays) } : {}),
     },
-    subtotal: input.subtotal,
-    discount: input.discount,
-    shipping_cost: input.shippingCost,
-    total: input.total,
+    subtotal: serverSubtotal,
+    discount: serverDiscount,
+    shipping_cost: serverShippingCost,
+    total: serverTotal,
     status: "aguardando_pagamento",
     payment_status: "pendente",
     payment_method: input.paymentMethod,
@@ -278,7 +380,7 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     .select("id, order_number")
     .eq("user_id", user.id)
     .eq("status", "aguardando_pagamento")
-    .eq("total", input.total)
+    .eq("total", serverTotal)
     .gte("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString())
     .order("created_at", { ascending: false })
     .limit(1)
@@ -300,14 +402,14 @@ export async function placeOrderAction(input: PlaceOrderInput) {
   }
 
   const { error: itemsError } = await supabase.from("order_items").insert(
-    input.items.map((item) => ({
+    pricedItems.map(({ input: item, title, unitPrice }) => ({
       order_id: order.id,
       book_id: item.type === "book" ? item.id : null,
-      combo_id: item.type === "combo" ? item.id.replace(/^combo-/, "") : null,
-      title: item.title,
+      combo_id: item.type === "combo" ? comboIdOf(item) : null,
+      title,
       quantity: item.quantity,
-      unit_price: item.price,
-      total_price: item.price * item.quantity,
+      unit_price: unitPrice,
+      total_price: round2(unitPrice * item.quantity),
     }))
   );
 

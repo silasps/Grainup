@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateShipping as calculateCorreiosShipping } from "@/lib/correios/client";
 import { calculateShipping as calculateMEShipping } from "@/lib/melhor-envio";
+import { normalizeQuoteItems, signShippingQuote } from "@/lib/shipping/quote-token";
 
 // Aceita CORREIOS_CEP_ORIGEM (preferido) ou MELHOR_ENVIO_FROM_CEP (legado)
 const FROM_CEP = (process.env.CORREIOS_CEP_ORIGEM ?? process.env.MELHOR_ENVIO_FROM_CEP ?? "").replace(/\D/g, "");
@@ -129,7 +130,25 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[shipping] source=${source} options=${options.length}`);
-    return NextResponse.json({ options, _source: source });
+
+    // Cada opção leva o preço assinado pelo servidor — placeOrderAction só aceita frete com
+    // token válido pro mesmo CEP e itens (ver lib/shipping/quote-token.ts).
+    const quoteItems = normalizeQuoteItems(items);
+    const signed = options.map((o, index) => ({
+      ...o,
+      quoteToken: signShippingQuote({
+        cep: cleanCep,
+        items: quoteItems,
+        id: o.id,
+        serviceCode: o.serviceCode ?? null,
+        label: o.label,
+        price: o.price,
+        minDays: o.minDays,
+        maxDays: o.maxDays,
+        first: index === 0,
+      }),
+    }));
+    return NextResponse.json({ options: signed, _source: source });
   } catch (err) {
     console.error("[shipping/calculate]", err);
     return NextResponse.json({ error: "Erro ao calcular frete. Tente novamente." }, { status: 500 });
